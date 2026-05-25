@@ -1,0 +1,47 @@
+# Root .dockerignore — the UI image's build context is the repo root
+# (per `ui/docker-compose.yml` build.context: ..). Without this file every
+# build copies the entire workspace into the daemon, including node_modules
+# and cdk.out (multi-hundred-MB each), bloating build time + image layer
+# count. Keep what the Dockerfile actually COPYs: src/, ui/, tsconfig.json.
+
+# Build outputs
+node_modules
+**/node_modules
+dist
+**/dist
+cdk.out
+**/.next
+**/.turbo
+**/coverage
+
+# Cypress specs + run artifacts — not needed inside the UI image
+ui/cypress
+ui/cypress.config.ts
+
+# Local env + IDE
+.env*.local
+.git
+.gitignore
+.DS_Store
+.idea
+.vscode
+
+# Documentation + design artifacts (not needed at runtime)
+aidlc-docs
+LOCAL_TESTING.md
+README.md
+*.md
+!ui/README.md
+
+# Tests + infra are not part of the UI image
+tests
+infra
+.github
+template.yaml
+scripts
+vitest.config.ts
+cdk.json
+
+# Logs + ephemeral
+*.log
+.cache
