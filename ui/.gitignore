@@ -1,0 +1,23 @@
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Cypress run artifacts (configurable per env)
+cypress/screenshots/
+cypress/videos/
+cypress/downloads/
+
+# Local env overrides
+.env*.local
+
+# IDE
+.vscode/
+.idea/

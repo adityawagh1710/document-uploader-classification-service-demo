@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background:
+    radial-gradient(1200px 600px at 100% 0%, rgba(56, 189, 248, 0.05), transparent 60%),
+    radial-gradient(900px 500px at 0% 100%, rgba(168, 85, 247, 0.05), transparent 60%),
+    linear-gradient(180deg, #0a0f1c 0%, #0f172a 100%);
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+
+@layer components {
+  .kpi-tile {
+    @apply rounded-lg border border-border-subtle p-4 transition-all;
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.75), rgba(15, 23, 42, 0.65));
+  }
+  .kpi-tile:hover {
+    @apply -translate-y-px border-border-strong;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  }
+  .kpi-tile .label {
+    @apply text-[10.5px] font-semibold uppercase tracking-[0.1em] text-slate-400 truncate;
+  }
+  .kpi-tile .value {
+    @apply text-[22px] font-bold leading-[1.1] text-slate-100 tabular-nums truncate;
+  }
+  .kpi-tile .sub {
+    @apply mt-1 text-[10.5px] text-slate-500 tabular-nums truncate;
+  }
+  .kpi-tile.ok .value {
+    color: #4ade80;
+  }
+  .kpi-tile.warn .value {
+    color: #fbbf24;
+  }
+  .kpi-tile.crit .value {
+    color: #f87171;
+  }
+  .kpi-tile.info .value {
+    color: #38bdf8;
+  }
+
+  .pill {
+    @apply inline-flex items-center rounded px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.06em] tabular-nums border;
+  }
+  .pill.ok {
+    background: rgba(34, 197, 94, 0.18);
+    color: #4ade80;
+    border-color: rgba(34, 197, 94, 0.4);
+  }
+  .pill.warn {
+    background: rgba(245, 158, 11, 0.18);
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.4);
+  }
+  .pill.crit {
+    background: rgba(239, 68, 68, 0.18);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+  .pill.info {
+    background: rgba(56, 189, 248, 0.18);
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.4);
+  }
+  .pill.dim {
+    background: rgba(148, 163, 184, 0.1);
+    color: #94a3b8;
+    border-color: rgba(148, 163, 184, 0.25);
+  }
+
+  .section-hdr {
+    @apply mt-6 mb-2 flex items-center gap-3 border-b border-border-subtle pb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400;
+  }
+
+  .dash-table {
+    @apply w-full border-collapse text-[12.5px];
+  }
+  .dash-table thead th {
+    @apply border-b border-border-subtle bg-slate-900/40 px-2.5 py-2 text-left text-[10.5px] font-semibold uppercase tracking-[0.06em] text-slate-500;
+  }
+  .dash-table tbody td {
+    @apply border-b border-white/[0.04] px-2.5 py-2 text-slate-300 tabular-nums;
+  }
+  .dash-table tbody tr:hover td {
+    background: rgba(56, 189, 248, 0.04);
+  }
+}
+
+@keyframes eq-bar {
+  0%, 100% { height: 3px; opacity: 0.55; }
+  50% { height: 14px; opacity: 1; }
+}
+
+.eq-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+  margin-right: 6px;
+  vertical-align: -3px;
+}
+.eq-bars span {
+  display: inline-block;
+  width: 3px;
+  background: rgba(34, 197, 94, 0.9);
+  border-radius: 1px;
+  animation: eq-bar 0.9s ease-in-out infinite;
+}
+.eq-bars span:nth-child(2) { animation-delay: -0.3s; }
+.eq-bars span:nth-child(3) { animation-delay: -0.6s; }

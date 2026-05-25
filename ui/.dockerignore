@@ -1,0 +1,10 @@
+node_modules
+.next
+.turbo
+dist
+.git
+.env*.local
+# Cypress artifacts — never needed at runtime
+cypress/screenshots
+cypress/videos
+cypress/downloads
