@@ -1,5 +1,21 @@
 # Classification Service
 
+![node](https://img.shields.io/badge/node-20%20LTS-339933?logo=node.js&logoColor=white)
+![typescript](https://img.shields.io/badge/typescript-5.4-3178C6?logo=typescript&logoColor=white)
+![aws lambda](https://img.shields.io/badge/aws%20lambda-arm64-FF9900?logo=awslambda&logoColor=white)
+![cdk](https://img.shields.io/badge/cdk-2.257.0-FF4F8B)
+![file-type](https://img.shields.io/badge/file--type-21.3.4-blue)
+![streaming](https://img.shields.io/badge/streaming-SHA--256-555)
+![docker](https://img.shields.io/badge/docker-required-2496ED?logo=docker&logoColor=white)
+![tests](https://img.shields.io/badge/tests-219-success)
+![type checked](https://img.shields.io/badge/type%20checked-tsc%20strict-blueviolet)
+![lint](https://img.shields.io/badge/lint-eslint%20%2B%20boundaries-CCCC00)
+![status](https://img.shields.io/badge/status-v0.1%20local%20PoC-yellow)
+![last commit](https://img.shields.io/badge/last%20commit-may%202026-blue)
+![contributors](https://img.shields.io/badge/contributors-1-orange)
+![repo](https://img.shields.io/badge/repo-public-blue)
+![AI-DLC](https://img.shields.io/badge/AI--DLC-powered-purple)
+
 First decision point in the document-ingestion pipeline. For every file entering the pipeline, this AWS Lambda service answers:
 
 1. **What is this file, really?** — multi-tier binary detection (independent of extension/MIME)
