@@ -752,3 +752,20 @@ User picked Path B. I pushed `chore/disable-deploy-workflow` (commit `39e7210`) 
 **Context**: OPERATIONS — diagnosis + intentionally-accepted-failure posture. The deploy workflow is correctly authored; the runtime preconditions are missing. The `chore/disable-deploy-workflow` branch remains on origin as an unmerged option to be re-applied later if the failure noise becomes intrusive.
 
 ---
+
+## OPERATIONS — Audit Correction: Deploy Disable Was Actually Merged
+**Timestamp**: 2026-05-25T18:40:00Z
+**User Input**: "merged it"
+**AI Response**: Correcting a misstatement in the prior audit entry. My earlier entry ("...User subsequently reverted the change — restoring the `push:` trigger and accepting that auto-deploys will continue to fail...") was based on misreading a system-reminder showing the user's *local working-tree state*, not main. After the user said "merged it" (referring to the docs/aidlc-session-update PR), I synced local main and discovered:
+
+- `010956c chore(ci): disable auto-deploy until OIDC + IAM hand-off is done` IS on main
+- `.github/workflows/deploy.yml` on main has the `push:` trigger removed; only `workflow_dispatch` remains
+- The `chore/disable-deploy-workflow` branch is deleted on remote (auto-cleaned after merge)
+
+So the actual end-of-session state is: deploy workflow auto-trigger is **disabled**, not "intentionally left active". Future returning sessions should consult `.github/workflows/deploy.yml` head-comment for the re-enable snippet, and check `aidlc-docs/.../build-and-test-summary.md` §7 for the still-open operator hand-off list. The `/deployments/dev` failed-deploy entries are historical; no new ones will appear on push-to-main until the workflow is re-enabled.
+
+Updated `aidlc-state.md` to flip the ` [ ] Deploy workflow continues to fail...` line to `[x] Deploy workflow auto-trigger on push-to-main disabled (merged as 010956c)`. Added a new open `[ ]` item for the operator hand-off list itself, since that's what's still pending.
+
+**Context**: OPERATIONS — audit-log accuracy fix. Lesson worth remembering: system-reminders about working-tree changes describe the user's local state, which may diverge from what they push/merge. Always re-check `origin/main` before writing audit narrative about what's "on main".
+
+---
