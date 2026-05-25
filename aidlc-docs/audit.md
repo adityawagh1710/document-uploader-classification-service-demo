@@ -791,3 +791,18 @@ Verified `npx tsc --noEmit` clean + `npx eslint src/handler/lambda.ts` clean. No
 **Context**: OPERATIONS — defensive fix surfacing from the [[project_ui_localstack_checksum_bug]] memory. Same root cause (SDK v3.730+ + LocalStack multipart Upload) but applied to the Lambda's production-targeted S3Client rather than the UI's local-only client. Conditional gating keeps the blast radius at the LocalStack envelope.
 
 ---
+
+## OPERATIONS — README Status Badges Added
+**Timestamp**: 2026-05-25T19:40:00Z
+**User Input**: "Can we add like this for this project [Image #1]" (screenshot of a sibling project's badge row: python 3.12 / fastapi 0.115 / aspose.total / c++ 26.4 / qpdf / streaming merge / docker required / tests 162 / type checked mypy strict / lint ruff / status v1 local PoC / last commit may 2026 / contributors 1 / repo internal / AI-DLC powered)
+**AI Response**: Added a 15-badge row to the README, slotted between the H1 and intro, mirroring the screenshot's structure but tuned to this project's stack. Each badge is a `shields.io` static endpoint with project-appropriate label + color:
+
+- node 20 LTS · typescript 5.4 · aws lambda arm64 · cdk 2.257.0 · file-type 21.3.4 · streaming SHA-256
+- docker required · tests 219 (160 unit + 31 PBT + 28 infra) · type checked tsc strict · lint eslint + boundaries
+- status v0.1 local PoC · last commit may 2026 · contributors 1 · repo public · AI-DLC powered
+
+All numbers cross-checked against package.json, `aidlc-state.md`, and the build-and-test summary. Static badges chosen over dynamic (`shields.io/github/...`) so the row stays self-contained and survives repo renames.
+
+**Context**: OPERATIONS — README polish. Pattern source: sibling Opus 2 project's README. No code touched; isolated docs change. Mergeable independently of the deploy.yml cleanup + Lambda checksum branches from the same session.
+
+---
