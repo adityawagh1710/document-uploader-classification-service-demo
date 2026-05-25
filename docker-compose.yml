@@ -1,0 +1,98 @@
+# Full local stack — LocalStack (S3 + DDB + SFN) + bootstrap seed + Lambda
+# (via AWS Lambda RIE) + Next.js test UI. Run from the repository root:
+#
+#   docker compose up --build
+#
+# Endpoints:
+#   UI:               http://localhost:3000
+#   LocalStack:       http://localhost:4566
+#   LocalStack health: http://localhost:4566/_localstack/health
+#   Lambda RIE:       POST http://localhost:9000/2015-03-31/functions/function/invocations
+#                     (body = the SFN task payload JSON)
+#
+# The UI talks to LocalStack directly via the in-process classifier wiring; the
+# Lambda container is here so the deployed-Lambda code path is exercisable
+# locally (smoke / regression) without SAM Local.
+
+services:
+  localstack:
+    image: localstack/localstack:3.7.0
+    environment:
+      SERVICES: s3,dynamodb,stepfunctions
+      DEFAULT_REGION: us-east-1
+      PERSISTENCE: "0"
+      DEBUG: "0"
+    ports:
+      - "4566:4566"
+    healthcheck:
+      # LocalStack reports each service as one of: disabled / available / running / error.
+      # We require both s3 and dynamodb to be in a ready state — accept both
+      # 'available' (lazy-initialized) and 'running' (already touched).
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4566/_localstack/health | grep -qE '\"s3\": \"(available|running)\"' && curl -fsS http://localhost:4566/_localstack/health | grep -qE '\"dynamodb\": \"(available|running)\"'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  bootstrap:
+    image: amazon/aws-cli:2.17.0
+    depends_on:
+      localstack:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      UI_S3_BUCKET: classification-ui-bucket
+      CONTENT_HASH_TABLE_NAME: content-hashes-ui
+      WORKSPACE_CONFIG_TABLE_NAME: workspace-config-ui
+      DEFAULT_WORKSPACE_ID: wks-ui-001
+    entrypoint: ["/bin/sh", "/bootstrap.sh"]
+    volumes:
+      - ./scripts/bootstrap-localstack.sh:/bootstrap.sh:ro
+    restart: "no"
+
+  lambda:
+    image: classification-service-lambda:dev
+    build:
+      context: .
+      dockerfile: Dockerfile.lambda
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    environment:
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      CONTENT_HASH_TABLE_NAME: content-hashes-ui
+      WORKSPACE_CONFIG_TABLE_NAME: workspace-config-ui
+      LOG_LEVEL: DEBUG
+      POWERTOOLS_DEV: "true"
+      POWERTOOLS_SERVICE_NAME: classification-service
+      POWERTOOLS_METRICS_NAMESPACE: ClassificationService
+      POWERTOOLS_LOGGER_LOG_EVENT: "false"
+      POWERTOOLS_LOGGER_SAMPLE_RATE: "1.0"
+    ports:
+      # Map host 9000 → RIE 8080 inside the AWS Lambda image.
+      - "9000:8080"
+
+  ui:
+    image: classification-service-ui:dev
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    environment:
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      UI_S3_BUCKET: classification-ui-bucket
+      CONTENT_HASH_TABLE_NAME: content-hashes-ui
+      WORKSPACE_CONFIG_TABLE_NAME: workspace-config-ui
+    ports:
+      - "3000:3000"

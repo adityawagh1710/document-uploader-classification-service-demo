@@ -806,3 +806,19 @@ All numbers cross-checked against package.json, `aidlc-state.md`, and the build-
 **Context**: OPERATIONS — README polish. Pattern source: sibling Opus 2 project's README. No code touched; isolated docs change. Mergeable independently of the deploy.yml cleanup + Lambda checksum branches from the same session.
 
 ---
+
+## OPERATIONS — Full-Stack docker-compose.yml at Repo Root
+**Timestamp**: 2026-05-25T20:10:00Z
+**User Input**: "I want to add one thing docker compose up should up all images and containers" → selected "Add Lambda container as 3rd service (Recommended)".
+**AI Response**: Moved compose to repo root + added a Lambda container as a new service. End state: `docker compose up --build` from the project root brings up 4 services:
+
+1. `localstack` (localstack/localstack:3.7.0, port 4566) — S3 + DynamoDB + Step Functions
+2. `bootstrap` (amazon/aws-cli:2.17.0, one-shot) — seeds bucket + both DDB tables + the default `wks-ui-001` workspace row via `scripts/bootstrap-localstack.sh`; runs `restart: "no"` and gates downstream services via `service_completed_successfully`
+3. `lambda` (built from new `Dockerfile.lambda`, port 9000 → RIE 8080) — multi-stage build: tsc compile of `src/` + `npm prune --omit=dev` → AWS Lambda nodejs:20 runtime image with the bundled handler at `dist/handler/lambda.js`. Confirmed source uses `.js` extensions on all relative imports so plain tsc output is ESM-loadable by Lambda runtime
+4. `ui` (built from `ui/Dockerfile`, port 3000) — unchanged from the prior compose
+
+Deleted `ui/docker-compose.yml`; the root compose replaces it. `docker compose config --quiet` passes; `sh -n scripts/bootstrap-localstack.sh` passes; local `npm run build` confirmed produces `dist/handler/lambda.js` as expected. README's "Interactive Test UI" section rewritten with a service table.
+
+**Context**: OPERATIONS — local-dev convenience. The UI's in-process classifier path stays unchanged; the Lambda container is purely additive (smoke / regression of the deployed code path without SAM Local). Bootstrap seeds named consistently with UI defaults so both services see the same backing state.
+
+---
