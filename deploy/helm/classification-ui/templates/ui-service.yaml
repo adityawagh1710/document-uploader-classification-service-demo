@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: classification-ui
+  namespace: {{ include "classification-ui.namespace" . }}
+  labels:
+    {{- include "classification-ui.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.ui.service.type }}
+  selector:
+    {{- include "classification-ui.uiSelector" . | nindent 4 }}
+  ports:
+    - port: {{ .Values.ui.service.port }}
+      targetPort: {{ .Values.ui.port }}
+      name: http

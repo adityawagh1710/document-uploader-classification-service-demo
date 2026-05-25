@@ -1,0 +1,25 @@
+{{- if .Values.ingress.enabled -}}
+{{- $host := required "values.ingress.host must be set when ingress.enabled=true" .Values.ingress.host -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: classification-ui
+  namespace: {{ include "classification-ui.namespace" . }}
+  labels:
+    {{- include "classification-ui.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: classification-ui
+                port:
+                  number: {{ .Values.ui.service.port }}
+{{- end -}}

@@ -92,10 +92,17 @@ help: ## Show this help (default)
 	@awk 'BEGIN{FS=":.*##"} /^[a-z-]+:.*## \[qa\]/ {printf "    $(COL_GRN)%-18s$(COL_OFF) %s\n", $$1, gensub(/^ ?\[qa\] ?/, "", "g", $$2)}' $(MAKEFILE_LIST)
 	@printf "\n  $(COL_CYN)Composite$(COL_OFF)\n"
 	@awk 'BEGIN{FS=":.*##"} /^[a-z-]+:.*## \[combo\]/ {printf "    $(COL_GRN)%-18s$(COL_OFF) %s\n", $$1, gensub(/^ ?\[combo\] ?/, "", "g", $$2)}' $(MAKEFILE_LIST)
+	@printf "\n  $(COL_CYN)Deploy (DEV05 EKS)$(COL_OFF)\n"
+	@awk 'BEGIN{FS=":.*##"} /^[a-z-]+:.*## \[deploy\]/ {printf "    $(COL_GRN)%-18s$(COL_OFF) %s\n", $$1, gensub(/^ ?\[deploy\] ?/, "", "g", $$2)}' $(MAKEFILE_LIST)
 	@printf "\n  $(COL_CYN)Housekeeping$(COL_OFF)\n"
 	@awk 'BEGIN{FS=":.*##"} /^[a-z-]+:.*## \[misc\]/ {printf "    $(COL_GRN)%-18s$(COL_OFF) %s\n", $$1, gensub(/^ ?\[misc\] ?/, "", "g", $$2)}' $(MAKEFILE_LIST)
 	@printf "\n  $(COL_CYN)Variables$(COL_OFF)\n"
-	@printf "    $(COL_GRN)ENV$(COL_OFF)                CDK env context (default: dev). Override: $(COL_BOLD)make synth ENV=staging$(COL_OFF)\n"
+	@printf "    $(COL_GRN)ENV$(COL_OFF)                       CDK env context (default: dev). Override: $(COL_BOLD)make synth ENV=staging$(COL_OFF)\n"
+	@printf "    $(COL_GRN)DEPLOY_IMAGE_TAG$(COL_OFF)          Image tag pushed to ECR (default: short git SHA)\n"
+	@printf "    $(COL_GRN)DEPLOY_NAMESPACE$(COL_OFF)          Target K8s namespace (default: classification-service-sandbox)\n"
+	@printf "    $(COL_GRN)DEPLOY_INGRESS_HOST$(COL_OFF)       FQDN for the ALB Ingress. Unset = no Ingress + no Route 53 sync (use $(COL_BOLD)make pf-start$(COL_OFF))\n"
+	@printf "    $(COL_GRN)DEPLOY_ROUTE53_ZONE_ID$(COL_OFF)    Hosted zone holding DEPLOY_INGRESS_HOST. Required when host is set\n"
+	@printf "    $(COL_GRN)DEPLOY_AWS_PROFILE$(COL_OFF)        AWS profile for ECR + Route 53 (default: opus2-dev)\n"
 	@printf "\n"
 
 # ---------------------------------------------------------------------------
@@ -385,6 +392,200 @@ ci: typecheck lint test-unit test-pbt synth test-infra verify-bundle ## [combo] 
 .PHONY: all
 all: typecheck lint test-unit test-pbt synth test-infra verify-bundle test-integration test-smoke ## [combo] Everything including Docker-dependent suites
 	$(call ok,Full suite green)
+
+# ---------------------------------------------------------------------------
+# Deploy — EKS (DEV05) shared dev cluster
+# ---------------------------------------------------------------------------
+#
+# Everything routes through `make deploy-dev` (8-step pipeline) and
+# `make undeploy-dev` (4-step pipeline). All steps are idempotent —
+# `deploy-dev` runs an `undeploy-first` cleanup automatically per the
+# operator convention. Override any variable on the command line, e.g.:
+#
+#   make deploy-dev DEPLOY_IMAGE_TAG=v1 DEPLOY_INGRESS_HOST=ui.dev.example.com
+#
+# Browser access without an ALB: see `make pf-start`.
+
+DEPLOY_AWS_PROFILE     ?= opus2-dev
+DEPLOY_AWS_REGION      ?= eu-west-1
+DEPLOY_AWS_ACCOUNT_ID  ?= 537462380503
+DEPLOY_ECR_REPO        ?= classification-service-sandbox/classification-service-ui
+DEPLOY_IMAGE_TAG       ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+DEPLOY_NAMESPACE       ?= classification-service-sandbox
+DEPLOY_HELM_RELEASE    ?= classification-ui
+DEPLOY_CHART_DIR       ?= deploy/helm/classification-ui
+DEPLOY_LOG_DIR         ?= deploy/logs
+DEPLOY_INGRESS_HOST    ?=
+DEPLOY_ROUTE53_ZONE_ID ?=
+
+# Derived — do not override these directly.
+DEPLOY_ECR_REGISTRY := $(DEPLOY_AWS_ACCOUNT_ID).dkr.ecr.$(DEPLOY_AWS_REGION).amazonaws.com
+DEPLOY_IMAGE_REPO   := $(DEPLOY_ECR_REGISTRY)/$(DEPLOY_ECR_REPO)
+DEPLOY_IMAGE_FULL   := $(DEPLOY_IMAGE_REPO):$(DEPLOY_IMAGE_TAG)
+DEPLOY_TS           := $(shell date +%Y%m%d-%H%M%S)
+DEPLOY_LOG          := $(DEPLOY_LOG_DIR)/deploy-$(DEPLOY_TS).log
+DEPLOY_MANIFEST     := $(DEPLOY_LOG_DIR)/manifest-$(DEPLOY_TS).yaml
+DEPLOY_UNDEPLOY_LOG := $(DEPLOY_LOG_DIR)/undeploy-$(DEPLOY_TS).log
+
+# Conditional `--set` flags for ingress, evaluated at parse time.
+HELM_INGRESS_FLAGS := $(if $(DEPLOY_INGRESS_HOST),--set ingress.enabled=true --set ingress.host=$(DEPLOY_INGRESS_HOST),)
+
+.PHONY: check-helm
+check-helm: ## [deploy] Verify Helm CLI installed
+	@if ! command -v helm >/dev/null 2>&1; then \
+		printf "$(COL_RED)✗ Helm not installed.$(COL_OFF)\n  Install: https://helm.sh/docs/intro/install/\n"; exit 1; \
+	fi; \
+	printf "$(COL_GRN)✓ helm $$(helm version --short)$(COL_OFF)\n"
+
+.PHONY: check-kubectl
+check-kubectl: ## [deploy] Verify kubectl installed + a current-context is set
+	@if ! command -v kubectl >/dev/null 2>&1; then \
+		printf "$(COL_RED)✗ kubectl not installed.$(COL_OFF)\n"; exit 1; \
+	fi; \
+	ctx=$$(kubectl config current-context 2>/dev/null || echo ""); \
+	if [ -z "$$ctx" ]; then \
+		printf "$(COL_RED)✗ kubectl has no current-context.$(COL_OFF)\n  Set one with: kubectl config use-context <ctx>\n"; exit 1; \
+	fi; \
+	printf "$(COL_GRN)✓ kubectl ctx=$$ctx$(COL_OFF)\n"
+
+.PHONY: ecr-ensure
+ecr-ensure: check-aws ## [deploy] Create the ECR repo if missing (idempotent)
+	$(call banner,Ensuring ECR repo $(DEPLOY_ECR_REPO))
+	@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr describe-repositories \
+		--repository-names $(DEPLOY_ECR_REPO) --region $(DEPLOY_AWS_REGION) \
+		>/dev/null 2>&1 \
+	|| AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr create-repository \
+		--repository-name $(DEPLOY_ECR_REPO) --region $(DEPLOY_AWS_REGION) \
+		--image-scanning-configuration scanOnPush=true >/dev/null
+	$(call ok,ECR repo present)
+
+.PHONY: ecr-login
+ecr-login: check-aws ## [deploy] Docker login to ECR (60-min token)
+	@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr get-login-password --region $(DEPLOY_AWS_REGION) \
+		| docker login --username AWS --password-stdin $(DEPLOY_ECR_REGISTRY) >/dev/null
+	$(call ok,Logged into $(DEPLOY_ECR_REGISTRY))
+
+.PHONY: image-build
+image-build: check-docker ## [deploy] Build the UI image for linux/amd64 (EKS node arch)
+	$(call banner,Building UI image $(DEPLOY_IMAGE_FULL))
+	@docker build --platform linux/amd64 -f ui/Dockerfile -t $(DEPLOY_IMAGE_FULL) .
+	$(call ok,Built $(DEPLOY_IMAGE_FULL))
+
+.PHONY: image-push
+image-push: ecr-ensure ecr-login image-build ## [deploy] Push UI image to ECR
+	$(call banner,Pushing $(DEPLOY_IMAGE_FULL))
+	@docker push $(DEPLOY_IMAGE_FULL)
+	$(call ok,Pushed)
+
+.PHONY: helm-lint
+helm-lint: check-helm ## [deploy] helm lint the chart
+	@helm lint $(DEPLOY_CHART_DIR) --set image.repository=$(DEPLOY_IMAGE_REPO) --set image.tag=$(DEPLOY_IMAGE_TAG)
+
+.PHONY: helm-template
+helm-template: check-helm ## [deploy] helm template the chart (dry-run render — also written to deploy/logs)
+	@mkdir -p $(DEPLOY_LOG_DIR)
+	@helm template $(DEPLOY_HELM_RELEASE) $(DEPLOY_CHART_DIR) \
+		--namespace $(DEPLOY_NAMESPACE) \
+		--set image.repository=$(DEPLOY_IMAGE_REPO) \
+		--set image.tag=$(DEPLOY_IMAGE_TAG) \
+		$(HELM_INGRESS_FLAGS) | tee $(DEPLOY_MANIFEST)
+	$(call ok,Rendered manifest → $(DEPLOY_MANIFEST))
+
+.PHONY: helm-deploy
+helm-deploy: check-helm check-kubectl ## [deploy] helm upgrade --install
+	$(call banner,Deploying $(DEPLOY_HELM_RELEASE) → ns=$(DEPLOY_NAMESPACE))
+	@mkdir -p $(DEPLOY_LOG_DIR)
+	@helm upgrade --install $(DEPLOY_HELM_RELEASE) $(DEPLOY_CHART_DIR) \
+		--namespace $(DEPLOY_NAMESPACE) --create-namespace \
+		--set image.repository=$(DEPLOY_IMAGE_REPO) \
+		--set image.tag=$(DEPLOY_IMAGE_TAG) \
+		$(HELM_INGRESS_FLAGS) \
+		--wait --timeout=5m 2>&1 | tee -a $(DEPLOY_LOG)
+	$(call ok,Helm release upgraded)
+
+.PHONY: manifest-snapshot
+manifest-snapshot: check-helm ## [deploy] helm get manifest → deploy/logs/manifest-<ts>.yaml
+	@mkdir -p $(DEPLOY_LOG_DIR)
+	@helm get manifest $(DEPLOY_HELM_RELEASE) --namespace $(DEPLOY_NAMESPACE) > $(DEPLOY_MANIFEST)
+	$(call ok,Snapshot → $(DEPLOY_MANIFEST))
+
+.PHONY: route53-sync
+route53-sync: ## [deploy] UPSERT A-alias DEPLOY_INGRESS_HOST → ALB (skipped if no host/zone set)
+	@if [ -z "$(DEPLOY_INGRESS_HOST)" ] || [ -z "$(DEPLOY_ROUTE53_ZONE_ID)" ]; then \
+		printf "$(COL_YEL)! Skipping Route 53 sync (DEPLOY_INGRESS_HOST or DEPLOY_ROUTE53_ZONE_ID not set)$(COL_OFF)\n"; \
+	else \
+		AWS_PROFILE=$(DEPLOY_AWS_PROFILE) AWS_REGION=$(DEPLOY_AWS_REGION) \
+		ROUTE53_ZONE_ID=$(DEPLOY_ROUTE53_ZONE_ID) INGRESS_HOST=$(DEPLOY_INGRESS_HOST) \
+		K8S_NAMESPACE=$(DEPLOY_NAMESPACE) INGRESS_NAME=$(DEPLOY_HELM_RELEASE) \
+		bash deploy/scripts/route53-upsert.sh 2>&1 | tee -a $(DEPLOY_LOG); \
+	fi
+
+.PHONY: route53-cleanup
+route53-cleanup: ## [deploy] DELETE the A-alias (must run BEFORE helm uninstall)
+	@if [ -z "$(DEPLOY_INGRESS_HOST)" ] || [ -z "$(DEPLOY_ROUTE53_ZONE_ID)" ]; then \
+		printf "$(COL_YEL)! Skipping Route 53 cleanup (DEPLOY_INGRESS_HOST or DEPLOY_ROUTE53_ZONE_ID not set)$(COL_OFF)\n"; \
+	else \
+		AWS_PROFILE=$(DEPLOY_AWS_PROFILE) AWS_REGION=$(DEPLOY_AWS_REGION) \
+		ROUTE53_ZONE_ID=$(DEPLOY_ROUTE53_ZONE_ID) INGRESS_HOST=$(DEPLOY_INGRESS_HOST) \
+		K8S_NAMESPACE=$(DEPLOY_NAMESPACE) INGRESS_NAME=$(DEPLOY_HELM_RELEASE) \
+		bash deploy/scripts/route53-delete.sh 2>&1 | tee -a $(DEPLOY_UNDEPLOY_LOG); \
+	fi
+
+.PHONY: status
+status: check-kubectl ## [deploy] kubectl get pods,svc,ingress in the namespace
+	@kubectl -n $(DEPLOY_NAMESPACE) get pods,svc,ingress 2>&1 | tee -a $(DEPLOY_LOG) || true
+
+.PHONY: __undeploy-soft
+__undeploy-soft:
+	$(call banner,Best-effort cleanup before re-deploy)
+	@if helm status $(DEPLOY_HELM_RELEASE) --namespace $(DEPLOY_NAMESPACE) >/dev/null 2>&1; then \
+		$(MAKE) --no-print-directory undeploy-dev DEPLOY_TS=$(DEPLOY_TS) || true; \
+	else \
+		printf "$(COL_YEL)! No existing release — skipping undeploy-first$(COL_OFF)\n"; \
+	fi
+
+.PHONY: deploy-dev
+deploy-dev: __undeploy-soft image-push helm-deploy manifest-snapshot route53-sync status ## [deploy] Full 8-step pipeline: undeploy-first → ECR → build → push → helm upgrade → manifest snapshot → route53 → status
+	$(call ok,deploy-dev complete  tag=$(DEPLOY_IMAGE_TAG)  log=$(DEPLOY_LOG))
+
+.PHONY: helm-undeploy
+helm-undeploy: check-helm check-kubectl ## [deploy] helm uninstall
+	@if helm status $(DEPLOY_HELM_RELEASE) --namespace $(DEPLOY_NAMESPACE) >/dev/null 2>&1; then \
+		helm uninstall $(DEPLOY_HELM_RELEASE) --namespace $(DEPLOY_NAMESPACE) 2>&1 | tee -a $(DEPLOY_UNDEPLOY_LOG); \
+	else \
+		printf "$(COL_YEL)! Release $(DEPLOY_HELM_RELEASE) not present in $(DEPLOY_NAMESPACE) — skipping$(COL_OFF)\n"; \
+	fi
+
+.PHONY: ns-delete
+ns-delete: check-kubectl ## [deploy] Drop the namespace (waits for finalizers)
+	@if kubectl get ns $(DEPLOY_NAMESPACE) >/dev/null 2>&1; then \
+		kubectl delete ns $(DEPLOY_NAMESPACE) --wait=true 2>&1 | tee -a $(DEPLOY_UNDEPLOY_LOG); \
+	else \
+		printf "$(COL_YEL)! Namespace $(DEPLOY_NAMESPACE) not present — skipping$(COL_OFF)\n"; \
+	fi
+
+.PHONY: undeploy-dev
+undeploy-dev: route53-cleanup helm-undeploy ns-delete ## [deploy] Full teardown: route53 DELETE (first!) → helm uninstall → namespace drop
+	@mkdir -p $(DEPLOY_LOG_DIR)
+	$(call ok,undeploy-dev complete  log=$(DEPLOY_UNDEPLOY_LOG))
+
+.PHONY: pf-start
+pf-start: check-kubectl ## [deploy] Start kubectl port-forward to classification-ui (localhost:3000)
+	@K8S_NAMESPACE=$(DEPLOY_NAMESPACE) HELM_RELEASE=$(DEPLOY_HELM_RELEASE) \
+		bash deploy/scripts/portforward.sh start
+
+.PHONY: pf-status
+pf-status: ## [deploy] Show port-forward PID + port + health
+	@bash deploy/scripts/portforward.sh status
+
+.PHONY: pf-stop
+pf-stop: ## [deploy] Stop the running port-forward
+	@bash deploy/scripts/portforward.sh stop
+
+.PHONY: pf-restart
+pf-restart: check-kubectl ## [deploy] Restart the port-forward
+	@K8S_NAMESPACE=$(DEPLOY_NAMESPACE) HELM_RELEASE=$(DEPLOY_HELM_RELEASE) \
+		bash deploy/scripts/portforward.sh restart
 
 # ---------------------------------------------------------------------------
 # Housekeeping

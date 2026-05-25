@@ -1,0 +1,3 @@
+# Per-run artifacts written by `make deploy-dev` / `make undeploy-dev`.
+logs/*.log
+logs/*.yaml

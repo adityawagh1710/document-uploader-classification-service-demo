@@ -1,0 +1,88 @@
+# Default values for classification-ui.
+# Override at install with `--set` or `--values`.
+
+# Target namespace. Chart manages it when `namespace.create=true`.
+namespace:
+  create: true
+  name: classification-service-sandbox
+
+image:
+  # Filled at install:
+  #   --set image.repository=<acct>.dkr.ecr.<region>.amazonaws.com/<repo>
+  #   --set image.tag=<git-sha>
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+ui:
+  port: 3000
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      # 1 GiB pairs with the 1 GiB upload cap in ui/app/api/classify/route.ts.
+      # Multipart streaming keeps actual usage low, but Node's V8 holds onto
+      # buffers + intermediate parts so headroom matters at the ceiling.
+      cpu: "1"
+      memory: 1Gi
+  readinessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 30
+
+# LocalStack sibling — keeps the test loop self-contained. Disable
+# (`localstack.enabled=false`) and re-point AWS_ENDPOINT_URL at real AWS via
+# IRSA when you're ready to test against deployed adapters.
+localstack:
+  enabled: true
+  image: localstack/localstack:3.7.0
+  port: 4566
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# Env vars rendered into a ConfigMap, mounted into the UI pod via envFrom.
+# Names match what ui/lib/classifier.ts reads from process.env.
+config:
+  AWS_ENDPOINT_URL: "http://localstack:4566"
+  AWS_REGION: "us-east-1"
+  # LocalStack accepts any creds — placeholders satisfy the SDK.
+  AWS_ACCESS_KEY_ID: "test"
+  AWS_SECRET_ACCESS_KEY: "test"
+  UI_S3_BUCKET: "classification-ui-bucket"
+  CONTENT_HASH_TABLE_NAME: "content-hashes-ui"
+  WORKSPACE_CONFIG_TABLE_NAME: "workspace-config-ui"
+
+# Ingress (ALB) — disabled by default. Operator workflow uses port-forward
+# (deploy/scripts/portforward.sh) which costs nothing. Enable when you want
+# a bookmarkable URL across redeploys; pairs with `route53-upsert.sh` to
+# point DNS at the freshly-allocated ALB on every deploy.
+ingress:
+  enabled: false
+  className: alb
+  host: ""   # set when enabled, e.g. classification-ui.dev.opus2.example.com
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    # group.name lets multiple apps in the same namespace (or across) share
+    # one ALB — drops per-app LB cost. Comment out to get a dedicated ALB.
+    alb.ingress.kubernetes.io/group.name: classification-service

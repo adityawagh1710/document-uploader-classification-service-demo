@@ -1,0 +1,16 @@
+{{- if .Values.localstack.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: localstack
+  namespace: {{ include "classification-ui.namespace" . }}
+  labels:
+    {{- include "classification-ui.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "classification-ui.localstackSelector" . | nindent 4 }}
+  ports:
+    - port: {{ .Values.localstack.port }}
+      targetPort: {{ .Values.localstack.port }}
+      name: edge
+{{- end -}}

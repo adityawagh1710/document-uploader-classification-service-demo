@@ -121,7 +121,9 @@ The root `docker-compose.yml` brings up the **whole local stack** in one command
 
 The UI exercises the classifier in-process; the Lambda container is there so the deployed-Lambda code path is locally invocable (smoke / regression) without SAM Local.
 
-Three deployment modes (`npm run dev`, Docker Compose, dev EKS via `kubectl apply -f ui/k8s/`) and Cypress E2E suite documented in **[`ui/README.md`](ui/README.md)**. Operations-phase summary at `aidlc-docs/operations/test-ui.md`.
+Three deployment modes (`npm run dev`, Docker Compose, dev EKS via `make deploy-dev`) and Cypress E2E suite documented in **[`ui/README.md`](ui/README.md)**. Operations-phase summary at `aidlc-docs/operations/test-ui.md`.
+
+For the shared dev cluster (DEV05-EKS-CLUSTER, namespace `classification-service-sandbox`), see **[`deploy/README.md`](deploy/README.md)** — Helm chart + `make deploy-dev` / `make undeploy-dev` pipelines + port-forward and optional ALB+Route 53 wiring.
 
 ## Documentation
 

@@ -1,0 +1,17 @@
+apiVersion: v2
+name: classification-ui
+description: |
+  Classification Service test UI for the shared dev cluster. Ships the
+  Next.js dashboard + an in-cluster LocalStack sidecar; the actual
+  Lambda handler runs on AWS Lambda (not in this chart).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/adityawagh1710/document-uploader-classification-service-demo
+keywords:
+  - classification
+  - document-ingestion
+  - localstack
+  - dev-test-ui
+maintainers:
+  - name: classification-service maintainers
