@@ -106,9 +106,20 @@ For exercising the service against real files locally, see **[`LOCAL_TESTING.md`
 `ui/` contains a Next.js 14 dashboard that wraps `ClassificationService` for visual / interactive testing — drag-drop a file, see the classification JSON, recent results table with pagination, KPI tiles for tier breakdown.
 
 ```bash
-docker compose -f ui/docker-compose.yml up -d --build   # LocalStack + UI on :3000
+docker compose up -d --build                            # full stack — see below
 open http://localhost:3000
 ```
+
+The root `docker-compose.yml` brings up the **whole local stack** in one command:
+
+| Service | Image | Endpoint | Purpose |
+|---|---|---|---|
+| `localstack` | `localstack/localstack:3.7.0` | `:4566` | S3 + DynamoDB + Step Functions |
+| `bootstrap` | `amazon/aws-cli:2.17.0` | one-shot | Seeds the bucket, both tables, and the default workspace row |
+| `lambda` | built from `Dockerfile.lambda` | `:9000` | Bundled handler running under the AWS Lambda RIE — invoke with `POST /2015-03-31/functions/function/invocations` |
+| `ui` | built from `ui/Dockerfile` | `:3000` | Next.js test dashboard |
+
+The UI exercises the classifier in-process; the Lambda container is there so the deployed-Lambda code path is locally invocable (smoke / regression) without SAM Local.
 
 Three deployment modes (`npm run dev`, Docker Compose, dev EKS via `kubectl apply -f ui/k8s/`) and Cypress E2E suite documented in **[`ui/README.md`](ui/README.md)**. Operations-phase summary at `aidlc-docs/operations/test-ui.md`.
 
