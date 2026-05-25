@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: classification-ui
+  namespace: {{ include "classification-ui.namespace" . }}
+  labels:
+    {{- include "classification-ui.labels" . | nindent 4 }}
+    {{- include "classification-ui.uiSelector" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "classification-ui.uiSelector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "classification-ui.uiSelector" . | nindent 8 }}
+    spec:
+      containers:
+        - name: ui
+          image: {{ include "classification-ui.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.ui.port }}
+              name: http
+          envFrom:
+            - configMapRef:
+                name: classification-ui-config
+          readinessProbe:
+            {{- toYaml .Values.ui.readinessProbe | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.ui.livenessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.ui.resources | nindent 12 }}

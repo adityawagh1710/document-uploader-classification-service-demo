@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: classification-ui-config
+  namespace: {{ include "classification-ui.namespace" . }}
+  labels:
+    {{- include "classification-ui.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

@@ -1,0 +1,43 @@
+{{- if .Values.localstack.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: localstack
+  namespace: {{ include "classification-ui.namespace" . }}
+  labels:
+    {{- include "classification-ui.labels" . | nindent 4 }}
+    {{- include "classification-ui.localstackSelector" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "classification-ui.localstackSelector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "classification-ui.localstackSelector" . | nindent 8 }}
+    spec:
+      containers:
+        - name: localstack
+          image: {{ .Values.localstack.image | quote }}
+          ports:
+            - containerPort: {{ .Values.localstack.port }}
+              name: edge
+          env:
+            - name: SERVICES
+              value: s3,dynamodb,stepfunctions
+            - name: DEFAULT_REGION
+              value: {{ .Values.config.AWS_REGION | quote }}
+            - name: PERSISTENCE
+              value: "0"
+            - name: DEBUG
+              value: "0"
+          readinessProbe:
+            httpGet:
+              path: /_localstack/health
+              port: {{ .Values.localstack.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.localstack.resources | nindent 12 }}
+{{- end -}}

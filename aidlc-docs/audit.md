@@ -822,3 +822,45 @@ Deleted `ui/docker-compose.yml`; the root compose replaces it. `docker compose c
 **Context**: OPERATIONS — local-dev convenience. The UI's in-process classifier path stays unchanged; the Lambda container is purely additive (smoke / regression of the deployed code path without SAM Local). Bootstrap seeds named consistently with UI defaults so both services see the same backing state.
 
 ---
+
+## OPERATIONS — EKS Helm Chart + Make Deploy Pipeline (deploy/)
+**Timestamp**: 2026-05-25T22:00:00Z
+**User Input**: "Can you access DEV05-EKS-CLUSTER ?" → "If we have to deploy to classification-service-sandbox namespace ? what steps you will take ?" → "Will there be helm or terform for all of these ?" → "Whats best minimalistic and cost effective subset ?" → "yes, start building it on a branch but i want C F H J but do not deploy on dev05 imidiatly will do it later make sure make file updated correctly"
+**AI Response**: Built A + B + C + D + F + H + I + J on `feat/eks-deploy-helm-makefile`, did NOT execute any deploy. Subset choice deferred to the user; they took aspose-parity-minus-VPN-routes (left E out per the corp-network FallbackDNS already in place from prior session).
+
+**Chart at `deploy/helm/classification-ui/`** (8 files):
+- `Chart.yaml` / `values.yaml` / `.helmignore`
+- `templates/_helpers.tpl` (labels + namespace + image-FQDN require-fail-fast)
+- `templates/namespace.yaml` (gated by `namespace.create=true`)
+- `templates/configmap.yaml` (renders `.Values.config` map)
+- `templates/{localstack,ui}-{deployment,service}.yaml`
+- `templates/ingress.yaml` (gated by `ingress.enabled=true`; ALB annotations + `group.name=classification-service` for shared-ALB cost reduction)
+
+**Scripts at `deploy/scripts/`** (3 files, all `chmod +x` + `bash -n` clean):
+- `portforward.sh` — single-service simplification (~110 lines vs aspose's 335); PID file + port file in `/tmp/`, walks 10 consecutive ports, health-probe loop
+- `route53-upsert.sh` — polls Ingress for ALB hostname (60×5s), resolves `CanonicalHostedZoneId` via `elbv2 describe-load-balancers`, submits change-batch
+- `route53-delete.sh` — reads the existing AliasTarget from Route 53, builds DELETE change-batch; must run BEFORE `helm uninstall`
+
+**Makefile updates**:
+- New `[deploy]` group with 19 targets (`check-helm`, `check-kubectl`, `ecr-ensure`, `ecr-login`, `image-build`, `image-push`, `helm-lint`, `helm-template`, `helm-deploy`, `manifest-snapshot`, `route53-sync`, `route53-cleanup`, `helm-undeploy`, `ns-delete`, `deploy-dev`, `undeploy-dev`, `pf-start|status|stop|restart`)
+- Help target extended with the new section + `Variables` section now documents `DEPLOY_*` env knobs
+- `deploy-dev` runs `__undeploy-soft` first (J: undeploy-first convention) — best-effort, skips if no release exists
+- `route53-sync`/`route53-cleanup` are no-ops unless both `DEPLOY_INGRESS_HOST` and `DEPLOY_ROUTE53_ZONE_ID` are set (default port-forward workflow doesn't touch Route 53)
+- Timestamped log file (`deploy-<ts>.log`) + manifest snapshot (`manifest-<ts>.yaml`) per H
+
+**Deleted**: `ui/k8s/` (4 raw manifests) — replaced by the chart. Root `README.md` "Interactive Test UI" section updated to point at `deploy/README.md`.
+
+**Verifications (no cluster mutation)**:
+- `helm lint deploy/helm/classification-ui` — pass (only INFO: icon recommended)
+- `helm template …` with and without `--set ingress.enabled=true` — both render valid manifests (188 / +30 lines)
+- `make helm-lint` / `make helm-template` / `make check-helm` / `make check-kubectl` — all green
+- `make help` shows the `[deploy]` group cleanly
+- All three shell scripts pass `bash -n`
+
+**Skipped per the user's pick**: E (`eks-vpn-routes.sh`) — corp network FallbackDNS fix from earlier session covers the VPN-DNS issue, and `portforward.sh` prints a clear error if the cluster is unreachable rather than silently auto-fixing routes.
+
+**Not deployed** per the explicit "do not deploy on dev05 imidiatly will do it later" instruction. When the user is ready: `make deploy-dev DEPLOY_IMAGE_TAG=$(git rev-parse --short HEAD)` (port-forward mode) or add `DEPLOY_INGRESS_HOST=… DEPLOY_ROUTE53_ZONE_ID=…` for the ALB+DNS path.
+
+**Context**: OPERATIONS — adds EKS deployment story. Matches the sibling `aspose-total/deploy/` shape (Helm + scripts + timestamped logs + idempotent Make pipelines), tuned for our smaller single-Deployment scope. Recurring cost in port-forward mode: ~$0.02/mo (ECR storage only).
+
+---
