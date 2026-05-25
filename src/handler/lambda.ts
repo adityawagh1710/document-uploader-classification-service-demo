@@ -44,7 +44,24 @@ function requireEnv(name: string): string {
 // --- Module-load singletons (Pattern P-3-1) ----------------------------
 
 const ddb = createDDBDocumentClient();
-const s3 = new S3Client({ retryMode: "standard", maxAttempts: 3 });
+// When AWS_ENDPOINT_URL is set we're talking to LocalStack (SAM Local /
+// integration / smoke). LocalStack returns CRC32 checksums that don't
+// match the body for objects written via multipart Upload, which the
+// SDK v3.730+ default `WHEN_SUPPORTED` validation then rejects. Match
+// the workaround in ui/lib/classifier.ts. Real AWS S3 is unaffected,
+// so production keeps the SDK default.
+const s3LocalstackOverrides =
+  process.env.AWS_ENDPOINT_URL !== undefined
+    ? {
+        responseChecksumValidation: "WHEN_REQUIRED" as const,
+        requestChecksumCalculation: "WHEN_REQUIRED" as const,
+      }
+    : {};
+const s3 = new S3Client({
+  retryMode: "standard",
+  maxAttempts: 3,
+  ...s3LocalstackOverrides,
+});
 const sfn = new SFNClient({ retryMode: "standard", maxAttempts: 3 });
 
 const logger = createPowertoolsLogger("classification-service", "documentId");
