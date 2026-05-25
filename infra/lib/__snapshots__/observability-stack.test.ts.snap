@@ -4,13 +4,13 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
 {
   "Parameters": {
     "BootstrapVersion": {
-      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Default": "__BOOTSTRAP_PARAM__",
       "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
       "Type": "AWS::SSM::Parameter::Value<String>",
     },
   },
   "Resources": {
-    "ClassificationDashboard81EA907D": {
+    "ClassificationDashboard__HASH__": {
       "Properties": {
         "DashboardBody": {
           "Fn::Join": [
@@ -58,7 +58,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
       },
       "Type": "AWS::CloudWatch::Dashboard",
     },
-    "ContentHashesSystemErrorsA697267E": {
+    "ContentHashesSystemErrors__HASH__": {
       "Properties": {
         "AlarmActions": [
           "arn:aws:sns:us-east-1:111111111111:test-topic",
@@ -157,7 +157,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
       },
       "Type": "AWS::CloudWatch::Alarm",
     },
-    "ContentHashesThrottledRequestsAEBCEE16": {
+    "ContentHashesThrottledRequests__HASH__": {
       "Properties": {
         "AlarmActions": [
           "arn:aws:sns:us-east-1:111111111111:test-topic",
@@ -256,7 +256,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
       },
       "Type": "AWS::CloudWatch::Alarm",
     },
-    "ContentHashesUserErrorsEEAC25D8": {
+    "ContentHashesUserErrors__HASH__": {
       "Properties": {
         "AlarmActions": [
           "arn:aws:sns:us-east-1:111111111111:test-topic",
@@ -279,7 +279,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
       },
       "Type": "AWS::CloudWatch::Alarm",
     },
-    "LambdaColdStartP99RegressionC5A575CA": {
+    "LambdaColdStartP99Regression__HASH__": {
       "Properties": {
         "AlarmActions": [
           "arn:aws:sns:us-east-1:111111111111:test-topic",
@@ -301,7 +301,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
       },
       "Type": "AWS::CloudWatch::Alarm",
     },
-    "LambdaDurationP99LargeDocs72AE2BF7": {
+    "LambdaDurationP99LargeDocs__HASH__": {
       "Properties": {
         "AlarmActions": [
           "arn:aws:sns:us-east-1:111111111111:test-topic",
@@ -329,7 +329,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
       },
       "Type": "AWS::CloudWatch::Alarm",
     },
-    "LambdaDurationP99SmallDocs2FCB72BB": {
+    "LambdaDurationP99SmallDocs__HASH__": {
       "Properties": {
         "AlarmActions": [
           "arn:aws:sns:us-east-1:111111111111:test-topic",
@@ -357,7 +357,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
       },
       "Type": "AWS::CloudWatch::Alarm",
     },
-    "LambdaErrorsCFDC5EFC": {
+    "LambdaErrors__HASH__": {
       "Properties": {
         "AlarmActions": [
           "arn:aws:sns:us-east-1:111111111111:test-topic",
@@ -388,7 +388,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
       },
       "Type": "AWS::CloudWatch::Alarm",
     },
-    "LambdaThrottles07F41D23": {
+    "LambdaThrottles__HASH__": {
       "Properties": {
         "AlarmActions": [
           "arn:aws:sns:us-east-1:111111111111:test-topic",
@@ -419,7 +419,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
       },
       "Type": "AWS::CloudWatch::Alarm",
     },
-    "WorkspaceConfigNotFound88E77501": {
+    "WorkspaceConfigNotFound__HASH__": {
       "Properties": {
         "AlarmActions": [
           "arn:aws:sns:us-east-1:111111111111:test-topic",
