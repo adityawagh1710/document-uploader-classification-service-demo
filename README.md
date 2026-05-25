@@ -6,6 +6,69 @@ First decision point in the document-ingestion pipeline. For every file entering
 2. **Have we already processed it?** — SHA-256 content-hash deduplication, scoped per workspace
 3. **Where does it go next?** — category routing into one of `convert | ocr-direct | email | archive | media | slipsheet`
 
+## System context
+
+```mermaid
+flowchart LR
+    Doc["Document<br/>(in S3)"] -->|TaskPayload| SFN[Step Functions<br/>ingest state machine]
+    SFN -->|invoke| Lambda[Classification<br/>Lambda]
+    Lambda -->|GetItem| WC[("workspace-config<br/>DynamoDB")]
+    Lambda -->|GetObject<br/>range 0–4099| S3[(S3<br/>document bucket)]
+    Lambda -->|GetObject stream<br/>SHA-256 hash| S3
+    Lambda -->|PutItem / UpdateItem /<br/>conditional Replace| CH[("content-hashes<br/>DynamoDB")]
+    Lambda -->|SendTaskSuccess /<br/>SendTaskFailure| SFN
+    Lambda -.->|logs + metrics<br/>+ X-Ray traces| CW[CloudWatch +<br/>X-Ray]
+    SFN -->|route on category| Next["Downstream stages:<br/>convert · ocr-direct · email ·<br/>archive · media · slipsheet"]
+```
+
+## Classification pipeline
+
+Per-document execution, 13 steps inside `ClassificationService.classify()`:
+
+```mermaid
+flowchart TD
+    Start([TaskPayload received]) --> Validate["Step 1<br/>Zod input validation"]
+    Validate -->|invalid| FailV[/"err: input-validation"/]
+    Validate -->|ok| LoadCfg["Step 2<br/>Load workspace config<br/>(DDB GetItem)"]
+    LoadCfg -->|not found| FailS[/"err: store"/]
+    LoadCfg -->|ok| ReadWin["Step 3<br/>Read 4100-byte detection window<br/>(S3 ranged GetObject)"]
+    ReadWin -->|s3 error| FailR[/"err: s3"/]
+    ReadWin -->|ok| Tier1{"Step 4 — Tier 1<br/>file-type lib<br/>magic bytes"}
+    Tier1 -->|matched| Score
+    Tier1 -->|no match| OLE2chk{"Has OLE2 signature<br/>D0 CF 11 E0 …?"}
+    OLE2chk -->|yes| Tier2OLE2["Step 5 — Tier 2 OLE2<br/>CLSID lookup"]
+    OLE2chk -->|no| ZIPchk{"Has ZIP signature<br/>50 4B 03 04?"}
+    Tier2OLE2 -->|matched| Score
+    Tier2OLE2 -->|no| ZIPchk
+    ZIPchk -->|yes| Tier2ZIP["Step 6 — Tier 2 ZIP<br/>OOXML / ODF markers"]
+    ZIPchk -->|no| Tier3
+    Tier2ZIP -->|matched| Score
+    Tier2ZIP -->|no| Tier3["Step 7 — Tier 3<br/>text heuristic<br/>XML / HTML / EML / DXF / CSV / TXT"]
+    Tier3 -->|matched| Score
+    Tier3 -->|no| ExtFB["Step 7b<br/>extension-fallback"]
+    ExtFB --> Score["Step 8<br/>score (pure)"]
+    Score --> Cat["Step 9<br/>map-category (pure)"]
+    Cat --> Slip{"Step 10 — slipsheet<br/>workspace-policy ▸<br/>max-zip-depth ▸<br/>low-confidence"}
+    Slip --> Hash["Step 11<br/>stream-hash<br/>(full S3 GetObject → SHA-256)"]
+    Hash -->|s3 error| FailR
+    Hash --> Dedup{"Step 12 — dedup<br/>CASE A new ▸ Put<br/>CASE B override ▸ skip<br/>CASE C stale policy ▸ Replace<br/>CASE D clean dup ▸ Update hitCount"}
+    Dedup -->|ddb error| FailS
+    Dedup --> Build["Step 13<br/>OutputBuilder"]
+    Build --> Out([SendTaskSuccess<br/>with ClassificationOutput])
+    FailV --> FailOut([SendTaskFailure])
+    FailR --> FailOut
+    FailS --> FailOut
+
+    classDef pureStep fill:#0f1c2e,stroke:#38bdf8,color:#e2e8f0;
+    classDef ioStep fill:#1e2a3f,stroke:#fbbf24,color:#e2e8f0;
+    classDef failNode fill:#3b1419,stroke:#f87171,color:#fecaca;
+    class Validate,Tier1,OLE2chk,ZIPchk,Tier2OLE2,Tier2ZIP,Tier3,ExtFB,Score,Cat,Slip,Build pureStep;
+    class LoadCfg,ReadWin,Hash,Dedup ioStep;
+    class FailV,FailR,FailS,FailOut failNode;
+```
+
+**Legend** — blue = pure domain logic; amber = I/O step (S3 / DDB); red = failure path (returns `Result.err`).
+
 ## Architecture
 
 Hexagonal (Ports & Adapters):
