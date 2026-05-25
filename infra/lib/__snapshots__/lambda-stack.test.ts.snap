@@ -29,15 +29,6 @@ exports[`ClassificationLambdaStack > matches snapshot (dev) 1`] = `
     },
   },
   "Resources": {
-    "ClassificationFunctionCurrentVersion2174D664a8454aff9485929a5b0a9bc060b51456": {
-      "Metadata": "__SCRUBBED_METADATA__",
-      "Properties": {
-        "FunctionName": {
-          "Ref": "ClassificationFunction__HASH__",
-        },
-      },
-      "Type": "AWS::Lambda::Version",
-    },
     "ClassificationFunctionCurrentVersionAliaslive__HASH__": {
       "Properties": {
         "FunctionName": {
@@ -45,13 +36,22 @@ exports[`ClassificationLambdaStack > matches snapshot (dev) 1`] = `
         },
         "FunctionVersion": {
           "Fn::GetAtt": [
-            "ClassificationFunctionCurrentVersion2174D664a8454aff9485929a5b0a9bc060b51456",
+            "ClassificationFunctionCurrentVersion__CONTENT_HASH__",
             "Version",
           ],
         },
         "Name": "live",
       },
       "Type": "AWS::Lambda::Alias",
+    },
+    "ClassificationFunctionCurrentVersion__CONTENT_HASH__": {
+      "Metadata": "__SCRUBBED_METADATA__",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "ClassificationFunction__HASH__",
+        },
+      },
+      "Type": "AWS::Lambda::Version",
     },
     "ClassificationFunctionLogRetention__HASH__": {
       "Properties": {
@@ -69,7 +69,7 @@ exports[`ClassificationLambdaStack > matches snapshot (dev) 1`] = `
         "RetentionInDays": 7,
         "ServiceToken": {
           "Fn::GetAtt": [
-            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A",
+            "LogRetention__CONTENT_HASH__",
             "Arn",
           ],
         },
@@ -193,7 +193,7 @@ exports[`ClassificationLambdaStack > matches snapshot (dev) 1`] = `
         "Environment": {
           "Variables": {
             "CONTENT_HASH_TABLE_NAME": {
-              "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+              "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E__HASH__",
             },
             "LOG_LEVEL": "DEBUG",
             "POWERTOOLS_DEV": "true",
@@ -230,10 +230,10 @@ exports[`ClassificationLambdaStack > matches snapshot (dev) 1`] = `
       },
       "Type": "AWS::Lambda::Function",
     },
-    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A": {
+    "LogRetention__CONTENT_HASH__": {
       "DependsOn": [
-        "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicy__HASH__",
-        "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole__HASH__",
+        "LogRetention__CONTENT_HASH__ServiceRoleDefaultPolicy__HASH__",
+        "LogRetention__CONTENT_HASH__ServiceRole__HASH__",
       ],
       "Properties": {
         "Code": {
@@ -245,7 +245,7 @@ exports[`ClassificationLambdaStack > matches snapshot (dev) 1`] = `
         "Handler": "index.handler",
         "Role": {
           "Fn::GetAtt": [
-            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole__HASH__",
+            "LogRetention__CONTENT_HASH__ServiceRole__HASH__",
             "Arn",
           ],
         },
@@ -260,7 +260,7 @@ exports[`ClassificationLambdaStack > matches snapshot (dev) 1`] = `
       },
       "Type": "AWS::Lambda::Function",
     },
-    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicy__HASH__": {
+    "LogRetention__CONTENT_HASH__ServiceRoleDefaultPolicy__HASH__": {
       "Properties": {
         "PolicyDocument": {
           "Statement": [
@@ -275,16 +275,16 @@ exports[`ClassificationLambdaStack > matches snapshot (dev) 1`] = `
           ],
           "Version": "2012-10-17",
         },
-        "PolicyName": "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicy__HASH__",
+        "PolicyName": "LogRetention__CONTENT_HASH__ServiceRoleDefaultPolicy__HASH__",
         "Roles": [
           {
-            "Ref": "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole__HASH__",
+            "Ref": "LogRetention__CONTENT_HASH__ServiceRole__HASH__",
           },
         ],
       },
       "Type": "AWS::IAM::Policy",
     },
-    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole__HASH__": {
+    "LogRetention__CONTENT_HASH__ServiceRole__HASH__": {
       "Properties": {
         "AssumeRolePolicyDocument": {
           "Statement": [
