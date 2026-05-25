@@ -1,0 +1,23 @@
+node_modules/
+dist/
+coverage/
+.vitest-cache/
+cdk.out/
+.cdk.staging/
+*.log
+.DS_Store
+.env
+.env.local
+
+# TypeScript incremental build state
+*.tsbuildinfo
+
+# Next.js (UI)
+.next/
+ui/.next/
+ui/next-env.d.ts
+
+# Cypress run artifacts
+ui/cypress/screenshots/
+ui/cypress/videos/
+ui/cypress/downloads/

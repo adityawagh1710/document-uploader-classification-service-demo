@@ -1,0 +1,429 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ClassificationLambdaStack > matches snapshot (dev) 1`] = `
+{
+  "Outputs": {
+    "AliasArn": {
+      "Export": {
+        "Name": "ClassificationAliasArn-dev",
+      },
+      "Value": {
+        "Ref": "ClassificationFunctionCurrentVersionAliaslive0B6D63BF",
+      },
+    },
+    "FunctionName": {
+      "Export": {
+        "Name": "ClassificationFunctionName-dev",
+      },
+      "Value": {
+        "Ref": "ClassificationFunction4F271A39",
+      },
+    },
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "ClassificationFunction4F271A39": {
+      "DependsOn": [
+        "ClassificationFunctionServiceRoleDefaultPolicyF705321E",
+        "ClassificationFunctionServiceRoleEE45AE04",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "nodejs20.x is current at planning time.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-\${AWS::AccountId}-\${AWS::Region}",
+          },
+          "S3Key": "__VOLATILE_HASH__",
+        },
+        "Environment": {
+          "Variables": {
+            "CONTENT_HASH_TABLE_NAME": {
+              "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+            },
+            "LOG_LEVEL": "DEBUG",
+            "POWERTOOLS_DEV": "true",
+            "POWERTOOLS_LOGGER_LOG_EVENT": "false",
+            "POWERTOOLS_LOGGER_SAMPLE_RATE": "1",
+            "POWERTOOLS_METRICS_NAMESPACE": "ClassificationService",
+            "POWERTOOLS_SERVICE_NAME": "classification-service",
+            "STATE_MACHINE_ARN": "arn:aws:states:us-east-1:111111111111:stateMachine:document-ingestion-dev",
+            "WORKSPACE_CONFIG_TABLE_NAME": {
+              "Fn::ImportValue": "TestData:ExportsOutputRefWorkspaceConfig7D5932DA2F94CF90",
+            },
+          },
+        },
+        "FunctionName": "classification-service-dev",
+        "Handler": "index.handler",
+        "MemorySize": 512,
+        "Role": {
+          "Fn::GetAtt": [
+            "ClassificationFunctionServiceRoleEE45AE04",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs20.x",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "lambda",
+          },
+        ],
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "ClassificationFunctionCurrentVersion2174D664a8454aff9485929a5b0a9bc060b51456": {
+      "Metadata": {
+        "aws:cdk:do-not-refactor": true,
+      },
+      "Properties": {
+        "FunctionName": {
+          "Ref": "ClassificationFunction4F271A39",
+        },
+      },
+      "Type": "AWS::Lambda::Version",
+    },
+    "ClassificationFunctionCurrentVersionAliaslive0B6D63BF": {
+      "Properties": {
+        "FunctionName": {
+          "Ref": "ClassificationFunction4F271A39",
+        },
+        "FunctionVersion": {
+          "Fn::GetAtt": [
+            "ClassificationFunctionCurrentVersion2174D664a8454aff9485929a5b0a9bc060b51456",
+            "Version",
+          ],
+        },
+        "Name": "live",
+      },
+      "Type": "AWS::Lambda::Alias",
+    },
+    "ClassificationFunctionLogRetention2F05BFB7": {
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "/aws/lambda/",
+              {
+                "Ref": "ClassificationFunction4F271A39",
+              },
+            ],
+          ],
+        },
+        "RetentionInDays": 7,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::LogRetention",
+    },
+    "ClassificationFunctionServiceRoleDefaultPolicyF705321E": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/AWSXRayDaemonWriteAccess",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "AWSLambdaBasicExecutionRole and AWSXRayDaemonWriteAccess are AWS-recommended managed policies for Lambda logging + X-Ray; using them is more reliable than re-deriving every action. Per U-3 IaD §6.",
+            },
+            {
+              "applies_to": [
+                "Resource::<<DocumentBucketArn>>/*",
+              ],
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "UzMgR2V0T2JqZWN0IG9uIGJ1Y2tldC8qIGlzIHRoZSBjYW5vbmljYWwgd2lsZGNhcmQgcGF0dGVybiBmb3Igb2JqZWN0LWxldmVsIGFjY2VzcyDigJQgbm90IGEgc2VjdXJpdHkgdmlvbGF0aW9uLiBQZXIgVS0zIElhRCDCpzYu",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "dynamodb:GetItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestData:ExportsOutputFnGetAttContentHashes5075044EArnC90D5A64",
+              },
+              "Sid": "ContentHashesReadWrite",
+            },
+            {
+              "Action": "dynamodb:GetItem",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestData:ExportsOutputFnGetAttWorkspaceConfig7D5932DAArn1203DA56",
+              },
+              "Sid": "WorkspaceConfigReadOnly",
+            },
+            {
+              "Action": "s3:GetObject",
+              "Effect": "Allow",
+              "Resource": "arn:aws:s3:::document-bucket-dev/*",
+              "Sid": "S3DocumentRead",
+            },
+            {
+              "Action": [
+                "states:SendTaskSuccess",
+                "states:SendTaskFailure",
+              ],
+              "Effect": "Allow",
+              "Resource": "arn:aws:states:us-east-1:111111111111:stateMachine:document-ingestion-dev",
+              "Sid": "StepFunctionSignal",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "ClassificationFunctionServiceRoleDefaultPolicyF705321E",
+        "Roles": [
+          {
+            "Ref": "ClassificationFunctionServiceRoleEE45AE04",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "ClassificationFunctionServiceRoleEE45AE04": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/AWSXRayDaemonWriteAccess",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "AWSLambdaBasicExecutionRole and AWSXRayDaemonWriteAccess are AWS-recommended managed policies for Lambda logging + X-Ray; using them is more reliable than re-deriving every action. Per U-3 IaD §6.",
+            },
+            {
+              "applies_to": [
+                "Resource::<<DocumentBucketArn>>/*",
+              ],
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "UzMgR2V0T2JqZWN0IG9uIGJ1Y2tldC8qIGlzIHRoZSBjYW5vbmljYWwgd2lsZGNhcmQgcGF0dGVybiBmb3Igb2JqZWN0LWxldmVsIGFjY2VzcyDigJQgbm90IGEgc2VjdXJpdHkgdmlvbGF0aW9uLiBQZXIgVS0zIElhRCDCpzYu",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "lambda",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A": {
+      "DependsOn": [
+        "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicyADDA7DEB",
+        "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-\${AWS::AccountId}-\${AWS::Region}",
+          },
+          "S3Key": "__VOLATILE_HASH__",
+        },
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs22.x",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "lambda",
+          },
+        ],
+        "Timeout": 900,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "lambda",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicyADDA7DEB": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "logs:PutRetentionPolicy",
+                "logs:DeleteRetentionPolicy",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicyADDA7DEB",
+        "Roles": [
+          {
+            "Ref": "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "Sampling": {
+      "Properties": {
+        "SamplingRule": {
+          "FixedRate": 0.5,
+          "HTTPMethod": "*",
+          "Host": "*",
+          "Priority": 1000,
+          "ReservoirSize": 1,
+          "ResourceARN": "*",
+          "RuleName": "classification-service-dev",
+          "ServiceName": "classification-service",
+          "ServiceType": "AWS::Lambda::Function",
+          "URLPath": "*",
+          "Version": 1,
+        },
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "lambda",
+          },
+        ],
+      },
+      "Type": "AWS::XRay::SamplingRule",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;

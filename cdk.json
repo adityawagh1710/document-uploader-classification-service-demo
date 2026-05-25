@@ -1,0 +1,21 @@
+{
+  "app": "node --import tsx infra/bin/app.ts",
+  "watch": {
+    "include": ["infra/**", "src/**"],
+    "exclude": ["**/*.test.ts", "**/__snapshots__/**", "node_modules", "dist", "cdk.out"]
+  },
+  "output": "cdk.out",
+  "context": {
+    "@aws-cdk/core:newStyleStackSynthesis": true,
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/aws-iam:standardizedServicePrincipals": true,
+    "@aws-cdk/aws-lambda-nodejs:useLatestRuntimeVersion": true,
+    "@aws-cdk/aws-cloudwatch-actions:changeLambdaPermissionLogicalIdForLambdaAction": true,
+    "@aws-cdk/aws-ec2:restrictDefaultSecurityGroup": true,
+    "@aws-cdk/aws-dynamodb:retainTableReplica": true,
+    "@aws-cdk/aws-s3:keepNotificationInImportedBucket": false,
+    "ssm:account=111111111111:parameterName=/observability/sns-topic-arn/dev:region=us-east-1": "arn:aws:sns:us-east-1:111111111111:classification-alarms-dev",
+    "ssm:account=222222222222:parameterName=/observability/sns-topic-arn/staging:region=us-east-1": "arn:aws:sns:us-east-1:222222222222:classification-alarms-staging",
+    "ssm:account=333333333333:parameterName=/observability/sns-topic-arn/prod:region=us-east-1": "arn:aws:sns:us-east-1:333333333333:classification-alarms-prod"
+  }
+}
