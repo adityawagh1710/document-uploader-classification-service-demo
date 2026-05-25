@@ -35,10 +35,26 @@ export function snapshotTemplate(template: Template): unknown {
   return scrubVolatile(template.toJSON());
 }
 
-// CDK logical IDs end with an 8-char hex hash (e.g. `ClassificationFunction4F271A39`).
-// Strip the suffix so cross-version diffs collapse to a single normalized form.
+// Lambda Version + Alias logical IDs follow the pattern:
+//   <Prefix><8-char hash><optional 32-char content hash>
+// Example: `ClassificationFunctionCurrentVersion2174D664a8454aff948…`
+// where:
+//   - 2174D664 is CDK's location-based logical-ID hash (stable per stack/path)
+//   - a8454aff… (32 hex chars) is the bundle content hash, which differs
+//     between local + CI because of esbuild/Node version + filesystem
+//     ordering. This is what caused PR #2's snapshot to drift in CI even
+//     though local + initial-CI passed.
+// We normalize BOTH so snapshots stay stable across environments.
 function stripLogicalIdHash(s: string): string {
-  return s.replace(/([A-Za-z]{2,})[A-F0-9]{8}(\b|$)/g, "$1__HASH__$2");
+  return (
+    s
+      // First: 32+ char hex content hashes anywhere (handles embedded variants).
+      .replace(/[a-f0-9]{32,}/gi, "__CONTENT_HASH__")
+      // Second: 8-char CDK location hash suffix on identifier-like strings.
+      // Lookahead matches word boundary, end-of-string, or the just-inserted
+      // `__CONTENT_HASH__` placeholder.
+      .replace(/([A-Za-z][A-Za-z0-9_]+)[A-F0-9]{8}(?=__|\b|$)/g, "$1__HASH__")
+  );
 }
 
 function scrubVolatile(value: unknown): unknown {

@@ -22,11 +22,11 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
               },
               "","metrics":[["AWS/Lambda","Duration","FunctionName","",
               {
-                "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A393143C2EC",
+                "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A39__HASH__",
               },
               "",{"stat":"p50"}],["AWS/Lambda","Duration","FunctionName","",
               {
-                "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A393143C2EC",
+                "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A39__HASH__",
               },
               "",{"stat":"p99"}]],"yAxis":{}}},{"type":"metric","width":12,"height":6,"x":12,"y":0,"properties":{"view":"timeSeries","title":"Lambda Invocations + Errors","region":"",
               {
@@ -34,11 +34,11 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
               },
               "","metrics":[["AWS/Lambda","Invocations","FunctionName","",
               {
-                "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A393143C2EC",
+                "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A39__HASH__",
               },
               "",{"stat":"Sum"}],["AWS/Lambda","Errors","FunctionName","",
               {
-                "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A393143C2EC",
+                "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A39__HASH__",
               },
               "",{"stat":"Sum","yAxis":"right"}]],"yAxis":{}}},{"type":"metric","width":24,"height":6,"x":0,"y":6,"properties":{"view":"timeSeries","title":"Classifications by Category","region":"",
               {
@@ -85,7 +85,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
                   {
                     "Name": "TableName",
                     "Value": {
-                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E__HASH__",
                     },
                   },
                 ],
@@ -109,7 +109,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
                   {
                     "Name": "TableName",
                     "Value": {
-                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E__HASH__",
                     },
                   },
                 ],
@@ -133,7 +133,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
                   {
                     "Name": "TableName",
                     "Value": {
-                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E__HASH__",
                     },
                   },
                 ],
@@ -184,7 +184,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
                   {
                     "Name": "TableName",
                     "Value": {
-                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E__HASH__",
                     },
                   },
                 ],
@@ -208,7 +208,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
                   {
                     "Name": "TableName",
                     "Value": {
-                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E__HASH__",
                     },
                   },
                 ],
@@ -232,7 +232,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
                   {
                     "Name": "TableName",
                     "Value": {
-                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E__HASH__",
                     },
                   },
                 ],
@@ -368,7 +368,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
           {
             "Name": "FunctionName",
             "Value": {
-              "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A393143C2EC",
+              "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A39__HASH__",
             },
           },
         ],
@@ -399,7 +399,7 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
           {
             "Name": "FunctionName",
             "Value": {
-              "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A393143C2EC",
+              "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A39__HASH__",
             },
           },
         ],
