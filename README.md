@@ -23,10 +23,10 @@ flowchart LR
 
 ## Classification pipeline
 
-Per-document execution, 13 steps inside `ClassificationService.classify()`:
+Per-document execution, 13 steps inside `ClassificationService.classify()`. Laid out left-to-right to match the System context diagram above — read the column to the right as "what happens next":
 
 ```mermaid
-flowchart TD
+flowchart LR
     Start([TaskPayload received]) --> Validate["Step 1<br/>Zod input validation"]
     Validate -->|invalid| FailV[/"err: input-validation"/]
     Validate -->|ok| LoadCfg["Step 2<br/>Load workspace config<br/>(DDB GetItem)"]
