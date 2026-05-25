@@ -69,6 +69,63 @@ flowchart TD
 
 **Legend** — blue = pure domain logic; amber = I/O step (S3 / DDB); red = failure path (returns `Result.err`).
 
+### Sequence — single classify invocation
+
+Actor-level view of the same flow over time. AWS-side actors only show round-trip calls; pure domain steps are collapsed into a single `Lambda` self-note to keep the focus on I/O contracts.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SFN as Step Functions
+    participant L  as Classification Lambda
+    participant WC as DDB workspace-config
+    participant S3 as S3 document bucket
+    participant CH as DDB content-hashes
+
+    SFN->>+L: invoke(TaskPayload)<br/>{taskToken, workspaceId, documentId, s3, hints, context}
+
+    Note over L: Step 1 — Zod input validation (pure)
+
+    L->>+WC: GetItem(workspaceId) — ConsistentRead
+    WC-->>-L: WorkspaceConfig<br/>{policyVersion, threshold, maxZipDepth,<br/>quarantineMacros, slipsheetRules, hashTtlDays}
+
+    L->>+S3: GetObject(Range: bytes=0-4099)
+    S3-->>-L: detection window (≤ 4100 bytes)
+
+    Note over L: Steps 4–10 — pure pipeline<br/>tier 1/2/3 detection · score ·<br/>category · slipsheet decision
+
+    L->>+S3: GetObject (full body — streamed)
+    S3-->>-L: streamed body
+    Note over L: Step 11 — SHA-256 hash<br/>over the stream (no full buffer)
+
+    L->>+CH: GetItem({workspaceId, contentHash})
+    CH-->>-L: existing record or null
+
+    alt CASE A — no existing record
+        L->>+CH: PutItem(record) — ConditionExpression<br/>attribute_not_exists(contentHash)
+        CH-->>-L: written | already-existed
+    else CASE B — context.overrideDuplicateCheck = true
+        Note over L: skip persistence;<br/>isDuplicate = true
+    else CASE C — existing.policyVersion ≠ config.policyVersion
+        L->>+CH: Replace — Conditional on stale policyVersion
+        CH-->>-L: replaced | conditional-check-failed
+    else CASE D — clean duplicate
+        L->>+CH: UpdateItem — increment hitCount,<br/>set lastSeenAt
+        CH-->>-L: updated
+    end
+
+    Note over L: Step 13 — OutputBuilder<br/>{classification, dedup, policyVersion}
+
+    alt success
+        L->>SFN: SendTaskSuccess(output)
+    else failure (any step → Result.err)
+        L->>SFN: SendTaskFailure({errorCode, errorMessage})
+    end
+    deactivate L
+```
+
+Read the numbered arrows top-to-bottom to walk through one invocation. The `alt` blocks show the four dedup cases (mutually exclusive) and the success/failure tail. Every Lambda → AWS arrow is one network call; `S3` appears twice (range read for detection, full-body stream for hash) because they're independent requests.
+
 ## Architecture
 
 Hexagonal (Ports & Adapters):
