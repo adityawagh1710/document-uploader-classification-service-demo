@@ -1,0 +1,474 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
+{
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "ClassificationDashboard81EA907D": {
+      "Properties": {
+        "DashboardBody": {
+          "Fn::Join": [
+            "",
+            [
+              "{"widgets":[{"type":"metric","width":12,"height":6,"x":0,"y":0,"properties":{"view":"timeSeries","title":"Lambda Duration p50/p99","region":"",
+              {
+                "Ref": "AWS::Region",
+              },
+              "","metrics":[["AWS/Lambda","Duration","FunctionName","",
+              {
+                "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A393143C2EC",
+              },
+              "",{"stat":"p50"}],["AWS/Lambda","Duration","FunctionName","",
+              {
+                "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A393143C2EC",
+              },
+              "",{"stat":"p99"}]],"yAxis":{}}},{"type":"metric","width":12,"height":6,"x":12,"y":0,"properties":{"view":"timeSeries","title":"Lambda Invocations + Errors","region":"",
+              {
+                "Ref": "AWS::Region",
+              },
+              "","metrics":[["AWS/Lambda","Invocations","FunctionName","",
+              {
+                "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A393143C2EC",
+              },
+              "",{"stat":"Sum"}],["AWS/Lambda","Errors","FunctionName","",
+              {
+                "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A393143C2EC",
+              },
+              "",{"stat":"Sum","yAxis":"right"}]],"yAxis":{}}},{"type":"metric","width":24,"height":6,"x":0,"y":6,"properties":{"view":"timeSeries","title":"Classifications by Category","region":"",
+              {
+                "Ref": "AWS::Region",
+              },
+              "","metrics":[["ClassificationService","ClassificationOk",{"stat":"Sum"}]],"yAxis":{}}}]}",
+            ],
+          ],
+        },
+        "DashboardName": "classification-service-dev",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "observability",
+          },
+        ],
+      },
+      "Type": "AWS::CloudWatch::Dashboard",
+    },
+    "ContentHashesSystemErrorsA697267E": {
+      "Properties": {
+        "AlarmActions": [
+          "arn:aws:sns:us-east-1:111111111111:test-topic",
+        ],
+        "AlarmName": "content-hashes-system-errors-dev",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "EvaluationPeriods": 5,
+        "Metrics": [
+          {
+            "Expression": "getitem + putitem + updateitem",
+            "Id": "expr_1",
+            "Label": "Sum of errors across all operations",
+            "ReturnData": true,
+          },
+          {
+            "Id": "getitem",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "Operation",
+                    "Value": "GetItem",
+                  },
+                  {
+                    "Name": "TableName",
+                    "Value": {
+                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+                    },
+                  },
+                ],
+                "MetricName": "SystemErrors",
+                "Namespace": "AWS/DynamoDB",
+              },
+              "Period": 60,
+              "Stat": "Sum",
+            },
+            "ReturnData": false,
+          },
+          {
+            "Id": "putitem",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "Operation",
+                    "Value": "PutItem",
+                  },
+                  {
+                    "Name": "TableName",
+                    "Value": {
+                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+                    },
+                  },
+                ],
+                "MetricName": "SystemErrors",
+                "Namespace": "AWS/DynamoDB",
+              },
+              "Period": 60,
+              "Stat": "Sum",
+            },
+            "ReturnData": false,
+          },
+          {
+            "Id": "updateitem",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "Operation",
+                    "Value": "UpdateItem",
+                  },
+                  {
+                    "Name": "TableName",
+                    "Value": {
+                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+                    },
+                  },
+                ],
+                "MetricName": "SystemErrors",
+                "Namespace": "AWS/DynamoDB",
+              },
+              "Period": 60,
+              "Stat": "Sum",
+            },
+            "ReturnData": false,
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "observability",
+          },
+        ],
+        "Threshold": 0,
+        "TreatMissingData": "notBreaching",
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "ContentHashesThrottledRequestsAEBCEE16": {
+      "Properties": {
+        "AlarmActions": [
+          "arn:aws:sns:us-east-1:111111111111:test-topic",
+        ],
+        "AlarmName": "content-hashes-throttled-requests-dev",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "EvaluationPeriods": 5,
+        "Metrics": [
+          {
+            "Expression": "getitem + putitem + updateitem",
+            "Id": "expr_1",
+            "Label": "Sum of throttled requests across all operations",
+            "ReturnData": true,
+          },
+          {
+            "Id": "getitem",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "Operation",
+                    "Value": "GetItem",
+                  },
+                  {
+                    "Name": "TableName",
+                    "Value": {
+                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+                    },
+                  },
+                ],
+                "MetricName": "ThrottledRequests",
+                "Namespace": "AWS/DynamoDB",
+              },
+              "Period": 60,
+              "Stat": "Sum",
+            },
+            "ReturnData": false,
+          },
+          {
+            "Id": "putitem",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "Operation",
+                    "Value": "PutItem",
+                  },
+                  {
+                    "Name": "TableName",
+                    "Value": {
+                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+                    },
+                  },
+                ],
+                "MetricName": "ThrottledRequests",
+                "Namespace": "AWS/DynamoDB",
+              },
+              "Period": 60,
+              "Stat": "Sum",
+            },
+            "ReturnData": false,
+          },
+          {
+            "Id": "updateitem",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "Operation",
+                    "Value": "UpdateItem",
+                  },
+                  {
+                    "Name": "TableName",
+                    "Value": {
+                      "Fn::ImportValue": "TestData:ExportsOutputRefContentHashes5075044E1B406A0C",
+                    },
+                  },
+                ],
+                "MetricName": "ThrottledRequests",
+                "Namespace": "AWS/DynamoDB",
+              },
+              "Period": 60,
+              "Stat": "Sum",
+            },
+            "ReturnData": false,
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "observability",
+          },
+        ],
+        "Threshold": 0,
+        "TreatMissingData": "notBreaching",
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "ContentHashesUserErrorsEEAC25D8": {
+      "Properties": {
+        "AlarmActions": [
+          "arn:aws:sns:us-east-1:111111111111:test-topic",
+        ],
+        "AlarmName": "content-hashes-user-errors-dev",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "EvaluationPeriods": 15,
+        "MetricName": "UserErrors",
+        "Namespace": "AWS/DynamoDB",
+        "Period": 60,
+        "Statistic": "Sum",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "observability",
+          },
+        ],
+        "Threshold": 100,
+        "TreatMissingData": "notBreaching",
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "LambdaColdStartP99RegressionC5A575CA": {
+      "Properties": {
+        "AlarmActions": [
+          "arn:aws:sns:us-east-1:111111111111:test-topic",
+        ],
+        "AlarmName": "lambda-cold-start-p99-regression-dev",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "EvaluationPeriods": 12,
+        "ExtendedStatistic": "p99",
+        "MetricName": "LambdaInitDuration",
+        "Namespace": "ClassificationService",
+        "Period": 300,
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "observability",
+          },
+        ],
+        "Threshold": 3000,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "LambdaDurationP99LargeDocs72AE2BF7": {
+      "Properties": {
+        "AlarmActions": [
+          "arn:aws:sns:us-east-1:111111111111:test-topic",
+        ],
+        "AlarmName": "lambda-duration-p99-large-docs-dev",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "sizeClass",
+            "Value": "large",
+          },
+        ],
+        "EvaluationPeriods": 5,
+        "ExtendedStatistic": "p99",
+        "MetricName": "LambdaDuration",
+        "Namespace": "ClassificationService",
+        "Period": 60,
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "observability",
+          },
+        ],
+        "Threshold": 15000,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "LambdaDurationP99SmallDocs2FCB72BB": {
+      "Properties": {
+        "AlarmActions": [
+          "arn:aws:sns:us-east-1:111111111111:test-topic",
+        ],
+        "AlarmName": "lambda-duration-p99-small-docs-dev",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "sizeClass",
+            "Value": "small",
+          },
+        ],
+        "EvaluationPeriods": 5,
+        "ExtendedStatistic": "p99",
+        "MetricName": "LambdaDuration",
+        "Namespace": "ClassificationService",
+        "Period": 60,
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "observability",
+          },
+        ],
+        "Threshold": 3000,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "LambdaErrorsCFDC5EFC": {
+      "Properties": {
+        "AlarmActions": [
+          "arn:aws:sns:us-east-1:111111111111:test-topic",
+        ],
+        "AlarmName": "lambda-errors-dev",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A393143C2EC",
+            },
+          },
+        ],
+        "EvaluationPeriods": 5,
+        "MetricName": "Errors",
+        "Namespace": "AWS/Lambda",
+        "Period": 60,
+        "Statistic": "Sum",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "observability",
+          },
+        ],
+        "Threshold": 0,
+        "TreatMissingData": "notBreaching",
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "LambdaThrottles07F41D23": {
+      "Properties": {
+        "AlarmActions": [
+          "arn:aws:sns:us-east-1:111111111111:test-topic",
+        ],
+        "AlarmName": "lambda-throttles-dev",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Fn::ImportValue": "TestLambda:ExportsOutputRefClassificationFunction4F271A393143C2EC",
+            },
+          },
+        ],
+        "EvaluationPeriods": 5,
+        "MetricName": "Throttles",
+        "Namespace": "AWS/Lambda",
+        "Period": 60,
+        "Statistic": "Sum",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "observability",
+          },
+        ],
+        "Threshold": 0,
+        "TreatMissingData": "notBreaching",
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "WorkspaceConfigNotFound88E77501": {
+      "Properties": {
+        "AlarmActions": [
+          "arn:aws:sns:us-east-1:111111111111:test-topic",
+        ],
+        "AlarmName": "workspace-config-not-found-dev",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "EvaluationPeriods": 1,
+        "MetricName": "WorkspaceConfigStore.NotFound.Count",
+        "Namespace": "ClassificationService",
+        "Period": 300,
+        "Statistic": "Sum",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "observability",
+          },
+        ],
+        "Threshold": 0,
+        "TreatMissingData": "notBreaching",
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;

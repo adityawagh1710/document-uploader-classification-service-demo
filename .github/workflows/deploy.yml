@@ -1,0 +1,91 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Environment to deploy"
+        required: true
+        type: choice
+        options: [dev, staging, prod]
+
+permissions:
+  id-token: write   # OIDC
+  contents: read
+
+jobs:
+  deploy-dev:
+    if: github.event_name == 'push'
+    name: Deploy (dev)
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::111111111111:role/github-actions-deploy
+          aws-region: us-east-1
+      - run: npx cdk deploy --all -c env=dev --require-approval never
+
+  deploy-staging:
+    if: github.event_name == 'push'
+    name: Deploy (staging)
+    runs-on: ubuntu-latest
+    environment: staging
+    needs: deploy-dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::222222222222:role/github-actions-deploy
+          aws-region: us-east-1
+      - run: npx cdk deploy --all -c env=staging --require-approval never
+
+  deploy-prod:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.env == 'prod'
+    name: Deploy (prod)
+    runs-on: ubuntu-latest
+    environment: prod   # GitHub environment protection requires manual approval
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::333333333333:role/github-actions-deploy
+          aws-region: us-east-1
+      - run: npx cdk deploy --all -c env=prod --require-approval never
+
+  deploy-manual:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.env != 'prod'
+    name: Deploy (manual ${{ github.event.inputs.env }})
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.env }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ github.event.inputs.env == 'dev' && '111111111111' || '222222222222' }}:role/github-actions-deploy
+          aws-region: us-east-1
+      - run: npx cdk deploy --all -c env=${{ github.event.inputs.env }} --require-approval never

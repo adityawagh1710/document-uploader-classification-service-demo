@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: SAM Local config for U-3 smoke tests; NOT a deployment template
+
+Resources:
+  ClassificationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs20.x
+      Architectures: [arm64]
+      MemorySize: 512
+      Timeout: 30
+      CodeUri: ./dist
+      Handler: lambda.handler
+      Environment:
+        Variables:
+          LOG_LEVEL: DEBUG
+          POWERTOOLS_DEV: "true"
+          POWERTOOLS_SERVICE_NAME: classification-service
+          POWERTOOLS_METRICS_NAMESPACE: ClassificationService
+          POWERTOOLS_LOGGER_LOG_EVENT: "false"
+          POWERTOOLS_LOGGER_SAMPLE_RATE: "1.0"
+          CONTENT_HASH_TABLE_NAME: content-hashes-test
+          WORKSPACE_CONFIG_TABLE_NAME: workspace-config-test
+          AWS_ENDPOINT_URL: http://host.docker.internal:4566
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test

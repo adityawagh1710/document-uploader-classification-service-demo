@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "vitest/globals"],
+    // aws-cdk-lib's interfaces define optional readonly properties with
+    // implicit `| undefined`, which is incompatible with the root tsconfig's
+    // `exactOptionalPropertyTypes: true`. Disable here so infra/ can consume
+    // CDK types cleanly; src/ keeps the strict setting.
+    "exactOptionalPropertyTypes": false
+  },
+  "include": ["./**/*", "../src/**/*"],
+  "exclude": ["../node_modules", "../dist", "../coverage", "**/__snapshots__/**"]
+}
