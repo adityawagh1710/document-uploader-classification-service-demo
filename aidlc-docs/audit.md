@@ -769,3 +769,14 @@ Updated `aidlc-state.md` to flip the ` [ ] Deploy workflow continues to fail...`
 **Context**: OPERATIONS — audit-log accuracy fix. Lesson worth remembering: system-reminders about working-tree changes describe the user's local state, which may diverge from what they push/merge. Always re-check `origin/main` before writing audit narrative about what's "on main".
 
 ---
+
+## OPERATIONS — Dormant deploy-dev + deploy-staging Jobs Removed
+**Timestamp**: 2026-05-25T19:10:00Z
+**User Input**: "What can be fixed as missing thing in this micro service" → "fix the broken deploy.yml conditions and LocalStack checksum" → selected "Delete dormant jobs" for deploy.yml + "Conditional on AWS_ENDPOINT_URL" for the checksum fix.
+**AI Response**: On closer inspection I had to walk back the framing of the original "dead-code" finding — the `if: github.event_name == 'push'` gates on `deploy-dev` + `deploy-staging` were correct given the design: those two jobs were dormant scaffold meant to fire after the `push:` trigger is restored, while `deploy-manual` (lines 91-106) already handled dev/staging via `workflow_dispatch`. So they weren't actively broken, just confusing dormant duplicates.
+
+Per the user's pick, removed both jobs from `.github/workflows/deploy.yml`. Header comment expanded with explicit restoration instructions (push: block + instructions to re-add the two jobs mirroring `deploy-manual` once real account IDs / OIDC roles exist) so the cleanup is reversible. End state: only `deploy-prod` and `deploy-manual` remain — `workflow_dispatch` with `env: dev|staging|prod` exercises whichever job matches.
+
+**Context**: OPERATIONS — CI cleanup. The two removed jobs duplicated `deploy-manual` for the post-hand-off push-trigger case. Restoration is now an inline 2-step instruction set rather than two pre-baked job stanzas pretending to do something. No behavior change for the current `workflow_dispatch`-only mode.
+
+---

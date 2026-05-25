@@ -11,16 +11,22 @@ name: Deploy
 #   • GitHub secret AWS_DEPLOY_ROLE_<ENV> not set
 #
 # See aidlc-docs/construction/build-and-test/build-and-test-summary.md §7
-# for the full hand-off list.
+# for the full hand-off list. workflow_dispatch is still operational for
+# all three environments via the deploy-prod / deploy-manual jobs below.
 #
-# To re-enable auto-deploy after the hand-off, restore the `push:` block:
-#   push:
-#     branches: [main]
-#     paths:
-#       - "infra/**"
-#       - "src/**"
-#       - "package.json"
-#       - "package-lock.json"
+# To re-enable auto-deploy after the hand-off:
+#   1. Add the `push:` block under `on:`:
+#        push:
+#          branches: [main]
+#          paths:
+#            - "infra/**"
+#            - "src/**"
+#            - "package.json"
+#            - "package-lock.json"
+#   2. Re-add deploy-dev + deploy-staging jobs that mirror deploy-manual
+#      but with `if: github.event_name == 'push'` (and `needs: deploy-dev`
+#      on staging). Use the real account IDs / OIDC role ARNs once the
+#      hand-off has provisioned them.
 
 on:
   workflow_dispatch:
@@ -36,41 +42,6 @@ permissions:
   contents: read
 
 jobs:
-  deploy-dev:
-    if: github.event_name == 'push'
-    name: Deploy (dev)
-    runs-on: ubuntu-latest
-    environment: dev
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm ci
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::111111111111:role/github-actions-deploy
-          aws-region: us-east-1
-      - run: npx cdk deploy --all -c env=dev --require-approval never
-
-  deploy-staging:
-    if: github.event_name == 'push'
-    name: Deploy (staging)
-    runs-on: ubuntu-latest
-    environment: staging
-    needs: deploy-dev
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm ci
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::222222222222:role/github-actions-deploy
-          aws-region: us-east-1
-      - run: npx cdk deploy --all -c env=staging --require-approval never
-
   deploy-prod:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.env == 'prod'
     name: Deploy (prod)
