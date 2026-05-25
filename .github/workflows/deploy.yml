@@ -1,13 +1,28 @@
 name: Deploy
 
+# Auto-deploy on push to main is DISABLED until the operator hand-off
+# completes. Currently failing because:
+#   • infra/config/{dev,staging,prod}.ts use placeholder AWS account IDs
+#   • No OpenID Connect provider registered in any AWS account
+#     for token.actions.githubusercontent.com / sts.amazonaws.com
+#   • No IAM role + trust policy gating this repo + branch
+#   • `cdk bootstrap` not run in any target account/region
+#   • SNS topic + SSM /observability/sns-topic-arn/<env> not seeded
+#   • GitHub secret AWS_DEPLOY_ROLE_<ENV> not set
+#
+# See aidlc-docs/construction/build-and-test/build-and-test-summary.md §7
+# for the full hand-off list.
+#
+# To re-enable auto-deploy after the hand-off, restore the `push:` block:
+#   push:
+#     branches: [main]
+#     paths:
+#       - "infra/**"
+#       - "src/**"
+#       - "package.json"
+#       - "package-lock.json"
+
 on:
-  push:
-    branches: [main]
-    paths:
-      - "infra/**"
-      - "src/**"
-      - "package.json"
-      - "package-lock.json"
   workflow_dispatch:
     inputs:
       env:
