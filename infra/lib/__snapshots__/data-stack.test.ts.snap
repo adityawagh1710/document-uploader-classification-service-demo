@@ -9,7 +9,7 @@ exports[`ClassificationDataStack > matches snapshot (dev) 1`] = `
       },
       "Value": {
         "Fn::GetAtt": [
-          "ContentHashes5075044E",
+          "ContentHashes__HASH__",
           "Arn",
         ],
       },
@@ -19,7 +19,7 @@ exports[`ClassificationDataStack > matches snapshot (dev) 1`] = `
         "Name": "ClassificationContentHashTableName-dev",
       },
       "Value": {
-        "Ref": "ContentHashes5075044E",
+        "Ref": "ContentHashes__HASH__",
       },
     },
     "WorkspaceConfigTableArn": {
@@ -28,7 +28,7 @@ exports[`ClassificationDataStack > matches snapshot (dev) 1`] = `
       },
       "Value": {
         "Fn::GetAtt": [
-          "WorkspaceConfig7D5932DA",
+          "WorkspaceConfig__HASH__",
           "Arn",
         ],
       },
@@ -38,19 +38,19 @@ exports[`ClassificationDataStack > matches snapshot (dev) 1`] = `
         "Name": "ClassificationWorkspaceConfigTableName-dev",
       },
       "Value": {
-        "Ref": "WorkspaceConfig7D5932DA",
+        "Ref": "WorkspaceConfig__HASH__",
       },
     },
   },
   "Parameters": {
     "BootstrapVersion": {
-      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Default": "__BOOTSTRAP_PARAM__",
       "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
       "Type": "AWS::SSM::Parameter::Value<String>",
     },
   },
   "Resources": {
-    "ContentHashes5075044E": {
+    "ContentHashes__HASH__": {
       "DeletionPolicy": "Delete",
       "Properties": {
         "AttributeDefinitions": [
@@ -99,18 +99,9 @@ exports[`ClassificationDataStack > matches snapshot (dev) 1`] = `
       "Type": "AWS::DynamoDB::Table",
       "UpdateReplacePolicy": "Delete",
     },
-    "WorkspaceConfig7D5932DA": {
+    "WorkspaceConfig__HASH__": {
       "DeletionPolicy": "Delete",
-      "Metadata": {
-        "cdk_nag": {
-          "rules_to_suppress": [
-            {
-              "id": "AwsSolutions-DDB3",
-              "reason": "Workspace config is small (~hundreds of rows) and source-of-truth managed externally; PITR overhead not justified. Per U-2 IaD Q2=A.",
-            },
-          ],
-        },
-      },
+      "Metadata": "__SCRUBBED_METADATA__",
       "Properties": {
         "AttributeDefinitions": [
           {

@@ -28,8 +28,17 @@ export function buildAppAndStack<S extends cdk.Stack>(
 }
 
 // Strip CDK-internal volatile fields for stable snapshots.
+// Snapshots compare *infrastructure shape* — they must be resilient to
+// CDK-version-dependent metadata, esbuild output hashes, and CDK's 8-char
+// logical-ID hash suffixes that shift when upstream synth behavior changes.
 export function snapshotTemplate(template: Template): unknown {
   return scrubVolatile(template.toJSON());
+}
+
+// CDK logical IDs end with an 8-char hex hash (e.g. `ClassificationFunction4F271A39`).
+// Strip the suffix so cross-version diffs collapse to a single normalized form.
+function stripLogicalIdHash(s: string): string {
+  return s.replace(/([A-Za-z]{2,})[A-F0-9]{8}(\b|$)/g, "$1__HASH__$2");
 }
 
 function scrubVolatile(value: unknown): unknown {
@@ -37,16 +46,36 @@ function scrubVolatile(value: unknown): unknown {
   if (value !== null && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      // Mask CDK asset hashes + auto-generated logical IDs
-      if (/^[a-f0-9]{32,}/i.test(k)) {
-        out["__VOLATILE_KEY__"] = scrubVolatile(v);
-      } else if (typeof v === "string" && /^[a-f0-9]{40,}/i.test(v)) {
-        out[k] = "__VOLATILE_HASH__";
-      } else {
-        out[k] = scrubVolatile(v);
+      // Drop CDK's per-resource Metadata block — new fields appear here
+      // between aws-cdk-lib versions (cdk:path, asset-bundling markers, etc.)
+      // and they're not part of infrastructure shape.
+      if (k === "Metadata") {
+        out[k] = "__SCRUBBED_METADATA__";
+        continue;
       }
+      const normalizedKey = /^[a-f0-9]{32,}/i.test(k) ? "__VOLATILE_KEY__" : stripLogicalIdHash(k);
+      if (typeof v === "string") {
+        // SHA-256 asset hashes (32+ hex), bootstrap SSM param defaults, and
+        // *.zip asset object keys are all env-tied — normalize them.
+        if (/^[a-f0-9]{32,}$/i.test(v) || /^[a-f0-9]{32,}\.zip$/i.test(v)) {
+          out[normalizedKey] = "__VOLATILE_HASH__";
+          continue;
+        }
+        if (/\/cdk-bootstrap\//.test(v)) {
+          out[normalizedKey] = "__BOOTSTRAP_PARAM__";
+          continue;
+        }
+        out[normalizedKey] = stripLogicalIdHash(v);
+        continue;
+      }
+      out[normalizedKey] = scrubVolatile(v);
     }
     return out;
+  }
+  // Strings reached as standalone values (e.g. inside Fn::* intrinsics) also
+  // carry the 8-char hash suffix — normalize so cross-resource refs are stable.
+  if (typeof value === "string") {
+    return stripLogicalIdHash(value);
   }
   return value;
 }
