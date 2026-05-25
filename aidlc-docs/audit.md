@@ -780,3 +780,14 @@ Per the user's pick, removed both jobs from `.github/workflows/deploy.yml`. Head
 **Context**: OPERATIONS — CI cleanup. The two removed jobs duplicated `deploy-manual` for the post-hand-off push-trigger case. Restoration is now an inline 2-step instruction set rather than two pre-baked job stanzas pretending to do something. No behavior change for the current `workflow_dispatch`-only mode.
 
 ---
+
+## OPERATIONS — Lambda S3 Client Checksum Fix for LocalStack
+**Timestamp**: 2026-05-25T19:25:00Z
+**User Input**: "fix the broken deploy.yml conditions and LocalStack checksum" → selected "Conditional on AWS_ENDPOINT_URL (Recommended)" for the scope of the checksum fix.
+**AI Response**: Mirrored the UI's `responseChecksumValidation: WHEN_REQUIRED` + `requestChecksumCalculation: WHEN_REQUIRED` workaround into the Lambda's `S3Client` at `src/handler/lambda.ts`, gated on `process.env.AWS_ENDPOINT_URL !== undefined`. Production (real AWS S3) keeps the SDK default `WHEN_SUPPORTED` because real S3 doesn't ship the LocalStack multipart-checksum drift. LocalStack-driven contexts (SAM Local, integration tests, smoke) get the relaxed mode so any future multipart Upload doesn't trip `s3: unknown` failures.
+
+Verified `npx tsc --noEmit` clean + `npx eslint src/handler/lambda.ts` clean. No tests touched — current LocalStack integration suite uses single-part `PutObjectCommand` and was already passing without the override; this is preventive coverage for the multipart case.
+
+**Context**: OPERATIONS — defensive fix surfacing from the [[project_ui_localstack_checksum_bug]] memory. Same root cause (SDK v3.730+ + LocalStack multipart Upload) but applied to the Lambda's production-targeted S3Client rather than the UI's local-only client. Conditional gating keeps the blast radius at the LocalStack envelope.
+
+---
