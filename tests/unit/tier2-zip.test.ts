@@ -81,6 +81,41 @@ describe("Tier2ZIPDetector", () => {
     }
   });
 
+  it("identifies xlsx when [Content_Types].xml is NOT the first entry (Excel reorders entries on xlsx with embedded charts)", () => {
+    // Reproduces student_marks_with_charts.xlsx miscategorisation: Excel can
+    // shuffle the ZIP central directory so [Content_Types].xml isn't first.
+    // Detector must scan ahead and recognize OOXML by any signal, not just position 0.
+    const buf = new Uint8Array(4096);
+    const stub = new Uint8Array([0x00]);
+    let off = writeLFH(buf, 0, "_rels/.rels", true, stub);
+    off = writeLFH(buf, off, "[Content_Types].xml", true, stub);
+    off = writeLFH(buf, off, "xl/workbook.xml", true, stub);
+    writeLFH(buf, off, "xl/sharedStrings.xml", true, stub);
+
+    const result = detector.detect(buf);
+    expect(result.matched).toBe(true);
+    if (result.matched) {
+      expect(result.family).toBe("ooxml");
+      expect(result.format).toBe("xlsx");
+    }
+  });
+
+  it("identifies docx purely from `word/` prefix even when [Content_Types].xml is missing from scan window", () => {
+    // Defensive case: huge OOXML where Content_Types could be past the 4 KiB
+    // window but word/document.xml is in scope. The prefix alone is enough.
+    const buf = new Uint8Array(4096);
+    const stub = new Uint8Array([0x00]);
+    let off = writeLFH(buf, 0, "word/document.xml", true, stub);
+    writeLFH(buf, off, "word/_rels/document.xml.rels", true, stub);
+
+    const result = detector.detect(buf);
+    expect(result.matched).toBe(true);
+    if (result.matched) {
+      expect(result.family).toBe("ooxml");
+      expect(result.format).toBe("docx");
+    }
+  });
+
   it("uses extension hint when scanned entries don't disambiguate (deep OOXML files)", () => {
     // Pathological case: only doc-props entries scanned — no word/xl/ppt
     // prefix surfaces. Falls back to extension hint instead of silently picking docx.
