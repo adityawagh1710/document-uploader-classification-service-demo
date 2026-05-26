@@ -864,3 +864,40 @@ Deleted `ui/docker-compose.yml`; the root compose replaces it. `docker compose c
 **Context**: OPERATIONS — adds EKS deployment story. Matches the sibling `aspose-total/deploy/` shape (Helm + scripts + timestamped logs + idempotent Make pipelines), tuned for our smaller single-Deployment scope. Recurring cost in port-forward mode: ~$0.02/mo (ECR storage only).
 
 ---
+
+## OPERATIONS — Chart Upgrade: internal → internet-facing + TLS + IP allowlist
+**Timestamp**: 2026-05-26T11:30:00Z
+**User Input**: "What aboout this url http://classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com/ how about it ?" → "I have my office ip ranges for corp VPN" → "Can you verify you have added these IP ranges [114.143.153.146/32, 114.143.153.147/32, 103.68.11.58/32, 103.68.11.59/32]" → "Add these ranges along side existing once" → "Can you verify you have updated undeploy for same things ?"
+**AI Response**: Upgraded `deploy/helm/classification-ui/` chart from the minimal `scheme: internal` Ingress to the **internet-facing + TLS + IP-allowlist** pattern mirrored from sibling `aspose-total/deploy/helm/office-convert/`. The new pattern was chosen because the proposed bookmark URL `classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com` falls under the cluster's wildcard ACM cert (`*.dev05.k8s.opus2dev.com` = `arn:aws:acm:eu-west-1:537462380503:certificate/fab42f33-7d67-4ecf-b200-38af584485b0`) and the corp-egress CIDR list from argocd already covers most office locations — TLS + access control come essentially for free, and corp-DNS forwarding fragility (see [[pc-corp-network-environment]]) is bypassed because public DNS resolves universally.
+
+**`values.yaml`** ingress block now exposes:
+- `groupName: classification-service` (shared-ALB hook; standalone today, can later coalesce onto aspose's `office-convert` group)
+- `certificateArn` — the wildcard `fab42f33-7d67-4ecf-b200-38af584485b0`
+- `sslPolicy: ELBSecurityPolicy-FS-1-2-Res-2019-08` (forward-secrecy, TLS 1.2 min — same as argocd + office-convert)
+- `inboundCidrs` — 14 CIDRs total: 10 lifted from aspose/argocd seed of 2026-05-19 + 4 operator-supplied office egress (`114.143.153.146/32`, `114.143.153.147/32`, `103.68.11.58/32`, `103.68.11.59/32`) added today
+- `idleTimeoutSeconds: 300` (60 s ALB default would trip on 1 GiB streaming uploads at 8 MiB × 4-way; 300 s pairs with the upload cap)
+- `healthcheckPath: /api/health` (matches pod readiness + liveness probes; verified the route exists at `ui/app/api/health/route.ts`)
+
+**`templates/ingress.yaml`** rewritten:
+- `scheme: internet-facing`, `listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'`
+- HTTP→HTTPS 301 redirect via the AWS LBC `actions.ssl-redirect` idiom — dual-path rule (first path → `ssl-redirect / use-annotation`, second path → real backend on HTTPS)
+- All annotations driven from values for easy override
+
+**Undeploy audit (per user request)**: Confirmed symmetric. `make undeploy-dev` is unchanged because all new annotations live on the Ingress resource itself — `helm uninstall` deletes the Ingress, AWS LBC reconciles by deregistering the target group and (since no other Ingress shares `group.name=classification-service`) deletes the ALB. `route53-cleanup` runs first (correct order) to DELETE the A-alias while the AliasTarget metadata still resolves. ACM cert is shared cluster-level infra — correctly NOT touched by undeploy.
+
+**Verifications (no cluster mutation)**:
+- `helm lint deploy/helm/classification-ui` — pass (only cosmetic `icon is recommended` INFO)
+- `helm template … --set ingress.enabled=true --set ingress.host=classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com` renders 7 resources (vs 6 without Ingress); all 14 CIDRs serialized cleanly into the `inbound-cidrs` annotation; hostname rendered exactly as proposed
+- `/api/health` route verified to exist at `ui/app/api/health/route.ts` — returns 200 on LocalStack `ListTables` success, 503 on failure (intentional dependency for both pod probes and ALB target health)
+
+**Not deployed** — user has not given the explicit green-light to apply. Final deploy command when ready:
+```
+make deploy-dev \
+  DEPLOY_IMAGE_TAG=$(git rev-parse --short HEAD) \
+  DEPLOY_INGRESS_HOST=classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com \
+  DEPLOY_ROUTE53_ZONE_ID=Z045669519R5D9D8CKC79
+```
+
+**Context**: OPERATIONS — chart pattern upgrade. Recurring cost shifts from $0/mo (port-forward) to whatever the **shared** ALB amortizes (group-name lets us merge onto aspose's existing ALB later for ~$0 incremental, or take a dedicated ALB for ~$18/mo). Decision deferred to deploy time via `--set ingress.groupName=<x>`.
+
+---

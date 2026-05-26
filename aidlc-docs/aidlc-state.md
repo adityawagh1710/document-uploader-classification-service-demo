@@ -101,6 +101,20 @@
 - [ ] Operator hand-off list (`aidlc-docs/construction/build-and-test/build-and-test-summary.md` §7) — still open. Six items: real account IDs in `infra/config/`, OIDC provider per account, IAM deploy role per account, `cdk bootstrap` per account, SSM SNS topic param per env, GitHub `AWS_DEPLOY_ROLE_<ENV>` secrets
 - [x] Operations summary: see `aidlc-docs/operations/test-ui.md`
 
+#### Operations Tooling Delivered (2026-05-26)
+- [x] **Helm chart upgraded** from `scheme: internal` Ingress to **internet-facing + TLS + IP-allowlist** pattern, mirrored from sibling `aspose-total/deploy/helm/office-convert/`. Changes confined to `deploy/helm/classification-ui/values.yaml` + `templates/ingress.yaml`; Makefile + scripts unchanged (still symmetric on undeploy because all new annotations live on the Ingress resource).
+  - **values.yaml ingress block** now exposes: `groupName` (default `classification-service`; can be set to aspose's `office-convert` to share its ALB), `certificateArn` (wildcard `*.dev05.k8s.opus2dev.com` = `arn:aws:acm:eu-west-1:537462380503:certificate/fab42f33-7d67-4ecf-b200-38af584485b0`), `sslPolicy: ELBSecurityPolicy-FS-1-2-Res-2019-08`, `inboundCidrs` (14 entries: 10 aspose/argocd-derived + 4 operator office egress added 2026-05-26: `114.143.153.146/32`, `114.143.153.147/32`, `103.68.11.58/32`, `103.68.11.59/32`), `idleTimeoutSeconds: 300` (60 s ALB default would trip on 1 GiB streaming uploads), `healthcheckPath: /api/health`
+  - **templates/ingress.yaml** uses the AWS LBC `actions.ssl-redirect` idiom — HTTP listener auto-301s to HTTPS. Dual `listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'`. Cleaner than `scheme: internal` because public DNS resolves without corp-DNS forwarding tricks (see [[pc-corp-network-environment]] for why this matters on the laptop).
+  - **Verified** via `helm lint` (pass) + `helm template … --set ingress.enabled=true --set ingress.host=classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com` (renders 7 resources; all 14 CIDRs serialize cleanly).
+  - **Undeploy audit** confirmed: `make undeploy-dev` requires no changes. `helm uninstall` deletes the Ingress → AWS LBC tears down target group + ALB (no other Ingress shares the group). `route53-cleanup` runs first (correct order). ACM cert is shared cluster-level infra — correctly untouched.
+  - **Still not deployed** — operator green-light pending. Final command when ready:
+    ```
+    make deploy-dev \
+      DEPLOY_IMAGE_TAG=$(git rev-parse --short HEAD) \
+      DEPLOY_INGRESS_HOST=classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com \
+      DEPLOY_ROUTE53_ZONE_ID=Z045669519R5D9D8CKC79
+    ```
+
 #### Bugs Found by the Test UI (2026-05-25)
 - [x] **AWS SDK ↔ LocalStack checksum mismatch** — SDK v3.730+ enforces CRC32 response validation; LocalStack returns checksums that don't match the bytes it serves back when objects were written via `lib-storage` multipart Upload. Surfaced via UI multipart uploads; integration tests don't trip it (they use plain `PutObjectCommand` with a Buffer, no multipart). Patched UI-side by setting `responseChecksumValidation: "WHEN_REQUIRED"` and `requestChecksumCalculation: "WHEN_REQUIRED"` on `ui/lib/classifier.ts`'s S3Client. Deployed Lambda unaffected (single-part PutObjects against real AWS S3).
 
