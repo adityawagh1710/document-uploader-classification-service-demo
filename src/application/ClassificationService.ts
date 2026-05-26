@@ -44,17 +44,28 @@ export function createClassificationService(deps: ClassificationServiceDeps): Cl
       }
       const buffer = bufferResult.value;
 
+      // Augment caller-supplied hints with what we can derive from the
+      // payload itself. The classifier is an API — most callers won't think
+      // to send an extension hint when the filename (or S3 key suffix)
+      // already carries that information. Derive it once here so every
+      // downstream consumer (detectors, scorer, slipsheet decider) gets
+      // the same enriched hint set. Explicit caller hints always win.
+      const augmentedHints = {
+        extension: payload.hints.extension ?? extensionFromKey(payload.s3.key),
+        contentType: payload.hints.contentType,
+      };
+
       // STEPS 4-7: detect tiers (pure logic)
       const detectionState = await runStep(stepDeps, "classify.steps4-7.detect", () =>
-        detectInSequence(deps, buffer, payload.hints),
+        detectInSequence(deps, buffer, augmentedHints),
       );
 
       // STEP 8: score (pure)
       const confidenceScore = deps.scorer.score({
         matchType: detectionState.matchType,
         detectedFormat: detectionState.detectedFormat,
-        extension: payload.hints.extension,
-        contentType: payload.hints.contentType,
+        extension: augmentedHints.extension,
+        contentType: augmentedHints.contentType,
       });
 
       // STEP 9: map-category (pure)
@@ -132,6 +143,30 @@ export function createClassificationService(deps: ClassificationServiceDeps): Cl
 
 const OLE2_SIGNATURE = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
 const ZIP_SIGNATURE = [0x50, 0x4b, 0x03, 0x04];
+
+// Cap on what looks like a plausible file extension. Suffixes longer than
+// this almost certainly aren't extensions ("tar.gz" → "gz" is 2, "jpeg" 4,
+// the longest mainstream office extension is "pptx" 4). Anything over 8 is
+// noise (e.g. a key like `foo/bar.documentBackup`) and we'd rather return
+// null than feed garbage into the extension-fallback paths.
+const MAX_EXTENSION_LENGTH = 8;
+
+/**
+ * Derive a plausible file extension hint from an S3 key (or any path).
+ * Strips the directory portion and returns the lower-case suffix after the
+ * last `.`. Returns null when the basename has no `.`, the suffix is
+ * implausibly long, or the suffix is empty.
+ *
+ * Example: `ui/doc-<uuid>/Wonders_of_Our_Solar_System.pptx` -> `pptx`.
+ */
+export function extensionFromKey(key: string): string | null {
+  const basename = key.includes("/") ? key.slice(key.lastIndexOf("/") + 1) : key;
+  const dotIdx = basename.lastIndexOf(".");
+  if (dotIdx < 0 || dotIdx === basename.length - 1) return null;
+  const ext = basename.slice(dotIdx + 1).toLowerCase();
+  if (ext.length === 0 || ext.length > MAX_EXTENSION_LENGTH) return null;
+  return ext;
+}
 
 // `file-type` returns these container types when it sees the magic bytes
 // without seeing the refinement markers further in the file. They must fall
