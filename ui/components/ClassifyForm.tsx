@@ -36,6 +36,8 @@ export function ClassifyForm({ onClassified }: { onClassified?: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<ClassifyResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [converting, setConverting] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -66,6 +68,35 @@ export function ClassifyForm({ onClassified }: { onClassified?: () => void }) {
       setError((e as Error)?.message ?? "request failed");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function convertToPdf() {
+    if (!file) return;
+    setConverting(true);
+    setConvertError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const resp = await fetch("/api/convert", { method: "POST", body: form });
+      if (!resp.ok) {
+        const text = await resp.text();
+        setConvertError(`HTTP ${resp.status}: ${text.slice(0, 500)}`);
+        return;
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name.replace(/\.[^./\\]+$/, "") + ".pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      setConvertError((e as Error)?.message ?? "convert request failed");
+    } finally {
+      setConverting(false);
     }
   }
 
@@ -167,6 +198,29 @@ export function ClassifyForm({ onClassified }: { onClassified?: () => void }) {
               <Pill tone="warn">{result.result.classification.slipsheetReason}</Pill>
             ) : null}
           </div>
+
+          {result.result.classification.category === "convert" && file ? (
+            <div className="mt-2 flex items-center gap-3 rounded border border-emerald-500/30 bg-emerald-500/5 px-3 py-2">
+              <span className="text-xs text-emerald-300">
+                Convertible to PDF via office-convert
+              </span>
+              <button
+                type="button"
+                onClick={convertToPdf}
+                disabled={converting}
+                className="ml-auto rounded bg-emerald-600/80 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {converting ? "Converting…" : "Convert to PDF"}
+              </button>
+            </div>
+          ) : null}
+
+          {convertError ? (
+            <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+              {convertError}
+            </div>
+          ) : null}
+
           <pre className="mt-2 max-h-80 overflow-auto rounded bg-slate-950/70 p-3 text-xs text-slate-300">
             {JSON.stringify(result.result, null, 2)}
           </pre>

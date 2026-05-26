@@ -28,6 +28,9 @@ export async function POST(req: Request) {
   const form = await req.formData();
   const file = form.get("file");
   const workspaceId = (form.get("workspaceId") as string | null)?.trim() ?? "";
+  // Pass through whatever the caller sent; the classifier auto-derives from
+  // payload.s3.key when this is null (see extensionFromKey in
+  // src/application/ClassificationService.ts), so no UI-side derivation here.
   const extensionHint = (form.get("extension") as string | null)?.trim() || null;
   const contentTypeHint = (form.get("contentType") as string | null)?.trim() || null;
   const overrideDuplicateCheck = form.get("overrideDuplicateCheck") === "true";
