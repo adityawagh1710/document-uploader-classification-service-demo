@@ -535,6 +535,50 @@ route53-cleanup: ## [deploy] DELETE the A-alias (must run BEFORE helm uninstall)
 status: check-kubectl ## [deploy] kubectl get pods,svc,ingress in the namespace
 	@kubectl -n $(DEPLOY_NAMESPACE) get pods,svc,ingress 2>&1 | tee -a $(DEPLOY_LOG) || true
 
+.PHONY: deploy-summary
+deploy-summary: check-kubectl ## [deploy] Print clean URL + resource block (also written to deploy log)
+	@set +eu +o pipefail; { \
+	  alb=$$(kubectl -n $(DEPLOY_NAMESPACE) get ingress $(DEPLOY_HELM_RELEASE) -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true); \
+	  rev=$$(helm status $(DEPLOY_HELM_RELEASE) --namespace $(DEPLOY_NAMESPACE) --output json 2>/dev/null | sed -n 's/.*"revision":[[:space:]]*\([0-9]*\).*/\1/p' | head -1); \
+	  printf "\n$(COL_BOLD)$(COL_CYN)▶ Deployed resources$(COL_OFF)\n"; \
+	  if [ -n "$(DEPLOY_INGRESS_HOST)" ]; then \
+	    printf "  $(COL_BOLD)%-15s$(COL_OFF) %s\n" "Public URL"   "https://$(DEPLOY_INGRESS_HOST)/"; \
+	    printf "  $(COL_BOLD)%-15s$(COL_OFF) %s\n" "Health check" "https://$(DEPLOY_INGRESS_HOST)/api/health"; \
+	    if [ -n "$(DEPLOY_ROUTE53_ZONE_ID)" ]; then \
+	      printf "  $(COL_BOLD)%-15s$(COL_OFF) %s\n" "Route 53"   "$(DEPLOY_INGRESS_HOST) → ALB (zone $(DEPLOY_ROUTE53_ZONE_ID))"; \
+	    fi; \
+	  else \
+	    printf "  $(COL_BOLD)%-15s$(COL_OFF) %s\n" "Access"      "no Ingress — use \`make pf-start\` for port-forward"; \
+	  fi; \
+	  if [ -n "$$alb" ]; then \
+	    printf "  $(COL_BOLD)%-15s$(COL_OFF) %s\n" "ALB hostname" "$$alb"; \
+	  fi; \
+	  printf "  $(COL_BOLD)%-15s$(COL_OFF) %s\n" "Namespace"     "$(DEPLOY_NAMESPACE)"; \
+	  printf "  $(COL_BOLD)%-15s$(COL_OFF) %s$${rev:+ (rev $$rev)}\n" "Helm release" "$(DEPLOY_HELM_RELEASE)"; \
+	  printf "  $(COL_BOLD)%-15s$(COL_OFF) %s\n" "Image"         "$(DEPLOY_IMAGE_FULL)"; \
+	  printf "  $(COL_BOLD)%-15s$(COL_OFF) %s\n" "Log"           "$(DEPLOY_LOG)"; \
+	  printf "  $(COL_BOLD)%-15s$(COL_OFF) %s\n\n" "Manifest"    "$(DEPLOY_MANIFEST)"; \
+	} | tee -a $(DEPLOY_LOG)
+
+.PHONY: undeploy-summary
+undeploy-summary: ## [deploy] Print summary of removed resources (also written to undeploy log)
+	@{ \
+	  printf "\n$(COL_BOLD)$(COL_CYN)▶ Undeployed resources$(COL_OFF)\n"; \
+	  if [ -n "$(DEPLOY_INGRESS_HOST)" ] && [ -n "$(DEPLOY_ROUTE53_ZONE_ID)" ]; then \
+	    printf "  $(COL_BOLD)%-17s$(COL_OFF) %s\n" "Route 53 record" "$(DEPLOY_INGRESS_HOST) (zone $(DEPLOY_ROUTE53_ZONE_ID))"; \
+	  fi; \
+	  printf "  $(COL_BOLD)%-17s$(COL_OFF) %s\n" "Helm release"     "$(DEPLOY_HELM_RELEASE)"; \
+	  printf "  $(COL_BOLD)%-17s$(COL_OFF) %s\n" "Namespace"        "$(DEPLOY_NAMESPACE)"; \
+	  printf "  $(COL_BOLD)%-17s$(COL_OFF) %s\n" "ALB / TG / LRs"   "torn down by AWS LBC reconcile"; \
+	  printf "\n  $(COL_YEL)Kept by design (Makefile policy):$(COL_OFF)\n"; \
+	  printf "    %-17s %s\n" "ECR image"       "$(DEPLOY_IMAGE_FULL)"; \
+	  printf "    %-17s %s\n" "ECR repository"  "$(DEPLOY_ECR_REPO)"; \
+	  printf "    %-17s %s\n" "Local logs"      "$(DEPLOY_LOG_DIR)/"; \
+	  printf "    %-17s AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr delete-repository \\\\\n" "Nuke ECR via:"; \
+	  printf "                      --repository-name $(DEPLOY_ECR_REPO) --region $(DEPLOY_AWS_REGION) --force\n"; \
+	  printf "  $(COL_BOLD)%-17s$(COL_OFF) %s\n\n" "Log"            "$(DEPLOY_UNDEPLOY_LOG)"; \
+	} | tee -a $(DEPLOY_UNDEPLOY_LOG)
+
 .PHONY: __undeploy-soft
 __undeploy-soft:
 	$(call banner,Best-effort cleanup before re-deploy)
@@ -545,7 +589,7 @@ __undeploy-soft:
 	fi
 
 .PHONY: deploy-dev
-deploy-dev: __undeploy-soft image-push helm-deploy manifest-snapshot route53-sync status ## [deploy] Full 8-step pipeline: undeploy-first → ECR → build → push → helm upgrade → manifest snapshot → route53 → status
+deploy-dev: __undeploy-soft image-push helm-deploy manifest-snapshot route53-sync status deploy-summary ## [deploy] Full 9-step pipeline: undeploy-first → ECR → build → push → helm upgrade → manifest snapshot → route53 → status → summary
 	$(call ok,deploy-dev complete  tag=$(DEPLOY_IMAGE_TAG)  log=$(DEPLOY_LOG))
 
 .PHONY: helm-undeploy
@@ -565,7 +609,7 @@ ns-delete: check-kubectl ## [deploy] Drop the namespace (waits for finalizers)
 	fi
 
 .PHONY: undeploy-dev
-undeploy-dev: route53-cleanup helm-undeploy ns-delete ## [deploy] Full teardown: route53 DELETE (first!) → helm uninstall → namespace drop
+undeploy-dev: route53-cleanup helm-undeploy ns-delete undeploy-summary ## [deploy] Full teardown: route53 DELETE (first!) → helm uninstall → namespace drop → summary
 	@mkdir -p $(DEPLOY_LOG_DIR)
 	$(call ok,undeploy-dev complete  log=$(DEPLOY_UNDEPLOY_LOG))
 
