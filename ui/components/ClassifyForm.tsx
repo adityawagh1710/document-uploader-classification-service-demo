@@ -27,13 +27,22 @@ interface ClassifyResponse {
   inputName?: string;
 }
 
+type Phase = "idle" | "uploading" | "classifying" | "done";
+
 export function ClassifyForm({ onClassified }: { onClassified?: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [workspaceId, setWorkspaceId] = useState("wks-ui-001");
   const [extension, setExtension] = useState("");
   const [contentType, setContentType] = useState("");
   const [overrideDup, setOverrideDup] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+
+  // Phase + upload progress for the real-time bar. Tracked via XHR upload
+  // events (fetch can't surface bytes-uploaded). `phase` transitions are:
+  //   idle → uploading (with %) → classifying (indeterminate) → done
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [uploadPct, setUploadPct] = useState(0);
+  const submitting = phase === "uploading" || phase === "classifying";
+
   const [result, setResult] = useState<ClassifyResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
@@ -45,9 +54,10 @@ export function ClassifyForm({ onClassified }: { onClassified?: () => void }) {
       setError("Pick a file first");
       return;
     }
-    setSubmitting(true);
     setError(null);
     setResult(null);
+    setUploadPct(0);
+    setPhase("uploading");
 
     const form = new FormData();
     form.append("file", file);
@@ -57,8 +67,33 @@ export function ClassifyForm({ onClassified }: { onClassified?: () => void }) {
     form.append("overrideDuplicateCheck", String(overrideDup));
 
     try {
-      const resp = await fetch("/api/classify", { method: "POST", body: form });
-      const data = (await resp.json()) as ClassifyResponse;
+      const data = await new Promise<ClassifyResponse>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/classify");
+        // Upload-progress events fire as bytes leave the browser. Once the
+        // request body is fully sent, switch to "classifying" — the server
+        // is then doing detection + hashing + dedup, no progress signal.
+        xhr.upload.onprogress = (evt) => {
+          if (evt.lengthComputable) {
+            setUploadPct(Math.round((evt.loaded / evt.total) * 100));
+          }
+        };
+        xhr.upload.onloadend = () => {
+          setUploadPct(100);
+          setPhase("classifying");
+        };
+        xhr.onload = () => {
+          try {
+            resolve(JSON.parse(xhr.responseText) as ClassifyResponse);
+          } catch {
+            reject(new Error(`invalid JSON response (status ${xhr.status})`));
+          }
+        };
+        xhr.onerror = () => reject(new Error("network error"));
+        xhr.onabort = () => reject(new Error("aborted"));
+        xhr.send(form);
+      });
+      setPhase("done");
       setResult(data);
       if (!data.ok) {
         setError(typeof data.error === "string" ? data.error : JSON.stringify(data.error));
@@ -66,8 +101,7 @@ export function ClassifyForm({ onClassified }: { onClassified?: () => void }) {
       onClassified?.();
     } catch (e: unknown) {
       setError((e as Error)?.message ?? "request failed");
-    } finally {
-      setSubmitting(false);
+      setPhase("idle");
     }
   }
 
@@ -125,30 +159,6 @@ export function ClassifyForm({ onClassified }: { onClassified?: () => void }) {
             className="rounded border border-border-subtle bg-slate-950/40 px-3 py-2 text-sm tabular-nums placeholder:text-slate-600"
           />
         </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-[10.5px] uppercase tracking-[0.1em] text-slate-400 font-semibold">
-            Extension hint
-          </span>
-          <input
-            type="text"
-            value={extension}
-            placeholder="docx | pdf | pptx | docm | …"
-            onChange={(e) => setExtension(e.target.value)}
-            className="rounded border border-border-subtle bg-slate-950/40 px-3 py-2 text-sm placeholder:text-slate-600"
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-[10.5px] uppercase tracking-[0.1em] text-slate-400 font-semibold">
-            Content-Type hint
-          </span>
-          <input
-            type="text"
-            value={contentType}
-            placeholder="application/pdf | application/vnd.openxmlformats-officedocument.* | …"
-            onChange={(e) => setContentType(e.target.value)}
-            className="rounded border border-border-subtle bg-slate-950/40 px-3 py-2 text-sm placeholder:text-slate-600"
-          />
-        </label>
         <label className="flex items-center gap-2 mt-2">
           <input
             type="checkbox"
@@ -157,15 +167,80 @@ export function ClassifyForm({ onClassified }: { onClassified?: () => void }) {
           />
           <span className="text-sm text-slate-300">overrideDuplicateCheck</span>
         </label>
+
+        {/* Advanced overrides — extension + content-type hints are optional
+            since the classifier auto-derives extension from payload.s3.key.
+            Collapsed by default to keep the form clean for happy-path uploads. */}
+        <details className="col-span-2 group rounded border border-border-subtle/40 bg-slate-950/30 px-3 py-2">
+          <summary className="cursor-pointer text-[10.5px] uppercase tracking-[0.1em] text-slate-400 font-semibold select-none flex items-center gap-2">
+            <span className="text-slate-500 group-open:rotate-90 transition-transform inline-block">›</span>
+            Advanced
+            <span className="text-slate-600 normal-case tracking-normal font-normal text-[10px]">
+              (extension + content-type overrides — auto-derived from filename when blank)
+            </span>
+          </summary>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10.5px] uppercase tracking-[0.1em] text-slate-400 font-semibold">
+                Extension hint
+              </span>
+              <input
+                type="text"
+                value={extension}
+                placeholder="docx | pdf | pptx | docm | …"
+                onChange={(e) => setExtension(e.target.value)}
+                className="rounded border border-border-subtle bg-slate-950/40 px-3 py-2 text-sm placeholder:text-slate-600"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10.5px] uppercase tracking-[0.1em] text-slate-400 font-semibold">
+                Content-Type hint
+              </span>
+              <input
+                type="text"
+                value={contentType}
+                placeholder="application/pdf | application/vnd.openxmlformats-officedocument.* | …"
+                onChange={(e) => setContentType(e.target.value)}
+                className="rounded border border-border-subtle bg-slate-950/40 px-3 py-2 text-sm placeholder:text-slate-600"
+              />
+            </label>
+          </div>
+        </details>
+
         <div className="col-span-2 flex items-center gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={submitting || !file}
-            className="rounded bg-sky-600/80 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitting ? "Classifying…" : "Classify"}
-          </button>
-          {result?.elapsedMs !== undefined ? (
+          {!submitting ? (
+            <button
+              type="submit"
+              disabled={!file}
+              className="rounded bg-sky-600/80 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Classify
+            </button>
+          ) : (
+            <div className="flex flex-1 max-w-md flex-col gap-1">
+              <div className="flex items-center justify-between text-[10.5px] uppercase tracking-[0.1em] font-semibold">
+                <span className="text-slate-300">
+                  {phase === "uploading" ? "Uploading…" : "Classifying…"}
+                </span>
+                <span className="text-slate-500 tabular-nums">
+                  {phase === "uploading" ? `${uploadPct}%` : ""}
+                </span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded bg-slate-800">
+                {phase === "uploading" ? (
+                  <div
+                    className="h-full bg-sky-500 transition-all duration-150"
+                    style={{ width: `${uploadPct}%` }}
+                  />
+                ) : (
+                  // Indeterminate: full-width pulse while the server hashes,
+                  // dedups, builds output. No progress signal available.
+                  <div className="h-full w-full animate-pulse bg-sky-400" />
+                )}
+              </div>
+            </div>
+          )}
+          {result?.elapsedMs !== undefined && !submitting ? (
             <span className="text-xs text-slate-400 tabular-nums">{result.elapsedMs} ms</span>
           ) : null}
         </div>
