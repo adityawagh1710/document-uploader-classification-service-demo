@@ -9,7 +9,7 @@ const ODF_MIMETYPE_FORMAT_MAP: Readonly<Record<string, string>> = {
   "application/vnd.oasis.opendocument.graphics": "odg",
 };
 
-const OOXML_EXTENSIONS = new Set([
+export const OOXML_EXTENSIONS = new Set([
   "docx", "docm",
   "xlsx", "xlsm",
   "pptx", "pptm", "ppsx",

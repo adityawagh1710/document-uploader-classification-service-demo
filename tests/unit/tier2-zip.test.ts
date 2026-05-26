@@ -116,6 +116,24 @@ describe("Tier2ZIPDetector", () => {
     }
   });
 
+  it("identifies pptx purely from extension hint when scanned entries have no OOXML markers (data descriptor / non-standard tools)", () => {
+    // Reproduces Wonders_of_Our_Solar_System.pptx: ZIP signature present,
+    // but parser bails after one non-OOXML-marker entry (likely a data
+    // descriptor variant or unusual entry ordering from python-pptx/Google).
+    // Extension hint must be the last-resort defense.
+    const buf = new Uint8Array(4096);
+    const stub = new Uint8Array([0x00]);
+    // A first entry that doesn't trigger any OOXML marker. Then parser stops.
+    writeLFH(buf, 0, "stuff.bin", true, stub);
+
+    const result = detector.detect(buf, "pptx");
+    expect(result.matched).toBe(true);
+    if (result.matched) {
+      expect(result.family).toBe("ooxml");
+      expect(result.format).toBe("pptx");
+    }
+  });
+
   it("uses extension hint when scanned entries don't disambiguate (deep OOXML files)", () => {
     // Pathological case: only doc-props entries scanned — no word/xl/ppt
     // prefix surfaces. Falls back to extension hint instead of silently picking docx.
