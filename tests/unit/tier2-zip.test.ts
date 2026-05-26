@@ -105,7 +105,7 @@ describe("Tier2ZIPDetector", () => {
     // window but word/document.xml is in scope. The prefix alone is enough.
     const buf = new Uint8Array(4096);
     const stub = new Uint8Array([0x00]);
-    let off = writeLFH(buf, 0, "word/document.xml", true, stub);
+    const off = writeLFH(buf, 0, "word/document.xml", true, stub);
     writeLFH(buf, off, "word/_rels/document.xml.rels", true, stub);
 
     const result = detector.detect(buf);
@@ -142,7 +142,7 @@ describe("Tier2ZIPDetector", () => {
     let off = writeLFH(buf, 0, "[Content_Types].xml", true, stub);
     off = writeLFH(buf, off, "_rels/.rels", true, stub);
     off = writeLFH(buf, off, "docProps/app.xml", true, stub);
-    off = writeLFH(buf, off, "docProps/core.xml", true, stub);
+    writeLFH(buf, off, "docProps/core.xml", true, stub);
 
     const result = detector.detect(buf, "xlsx");
     expect(result.matched).toBe(true);
