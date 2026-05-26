@@ -184,7 +184,7 @@ export async function detectInSequence(
 
   // Tier 2 ZIP (signature-conditional)
   if (hasSignature(buffer, ZIP_SIGNATURE)) {
-    const t2zip = deps.tier2ZIP.detect(buffer);
+    const t2zip = deps.tier2ZIP.detect(buffer, hints.extension);
     if (t2zip.matched) {
       return {
         tier: "zip-marker",

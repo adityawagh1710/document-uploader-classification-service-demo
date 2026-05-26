@@ -59,6 +59,46 @@ describe("Tier2ZIPDetector", () => {
     }
   });
 
+  it("identifies pptx when ppt/ entry sits after doc-props prefix (regression — fix bumps scan from 4→16 entries)", () => {
+    // Reproduces the stress_test_100mb.pptx miscategorisation: typical OOXML
+    // layout puts [Content_Types].xml + _rels + 2× docProps BEFORE the first
+    // format-specific part (ppt/presentation.xml), so a 4-entry scan misses it.
+    // Each entry needs a non-empty payload so the parser's anti-loop guard
+    // (`if (offset <= filenameEnd) break`) doesn't stop after the first one.
+    const buf = new Uint8Array(4096);
+    const stub = new Uint8Array([0x00]);
+    let off = writeLFH(buf, 0, "[Content_Types].xml", true, stub);
+    off = writeLFH(buf, off, "_rels/.rels", true, stub);
+    off = writeLFH(buf, off, "docProps/app.xml", true, stub);
+    off = writeLFH(buf, off, "docProps/core.xml", true, stub);
+    writeLFH(buf, off, "ppt/presentation.xml", true, stub);
+
+    const result = detector.detect(buf);
+    expect(result.matched).toBe(true);
+    if (result.matched) {
+      expect(result.family).toBe("ooxml");
+      expect(result.format).toBe("pptx");
+    }
+  });
+
+  it("uses extension hint when scanned entries don't disambiguate (deep OOXML files)", () => {
+    // Pathological case: only doc-props entries scanned — no word/xl/ppt
+    // prefix surfaces. Falls back to extension hint instead of silently picking docx.
+    const buf = new Uint8Array(4096);
+    const stub = new Uint8Array([0x00]);
+    let off = writeLFH(buf, 0, "[Content_Types].xml", true, stub);
+    off = writeLFH(buf, off, "_rels/.rels", true, stub);
+    off = writeLFH(buf, off, "docProps/app.xml", true, stub);
+    off = writeLFH(buf, off, "docProps/core.xml", true, stub);
+
+    const result = detector.detect(buf, "xlsx");
+    expect(result.matched).toBe(true);
+    if (result.matched) {
+      expect(result.family).toBe("ooxml");
+      expect(result.format).toBe("xlsx");
+    }
+  });
+
   it("identifies plain ZIP when no marker entries present", () => {
     const buf = new Uint8Array(512);
     writeLFH(buf, 0, "readme.txt", false);
