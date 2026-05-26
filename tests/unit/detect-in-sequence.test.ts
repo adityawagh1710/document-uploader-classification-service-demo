@@ -4,6 +4,7 @@ import { detectInSequence } from "../../src/application/ClassificationService.js
 import type { ClassificationServiceDeps } from "../../src/application/types.js";
 
 const OLE2_HEADER = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+const ZIP_HEADER = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
 
 function makeDeps(overrides: Partial<ClassificationServiceDeps> = {}): ClassificationServiceDeps {
   const noop = vi.fn();
@@ -68,6 +69,52 @@ describe("detectInSequence — cfb fall-through to Tier 2 OLE2", () => {
     expect(state).toMatchObject({
       tier: "file-type",
       detectedFormat: "pdf",
+      matchType: "exact-unique-signature",
+    });
+  });
+
+  it("does NOT short-circuit when Tier 1 returns generic `zip`; falls through to Tier 2 ZIP which refines to xlsx", async () => {
+    // file-type returns plain `zip` when its 4 KiB window misses [Content_Types].xml
+    // (common on big OOXML files where the central directory is at the end).
+    const tier1 = { detect: vi.fn().mockResolvedValue({ matched: true, ext: "zip", mime: "application/zip" }) };
+    // Tier 2 ZIP scans local-file-header entries and identifies xlsx via OOXML markers.
+    const tier2ZIP = {
+      detect: vi.fn().mockReturnValue({
+        matched: true,
+        format: "xlsx",
+        family: "ooxml",
+        matchType: "zip-with-ooxml-or-odf",
+      }),
+    };
+    const deps = makeDeps({ tier1, tier2ZIP });
+
+    const state = await detectInSequence(deps, ZIP_HEADER, { extension: "xlsx", contentType: null });
+
+    expect(tier2ZIP.detect).toHaveBeenCalledOnce();
+    expect(state).toMatchObject({
+      tier: "zip-marker",
+      detectedFormat: "xlsx",
+      matchType: "zip-with-ooxml-or-odf",
+    });
+  });
+
+  it("plain `zip` (Tier 2 ZIP finds no OOXML/ODF markers) still routes correctly as archive-bound zip", async () => {
+    const tier1 = { detect: vi.fn().mockResolvedValue({ matched: true, ext: "zip", mime: "application/zip" }) };
+    const tier2ZIP = {
+      detect: vi.fn().mockReturnValue({
+        matched: true,
+        format: "zip",
+        family: "plain",
+        matchType: "exact-unique-signature",
+      }),
+    };
+    const deps = makeDeps({ tier1, tier2ZIP });
+
+    const state = await detectInSequence(deps, ZIP_HEADER, { extension: "zip", contentType: null });
+
+    expect(state).toMatchObject({
+      tier: "zip-marker",
+      detectedFormat: "zip",
       matchType: "exact-unique-signature",
     });
   });

@@ -133,6 +133,12 @@ export function createClassificationService(deps: ClassificationServiceDeps): Cl
 const OLE2_SIGNATURE = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
 const ZIP_SIGNATURE = [0x50, 0x4b, 0x03, 0x04];
 
+// `file-type` returns these container types when it sees the magic bytes
+// without seeing the refinement markers further in the file. They must fall
+// through to the Tier 2 refiners (OLE2 CLSID parser / ZIP marker parser) to
+// be turned into a usable specific format.
+const GENERIC_TIER1_CONTAINERS = new Set<string>(["cfb", "zip"]);
+
 function hasSignature(buffer: Uint8Array, signature: ReadonlyArray<number>): boolean {
   if (buffer.length < signature.length) return false;
   for (let i = 0; i < signature.length; i++) {
@@ -148,13 +154,14 @@ export async function detectInSequence(
 ): Promise<DetectionState> {
   // Tier 1
   const t1 = await deps.tier1.detect(buffer);
-  // `cfb` is the generic Compound File Binary wrapper that `file-type` returns
-  // for ANY OLE2-based document (.doc/.xls/.ppt/.msg/.msi/...). It is not a
-  // terminal classification — CategoryMapper has no mapping for it, so accepting
-  // it here would force every OLE2 document into the "unknown format" slipsheet
-  // fallback. Fall through to Tier 2 OLE2 which reads the root-storage CLSID
-  // and refines `cfb` into a specific format (doc/xls/ppt/etc.).
-  if (t1.matched && t1.ext.toLowerCase() !== "cfb") {
+  // `file-type` returns generic container types when its detection window
+  // doesn't include the refinement hints (e.g. OOXML's [Content_Types].xml
+  // sits past the first 4 KiB on big files). Fall through to the Tier 2
+  // refiners so they can identify the specific format:
+  //   - `cfb` → Tier 2 OLE2 reads the root-storage CLSID → doc/xls/ppt/msg
+  //   - `zip` → Tier 2 ZIP scans local-file-header entries → docx/xlsx/pptx
+  //     (OOXML), odt/ods/odp (ODF), or stays as `zip` for plain archives
+  if (t1.matched && !GENERIC_TIER1_CONTAINERS.has(t1.ext.toLowerCase())) {
     return {
       tier: "file-type",
       detectedFormat: t1.ext.toLowerCase(),
