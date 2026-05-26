@@ -141,14 +141,20 @@ function hasSignature(buffer: Uint8Array, signature: ReadonlyArray<number>): boo
   return true;
 }
 
-async function detectInSequence(
+export async function detectInSequence(
   deps: ClassificationServiceDeps,
   buffer: Uint8Array,
   hints: { extension: string | null; contentType: string | null },
 ): Promise<DetectionState> {
   // Tier 1
   const t1 = await deps.tier1.detect(buffer);
-  if (t1.matched) {
+  // `cfb` is the generic Compound File Binary wrapper that `file-type` returns
+  // for ANY OLE2-based document (.doc/.xls/.ppt/.msg/.msi/...). It is not a
+  // terminal classification — CategoryMapper has no mapping for it, so accepting
+  // it here would force every OLE2 document into the "unknown format" slipsheet
+  // fallback. Fall through to Tier 2 OLE2 which reads the root-storage CLSID
+  // and refines `cfb` into a specific format (doc/xls/ppt/etc.).
+  if (t1.matched && t1.ext.toLowerCase() !== "cfb") {
     return {
       tier: "file-type",
       detectedFormat: t1.ext.toLowerCase(),
