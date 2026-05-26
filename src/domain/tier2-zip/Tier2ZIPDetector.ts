@@ -27,8 +27,20 @@ export function createTier2ZIPDetector(deps: { parser: ZIPMarkerParser }): Tier2
         return { matched: true, format: "zip", family: "plain", matchType: "exact-unique-signature" };
       }
 
-      const first = entries[0];
-      if (first && first.filename === "[Content_Types].xml") {
+      // OOXML detection — strict "first entry must be [Content_Types].xml" was
+      // too brittle. Excel-generated xlsx files (especially with embedded charts)
+      // and other OOXML producers sometimes reorder entries. Accept any of:
+      //   - `[Content_Types].xml` present at ANY position in the scanned window
+      //   - `word/`, `xl/`, or `ppt/` part-name prefix on any scanned entry
+      // Either is definitive evidence of an OOXML package.
+      const isOoxml = entries.some(
+        (e) =>
+          e.filename === "[Content_Types].xml" ||
+          e.filename.startsWith("word/") ||
+          e.filename.startsWith("xl/") ||
+          e.filename.startsWith("ppt/"),
+      );
+      if (isOoxml) {
         return {
           matched: true,
           format: ooxmlFormatFromEntries(entries, extensionHint ?? null),
