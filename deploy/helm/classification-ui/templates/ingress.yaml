@@ -1,5 +1,15 @@
 {{- if .Values.ingress.enabled -}}
 {{- $host := required "values.ingress.host must be set when ingress.enabled=true" .Values.ingress.host -}}
+{{/*
+Internet-facing ALB locked down to corp-egress CIDRs, fronted by the
+cluster's wildcard ACM cert. Mirrors aspose-total/office-convert and
+argocd's argocd-http-ingress — the proven dev05 pattern.
+
+The two paths under `http.paths` are the AWS LBC ssl-redirect idiom:
+  - First path -> service `ssl-redirect` port-name `use-annotation` wires the
+    HTTP→HTTPS 301 redirect via the `actions.ssl-redirect` annotation.
+  - Second path -> the real backend, served on HTTPS:443.
+*/}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -8,15 +18,31 @@ metadata:
   labels:
     {{- include "classification-ui.labels" . | nindent 4 }}
   annotations:
-    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-policy: {{ .Values.ingress.sslPolicy }}
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.certificateArn }}
+    alb.ingress.kubernetes.io/inbound-cidrs: {{ .Values.ingress.inboundCidrs | quote }}
+    alb.ingress.kubernetes.io/actions.ssl-redirect: '{"Type":"redirect","RedirectConfig":{"Protocol":"HTTPS","Port":"443","StatusCode":"HTTP_301"}}'
+    alb.ingress.kubernetes.io/group.name: {{ .Values.ingress.groupName }}
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds={{ .Values.ingress.idleTimeoutSeconds }}
+    alb.ingress.kubernetes.io/healthcheck-path: {{ .Values.ingress.healthcheckPath }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   rules:
     - host: {{ $host | quote }}
       http:
         paths:
-          - path: /
-            pathType: Prefix
+          - path: /*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: ssl-redirect
+                port:
+                  name: use-annotation
+          - path: /*
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: classification-ui

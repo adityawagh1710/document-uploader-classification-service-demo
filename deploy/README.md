@@ -49,14 +49,33 @@ make deploy-dev DEPLOY_IMAGE_TAG=$(git rev-parse --short HEAD)
 make pf-start                # background pf to http://localhost:3000
 ```
 
-Ingress mode (ALB + Route 53 A-alias):
+Ingress mode (internet-facing ALB + Route 53 A-alias + corp-CIDR allowlist):
 
 ```bash
 make deploy-dev \
     DEPLOY_IMAGE_TAG=$(git rev-parse --short HEAD) \
-    DEPLOY_INGRESS_HOST=classification-ui.dev.opus2.example.com \
-    DEPLOY_ROUTE53_ZONE_ID=Z0123456789ABCDEFGHIJ
+    DEPLOY_INGRESS_HOST=classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com \
+    DEPLOY_ROUTE53_ZONE_ID=Z045669519R5D9D8CKC79
 ```
+
+The chart's Ingress mirrors the proven dev05 pattern (argocd → aspose-total →
+classification-ui): `scheme: internet-facing` ALB, dual HTTP+HTTPS listeners
+with HTTP→HTTPS 301 redirect, fronted by the cluster wildcard ACM cert
+`*.dev05.k8s.opus2dev.com`, locked down by an `inbound-cidrs` allowlist of
+corp egress IPs. `idle_timeout` is 300 s so 1 GiB streaming uploads don't
+stall the ALB. All defaults live in `helm/classification-ui/values.yaml`;
+override at install with `--set ingress.<field>=…`.
+
+Refresh the CIDR allowlist from argocd before each deploy if office IPs have
+changed:
+
+```bash
+kubectl -n argocd get ingress argocd-http-ingress \
+  -o jsonpath='{.metadata.annotations.alb\.ingress\.kubernetes\.io/inbound-cidrs}'
+```
+
+To share aspose's ALB (drops the per-app LB cost): add
+`--set ingress.groupName=office-convert` to the deploy command.
 
 `make deploy-dev` is an idempotent **8-step pipeline**:
 
@@ -75,8 +94,8 @@ Plus a final **status** print (`kubectl get pods,svc,ingress`). Logs land in `de
 
 ```bash
 make undeploy-dev \
-    DEPLOY_INGRESS_HOST=classification-ui.dev.opus2.example.com \
-    DEPLOY_ROUTE53_ZONE_ID=Z0123456789ABCDEFGHIJ
+    DEPLOY_INGRESS_HOST=classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com \
+    DEPLOY_ROUTE53_ZONE_ID=Z045669519R5D9D8CKC79
 ```
 
 **4-step pipeline:**
@@ -133,7 +152,7 @@ All defaults live at the top of the Makefile `[deploy]` section.
 - **LocalStack Service** — `ClusterIP` :4566
 - **ConfigMap** — `AWS_ENDPOINT_URL`, table names, bucket name — consumed via `envFrom` by the UI
 - **Namespace** — gated by `namespace.create=true` (default)
-- **Ingress** — ALB, conditional on `ingress.enabled=true`; pairs with `route53-upsert.sh` for stable DNS
+- **Ingress** — `internet-facing` ALB with HTTP+HTTPS listeners, HTTP→HTTPS 301 redirect, wildcard ACM cert (`*.dev05.k8s.opus2dev.com`), CIDR-allowlist locked to corp egress IPs, 300 s idle timeout. Conditional on `ingress.enabled=true`; pairs with `route53-upsert.sh` for stable DNS. Group-name `classification-service` (set `ingress.groupName=office-convert` to share aspose's ALB).
 
 The UI lazy-provisions LocalStack on first request (same `ensureLocalStackReady()` code path the local docker-compose uses), so the first hit after a deploy is slow (table + bucket creation). Subsequent hits are fast.
 

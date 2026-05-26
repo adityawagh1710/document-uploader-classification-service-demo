@@ -75,14 +75,36 @@ config:
 # (deploy/scripts/portforward.sh) which costs nothing. Enable when you want
 # a bookmarkable URL across redeploys; pairs with `route53-upsert.sh` to
 # point DNS at the freshly-allocated ALB on every deploy.
+#
+# Defaults mirror aspose-total's office-convert chart — the proven dev05
+# pattern: internet-facing ALB locked down to corp-egress CIDRs, fronted by
+# the cluster's wildcard ACM cert, HTTP→HTTPS auto-redirect. Cleaner than
+# scheme=internal because public DNS resolves without VPN-side forwarding
+# tricks (corp DNS forwarding to dev05 zone is fragile on this laptop —
+# see memory: pc_corp_network_environment).
 ingress:
   enabled: false
   className: alb
-  host: ""   # set when enabled, e.g. classification-ui.dev.opus2.example.com
-  annotations:
-    alb.ingress.kubernetes.io/scheme: internal
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
-    # group.name lets multiple apps in the same namespace (or across) share
-    # one ALB — drops per-app LB cost. Comment out to get a dedicated ALB.
-    alb.ingress.kubernetes.io/group.name: classification-service
+  host: ""   # e.g. classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com
+  # ALB group — multiple Ingresses with the same group.name share one ALB.
+  groupName: classification-service
+  # Wildcard cert covering *.dev05.k8s.opus2dev.com. Our single-label
+  # hostname under that suffix is covered.
+  certificateArn: arn:aws:acm:eu-west-1:537462380503:certificate/fab42f33-7d67-4ecf-b200-38af584485b0
+  # Same TLS policy argocd + office-convert use on this cluster.
+  sslPolicy: ELBSecurityPolicy-FS-1-2-Res-2019-08
+  # Corp egress IP allowlist. Two sources:
+  #   1. Aspose/argocd-derived set (10 CIDRs) — lifted from aspose-total's
+  #      chart 2026-05-25, originally from argocd's ingress 2026-05-19.
+  #      Refresh before each deploy via:
+  #        kubectl -n argocd get ingress argocd-http-ingress \
+  #          -o jsonpath='{.metadata.annotations.alb\.ingress\.kubernetes\.io/inbound-cidrs}'
+  #   2. Operator-supplied office egress (4 CIDRs, added 2026-05-26).
+  # Override at install: --set ingress.inboundCidrs="<csv>"
+  inboundCidrs: "213.210.23.82/32,213.210.23.84/32,31.121.79.58/32,31.121.79.60/32,18.133.115.188/32,54.91.4.210/32,18.168.253.57/32,52.74.117.130/32,165.65.37.128/29,136.40.11.230/32,114.143.153.146/32,114.143.153.147/32,103.68.11.58/32,103.68.11.59/32"
+  # ALB default idle timeout is 60 s. 1 GiB streaming uploads at 8 MiB
+  # parts × 4-way concurrency can stall a part past 60 s on slow links —
+  # 300 s gives headroom without being absurd.
+  idleTimeoutSeconds: 300
+  # Next.js exposes /api/health; same path used by the pod readiness probe.
+  healthcheckPath: /api/health
