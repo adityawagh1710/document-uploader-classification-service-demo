@@ -123,6 +123,8 @@ The UI exercises the classifier in-process; the Lambda container is there so the
 
 Three deployment modes (`npm run dev`, Docker Compose, dev EKS via `make deploy-dev`) and Cypress E2E suite documented in **[`ui/README.md`](ui/README.md)**. Operations-phase summary at `aidlc-docs/operations/test-ui.md`.
 
+**API contract**: OpenAPI 3.1 spec at [`ui/public/openapi.yaml`](ui/public/openapi.yaml), browsable Swagger UI at `<host>/docs` (e.g. `https://classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com/docs`). Single endpoint to attach-a-file-get-result is `POST /api/classify` (multipart, returns classification JSON).
+
 For the shared dev cluster (DEV05-EKS-CLUSTER, namespace `classification-service-sandbox`), see **[`deploy/README.md`](deploy/README.md)** — Helm chart + `make deploy-dev` / `make undeploy-dev` pipelines + port-forward and optional ALB+Route 53 wiring.
 
 ## Documentation
