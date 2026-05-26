@@ -14,5 +14,5 @@ export type Tier2ZIPResult =
   | { readonly matched: false };
 
 export interface Tier2ZIPDetector {
-  detect(buffer: Uint8Array): Tier2ZIPResult;
+  detect(buffer: Uint8Array, extensionHint?: string | null): Tier2ZIPResult;
 }

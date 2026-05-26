@@ -9,16 +9,37 @@ const ODF_MIMETYPE_FORMAT_MAP: Readonly<Record<string, string>> = {
   "application/vnd.oasis.opendocument.graphics": "odg",
 };
 
-export function ooxmlFormatFromEntries(entries: ReadonlyArray<ZIPEntry>): string {
-  // Default conservative: docx if we can't refine from later entries
+const OOXML_EXTENSIONS = new Set([
+  "docx", "docm",
+  "xlsx", "xlsm",
+  "pptx", "pptm", "ppsx",
+]);
+
+export function ooxmlFormatFromEntries(
+  entries: ReadonlyArray<ZIPEntry>,
+  extensionHint?: string | null,
+): string {
+  // Prefer disambiguation from scanned entries — the part-name prefixes
+  // (word/, xl/, ppt/) are definitive evidence of the OOXML variant.
   const filenames = entries.map((e) => e.filename);
   if (filenames.some((f) => f.startsWith("word/"))) return "docx";
   if (filenames.some((f) => f.startsWith("xl/"))) return "xlsx";
   if (filenames.some((f) => f.startsWith("ppt/"))) {
-    // Without parsing the Content_Types.xml fully we conservatively return pptx;
-    // macro-enabled / slideshow variants are refined by U-3's downstream where extension/MIME hints apply.
+    // Macro-enabled / slideshow variants need extension/MIME hints to refine
+    // (we can't tell .pptx from .pptm from .ppsx without parsing Content_Types).
     return "pptx";
   }
+
+  // No disambiguating part-name surfaced in the scan window (common when
+  // OOXML files lead with `[Content_Types].xml`, `_rels/.rels`, `docProps/*`
+  // before the format-specific `word|xl|ppt/` parts). Fall back to the user
+  // extension hint if it's a known OOXML extension — beats silently guessing.
+  if (extensionHint) {
+    const ext = extensionHint.toLowerCase().replace(/^\./, "");
+    if (OOXML_EXTENSIONS.has(ext)) return ext;
+  }
+
+  // Last-resort default — preserves prior behaviour for callers with no hint.
   return "docx";
 }
 
