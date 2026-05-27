@@ -952,3 +952,18 @@ make deploy-dev \
 **Context**: OPERATIONS — makes the Recent feed truly reflect DynamoDB on dev05 (was per-pod/ephemeral) + adds the per-upload S3 reference and a presigned download. One cohesive feature commit on the existing topology branch.
 
 ---
+
+## OPERATIONS — Pre-deploy confidence review + IRSA smoke-test gate
+**Timestamp**: 2026-05-27T14:15:00Z
+**User Input**: "Before deployment how confident you are that everything will work on dev05 ?" → "Yes, add the smoke-test Step 0 and the make target"
+**AI Response**: Gave a calibrated assessment — ~90% on app correctness (verified by make qa + Cypress 18/18 + CI 12/12), but ~60–70% that the FIRST dev05 deploy is clean because the real-AWS path (IRSA, IAM, cross-account deploy, pod egress, node arch) is NEVER exercised by LocalStack/CI. Surfaced + fixed a concrete runbook bug: CDK stack id is `ClassificationData-dev`, not `ClassificationDataStack-dev` (committed `828e711`). Cleared two false-alarm risks: STS-for-IRSA is covered (`@aws-sdk/nested-clients` bundled, not `client-sts`); web-identity provider present.
+
+Then added the de-risking gate the user requested:
+- **`make irsa-smoketest`** (Makefile `[deploy]` group) — pre-flight, no UI deploy: creates a throwaway `classification-ui` SA (the IRSA trust policy is name-scoped) annotated with `DEPLOY_IRSA_ROLE_ARN`, runs an `amazon/aws-cli` pod *as that SA* doing `aws sts get-caller-identity` + `aws dynamodb list-tables`, prints node architecture, then deletes the SA so `make deploy-dev` (Helm-managed SA) recreates it cleanly. Fail-fast guard if role ARN unset. One command retires the IRSA-trust, pod-egress, table-name, and node-arch risks before committing to a deploy.
+- **`deploy/AWS_TOPOLOGY.md` Step 0** — pre-flight section: 0a env checks (cluster reachable, profile→account, IAM OIDC provider associated — with the `eksctl utils associate-iam-oidc-provider` remediation), 0b the `make irsa-smoketest` gate (run after Steps 1+3). Step 5 updated to drive `make deploy-dev DEPLOY_BACKEND=aws ...` + corrected the ECR image repo to match the Makefile (`classification-service-sandbox/classification-service-ui`).
+
+Verified: `make help` lists the target; guard fires without role ARN; `make -n` expands cleanly (tabs OK). Note: `check-kubectl` shows the operator's kubectl is already pointed at `arn:aws:eks:eu-west-1:537462380503:cluster/DEV05-EKS-CLUSTER`. No cluster/AWS mutation performed — execution (role creation + smoke test + deploy) remains the operator's call.
+
+**Context**: OPERATIONS — adds a fail-fast IRSA pre-flight so the riskiest unverified dev05 dependency is proven cheaply before the UI deploy. Honest confidence framing recorded for the deploy decision.
+
+---

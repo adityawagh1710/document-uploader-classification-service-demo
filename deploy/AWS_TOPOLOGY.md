@@ -54,6 +54,38 @@ Namespace / ServiceAccount this profile uses: **`classification-service-sandbox`
 
 ---
 
+## Step 0 — Pre-flight checks (fail fast before deploying)
+
+These catch the failures that *only* surface on real AWS — none are exercised by
+LocalStack or CI.
+
+**0a. Environment (run anytime):**
+```bash
+kubectl cluster-info                              # cluster reachable
+aws sts get-caller-identity --profile opus2-dev   # profile resolves to account 537462380503
+# IRSA REQUIRES an IAM OIDC provider associated with the cluster. Confirm one
+# exists and matches the cluster issuer (from Prerequisites):
+aws iam list-open-id-connect-providers --profile opus2-dev
+#   If none matches, IRSA can NEVER work — associate it once:
+#     eksctl utils associate-iam-oidc-provider --cluster <name> --region eu-west-1 --approve
+```
+
+**0b. IRSA gate — the highest-value check (run after Steps 1 + 3, i.e. tables + role exist):**
+Assumes the role as the `classification-ui` ServiceAccount *from inside the
+cluster*, lists the tables, and prints node architecture — retiring the
+IRSA-trust, pod-egress, table-name, and node-arch risks in one shot **before**
+the UI is deployed:
+```bash
+make irsa-smoketest DEPLOY_IRSA_ROLE_ARN=arn:aws:iam::537462380503:role/classification-ui-irsa
+```
+Expect: the assumed **role ARN** + the **3 tables** (`content-hashes-dev`,
+`workspace-config-dev`, `classifications-dev`) + node arch **amd64** (the UI
+image is `linux/amd64`; if nodes are arm64, rebuild for arm64). Only proceed to
+Step 5 if this is green. The target uses a throwaway SA that it deletes
+afterward, so `make deploy-dev` recreates the Helm-managed SA cleanly.
+
+---
+
 ## Step 1 — Create the DynamoDB tables (CDK data-stack only)
 
 `infra/config/dev.ts` already points dev at `eu-west-1` / `537462380503`.
@@ -169,17 +201,27 @@ aws dynamodb put-item --table-name workspace-config-dev --region eu-west-1 --pro
 
 ## Step 5 — Deploy the UI with the aws profile
 
+**Gate:** only run this once `make irsa-smoketest` (Step 0b) is green.
+
+The `make deploy-dev` pipeline builds + pushes the image, then `helm upgrade`
+with the aws profile (`DEPLOY_BACKEND=aws` layers `values-aws.yaml` + the SA
+role-arn annotation), waits for readiness, and prints a summary:
+```bash
+make deploy-dev DEPLOY_BACKEND=aws \
+  DEPLOY_IRSA_ROLE_ARN=arn:aws:iam::537462380503:role/classification-ui-irsa \
+  DEPLOY_IMAGE_TAG=$(git rev-parse --short HEAD)
+```
+Equivalent raw Helm (if you prefer to drive it by hand):
 ```bash
 helm upgrade --install classification-ui deploy/helm/classification-ui \
   -f deploy/helm/classification-ui/values.yaml \
   -f deploy/helm/classification-ui/values-aws.yaml \
   --namespace classification-service-sandbox --create-namespace \
-  --set image.repository=537462380503.dkr.ecr.eu-west-1.amazonaws.com/classification-ui \
+  --set image.repository=537462380503.dkr.ecr.eu-west-1.amazonaws.com/classification-service-sandbox/classification-service-ui \
   --set image.tag=$(git rev-parse --short HEAD) \
-  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=arn:aws:iam::537462380503:role/classification-ui-irsa
+  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=arn:aws:iam::537462380503:role/classification-ui-irsa \
+  --wait --timeout=5m
 ```
-(Build + push the image first via the existing `make image-build image-push`,
-or wire these flags into `make deploy-dev` with `HELM_EXTRA_ARGS`.)
 
 ## Step 6 — Verify
 
