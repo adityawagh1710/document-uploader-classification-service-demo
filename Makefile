@@ -502,6 +502,37 @@ check-deploy-backend: ## [deploy] Validate DEPLOY_BACKEND (aws requires DEPLOY_I
 		exit 1; \
 	fi
 
+.PHONY: irsa-smoketest
+irsa-smoketest: check-kubectl ## [deploy] Pre-flight (no UI deploy): assume the IRSA role as the SA + list tables + node arch
+	@if [ -z "$(DEPLOY_IRSA_ROLE_ARN)" ]; then \
+		printf "$(COL_RED)✗ irsa-smoketest requires DEPLOY_IRSA_ROLE_ARN=<role-arn>$(COL_OFF)\n"; \
+		printf "  Create the IRSA role first — see deploy/AWS_TOPOLOGY.md Step 3.\n"; \
+		exit 1; \
+	fi
+	$(call banner,IRSA pre-flight → ns=$(DEPLOY_NAMESPACE) sa=$(DEPLOY_HELM_RELEASE) region=$(DEPLOY_AWS_REGION))
+	@printf "  $(COL_BOLD)Node arch$(COL_OFF) (the UI image builds linux/amd64): "; \
+		kubectl get nodes -o jsonpath='{range .items[*]}{.status.nodeInfo.architecture}{" "}{end}' 2>/dev/null || true; echo
+	@kubectl get ns $(DEPLOY_NAMESPACE) >/dev/null 2>&1 || kubectl create ns $(DEPLOY_NAMESPACE) >/dev/null
+	@# Temp SA named exactly like the deployment SA — the IRSA trust policy is
+	@# scoped to system:serviceaccount:<ns>:$(DEPLOY_HELM_RELEASE). Removed after
+	@# the test so `make deploy-dev` (Helm-managed SA) recreates it cleanly.
+	@kubectl -n $(DEPLOY_NAMESPACE) create serviceaccount $(DEPLOY_HELM_RELEASE) --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+	@kubectl -n $(DEPLOY_NAMESPACE) annotate serviceaccount $(DEPLOY_HELM_RELEASE) \
+		eks.amazonaws.com/role-arn=$(DEPLOY_IRSA_ROLE_ARN) --overwrite >/dev/null
+	@printf "  $(COL_BOLD)Assuming role + listing tables as the SA…$(COL_OFF)\n"; \
+	kubectl run irsa-smoketest -n $(DEPLOY_NAMESPACE) \
+		--overrides='{"spec":{"serviceAccountName":"$(DEPLOY_HELM_RELEASE)"}}' \
+		--image=amazon/aws-cli:2.17.0 --restart=Never --rm -i --command -- \
+		sh -c 'aws sts get-caller-identity && aws dynamodb list-tables --region $(DEPLOY_AWS_REGION)'; \
+	rc=$$?; \
+	kubectl -n $(DEPLOY_NAMESPACE) delete serviceaccount $(DEPLOY_HELM_RELEASE) --ignore-not-found >/dev/null 2>&1; \
+	if [ $$rc -eq 0 ]; then \
+		printf "$(COL_GRN)✓ IRSA OK — role assumable + tables reachable from the cluster (temp SA removed)$(COL_OFF)\n"; \
+	else \
+		printf "$(COL_RED)✗ IRSA smoke test FAILED (rc=$$rc) — fix before deploy-dev (check OIDC trust, SA name/ns, role policy, pod egress)$(COL_OFF)\n"; \
+	fi; \
+	exit $$rc
+
 .PHONY: helm-lint
 helm-lint: check-helm ## [deploy] helm lint the chart
 	@helm lint $(DEPLOY_CHART_DIR) --set image.repository=$(DEPLOY_IMAGE_REPO) --set image.tag=$(DEPLOY_IMAGE_TAG) \
