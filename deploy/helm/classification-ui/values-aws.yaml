@@ -1,0 +1,34 @@
+# Real-AWS profile for dev05 (Option A topology).
+#
+# Option A: the UI runs the classifier IN-PROCESS against real DynamoDB + S3
+# via IRSA. No Lambda, no Step Functions. See deploy/AWS_TOPOLOGY.md for the
+# full runbook (data-stack deploy, bucket creation, IRSA role, workspace seed).
+#
+# Layer this ON TOP of values.yaml:
+#   helm upgrade --install classification-ui deploy/helm/classification-ui \
+#     -f deploy/helm/classification-ui/values.yaml \
+#     -f deploy/helm/classification-ui/values-aws.yaml \
+#     --set image.repository=<acct>.dkr.ecr.eu-west-1.amazonaws.com/<repo> \
+#     --set image.tag=<git-sha> \
+#     --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=arn:aws:iam::537462380503:role/classification-ui-irsa
+
+# No in-cluster LocalStack — and (because localstackConfig is gated on this)
+# AWS_ENDPOINT_URL + the "test" creds are omitted from the pod env, so the SDK
+# default chain falls through to the IRSA web-identity token.
+localstack:
+  enabled: false
+
+# IRSA identity. Operator supplies the role ARN via --set at install (above).
+serviceAccount:
+  create: true
+  name: classification-ui
+
+config:
+  # Flip the classifier to real-AWS client construction (default chain → IRSA).
+  CLASSIFIER_AWS_MODE: "true"
+  AWS_REGION: "eu-west-1"
+  # Tables created by the CDK data-stack (infra/lib/data-stack.ts) at env=dev.
+  CONTENT_HASH_TABLE_NAME: "content-hashes-dev"
+  WORKSPACE_CONFIG_TABLE_NAME: "workspace-config-dev"
+  # Bucket created out-of-band (`aws s3 mb`) — see runbook.
+  UI_S3_BUCKET: "classification-ui-dev05"

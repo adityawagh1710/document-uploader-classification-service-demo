@@ -901,3 +901,29 @@ make deploy-dev \
 **Context**: OPERATIONS — chart pattern upgrade. Recurring cost shifts from $0/mo (port-forward) to whatever the **shared** ALB amortizes (group-name lets us merge onto aspose's existing ALB later for ~$0 incremental, or take a dedicated ALB for ~$18/mo). Decision deferred to deploy time via `--set ingress.groupName=<x>`.
 
 ---
+
+## OPERATIONS — Real-AWS topology switch (Option A): LocalStack local / real AWS dev05
+**Timestamp**: 2026-05-27T09:30:00Z
+**User Input**: "Can we convert this service to AWS topology ? what things will have to do for it ? So locally it will be local stack and on dev05 onwards its aws resources ? just give me things to do ?" → "So with above changes UI and APIs will remain as it is or will have to change them ?" → "Right now i dont have Lambda/Step Functions what should we do will you create those or any other way" → "Lets go with A but in separate branch and make sure local will work in LOcalStack and dev05 on wards will work in AWS resource"
+**AI Response**: Built **Option A** (UI runs the classifier in-process against real AWS DynamoDB + S3 via IRSA — NO Lambda, NO Step Functions) on a new branch `feat/dev05-aws-topology` off `main`. No AWS resources mutated; code + Helm + CDK config + runbook only.
+
+**Key design decision**: the LocalStack↔AWS switch is an EXPLICIT opt-in flag `CLASSIFIER_AWS_MODE` (default = LocalStack), NOT "AWS_ENDPOINT_URL unset". Reason: `npm run dev` leaves AWS_ENDPOINT_URL unset yet must stay LocalStack (relies on the `?? localhost:4566` default). Gating on the explicit flag guarantees both local paths (`npm run dev` + docker compose) are byte-for-byte unchanged.
+
+**Files changed (8)**:
+- `ui/lib/classifier.ts` — added `AWS_MODE`/`USE_LOCALSTACK` gate; S3/DDB/SFN clients built conditionally (AWS branch passes NO static creds → IRSA default chain, NO endpoint, drops forcePathStyle, keeps SDK-default checksums); exported `BACKEND_MODE`, `DISPLAY_ENDPOINT`, `awsClientConfig`; `ensureResourcesProvisioned()` is a no-op in AWS mode (CDK/out-of-band own tables+bucket; IRSA role lacks Create*).
+- `ui/app/api/health/route.ts` — rebuilt its DDB client from the shared `awsClientConfig` instead of hardcoded localhost+test creds. CRITICAL FIX: in AWS mode the old code probed localhost:4566 (absent in pod) → 503 → readiness/liveness probes never pass → deploy never Ready. Now probes real DDB via IRSA. Contract (200/503 + `tables[]`) unchanged.
+- `ui/app/api/target/route.ts` — `backend`/`endpoint` now derived from authoritative `BACKEND_MODE`/`DISPLAY_ENDPOINT` (accurate across npm-dev/compose/AWS). Response keys + value domain ("localstack"|"real-aws") unchanged.
+- `deploy/helm/classification-ui/values.yaml` — moved LocalStack-only env (`AWS_ENDPOINT_URL` + `AWS_ACCESS_KEY_ID`/`SECRET`) into a new `localstackConfig:` block; added `config.CLASSIFIER_AWS_MODE: "false"` + `serviceAccount:` (create/name/annotations).
+- `deploy/helm/.../templates/configmap.yaml` — renders `localstackConfig` ONLY when `localstack.enabled` (so AWS mode omits the static creds → SDK chain falls through to IRSA; leaving "test" creds in pod env would silently bypass IRSA).
+- `deploy/helm/.../templates/serviceaccount.yaml` (NEW) + `_helpers.tpl` `serviceAccountName` helper + `ui-deployment.yaml` `serviceAccountName:` wiring.
+- `deploy/helm/.../values-aws.yaml` (NEW) — aws overlay: `localstack.enabled=false`, `serviceAccount.create=true`, `CLASSIFIER_AWS_MODE=true`, `AWS_REGION=eu-west-1`, tables `content-hashes-dev`/`workspace-config-dev`, bucket `classification-ui-dev05`.
+- `infra/config/dev.ts` — dev = dev05 account `537462380503` / `eu-west-1` (was placeholder `111111111111`/`us-east-1`). Upstream Lambda/SFN/SNS ARNs left as documented placeholders (LambdaStack-only; not deployed in Option A).
+- `deploy/AWS_TOPOLOGY.md` (NEW) — full Option-A operator runbook: data-stack deploy, bucket create, IRSA role (trust + least-priv perms JSON), one-time workspace seed, helm install w/ aws profile, verify, teardown.
+
+**Verifications (no cluster/AWS mutation)**: `helm lint` pass; `helm template` default profile → 2 Deployments incl. localstack, configmap has AWS_ENDPOINT_URL+test creds, SA=default. `helm template` aws profile → 1 Deployment (no localstack), configmap has CLASSIFIER_AWS_MODE=true + eu-west-1 + content-hashes-dev and crucially NO AWS_ENDPOINT_URL/AWS_ACCESS_KEY_ID, ServiceAccount created with role-arn annotation, serviceAccountName=classification-ui. `cd ui && npx tsc --noEmit` exit 0; `npm run lint` clean; `cd infra && npx tsc --noEmit` exit 0. LocalStack code path is behavior-identical to prior (same client options) → local preserved; Cypress suite (`cd ui && npm run cypress:run`) remains the local regression gate, runnable against a compose stack.
+
+**NOT done (deferred to operator)**: any AWS mutation — `cdk bootstrap`/`cdk deploy ClassificationDataStack-dev`, `aws s3 mb`, IRSA role creation, workspace seed, helm install on dev05. All documented in `deploy/AWS_TOPOLOGY.md`. Not committed yet (awaiting review).
+
+**Context**: OPERATIONS — environment-topology switch. Net: infra + IRSA + one Helm profile + one TS module (+ 2 route internals for health/target accuracy); UI components + all API contracts unchanged. Lambda/Step Functions intentionally NOT created — they are the production shape, deferred until the real upstream document-ingestion pipeline exists.
+
+---

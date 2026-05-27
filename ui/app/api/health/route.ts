@@ -1,20 +1,19 @@
 import { NextResponse } from "next/server";
 import { ListTablesCommand } from "@aws-sdk/client-dynamodb";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { awsClientConfig, DISPLAY_ENDPOINT } from "@/lib/classifier";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const endpoint = process.env.AWS_ENDPOINT_URL ?? "http://localhost:4566";
-  const region = process.env.AWS_REGION ?? "us-east-1";
+  // Reuse the backend config classifier.ts resolved: LocalStack pins the
+  // endpoint + static creds; AWS mode passes region-only so the IRSA chain
+  // applies. Without this, AWS mode would probe localhost:4566 (absent in the
+  // pod), 503, and the readiness/liveness probes would never pass.
+  // A 2 s timeout keeps the probe snappy.
   const client = new DynamoDBClient({
-    region,
-    endpoint,
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "test",
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "test",
-    },
+    ...awsClientConfig,
     requestHandler: { requestTimeout: 2000 } as never,
   });
   try {
@@ -22,7 +21,7 @@ export async function GET() {
     const out = await client.send(new ListTablesCommand({}));
     return NextResponse.json({
       ready: true,
-      endpoint,
+      endpoint: DISPLAY_ENDPOINT,
       tables: out.TableNames ?? [],
       latencyMs: Date.now() - start,
     });
@@ -30,7 +29,7 @@ export async function GET() {
     return NextResponse.json(
       {
         ready: false,
-        endpoint,
+        endpoint: DISPLAY_ENDPOINT,
         error: (e as Error)?.message ?? "unknown",
       },
       { status: 503 },

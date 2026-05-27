@@ -121,7 +121,7 @@ exports[`ClassificationLambdaStack > matches snapshot (dev) 1`] = `
                 "states:SendTaskFailure",
               ],
               "Effect": "Allow",
-              "Resource": "arn:aws:states:us-east-1:111111111111:stateMachine:document-ingestion-dev",
+              "Resource": "arn:aws:states:eu-west-1:537462380503:stateMachine:document-ingestion-dev",
               "Sid": "StepFunctionSignal",
             },
           ],
@@ -201,7 +201,7 @@ exports[`ClassificationLambdaStack > matches snapshot (dev) 1`] = `
             "POWERTOOLS_LOGGER_SAMPLE_RATE": "1",
             "POWERTOOLS_METRICS_NAMESPACE": "ClassificationService",
             "POWERTOOLS_SERVICE_NAME": "classification-service",
-            "STATE_MACHINE_ARN": "arn:aws:states:us-east-1:111111111111:stateMachine:document-ingestion-dev",
+            "STATE_MACHINE_ARN": "arn:aws:states:eu-west-1:537462380503:stateMachine:document-ingestion-dev",
             "WORKSPACE_CONFIG_TABLE_NAME": {
               "Fn::ImportValue": "TestData:ExportsOutputRefWorkspaceConfig7D5932DA__HASH__",
             },
