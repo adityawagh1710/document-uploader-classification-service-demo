@@ -26,17 +26,20 @@ export class ClassificationObservabilityStack extends cdk.Stack {
     const { envConfig, fn, contentHashTable } = props;
     const env = envConfig.envName;
 
-    // Resolve SNS topic ARN from SSM Parameter Store (Pattern P-2-2 of U-2 NFR Design Q3=A).
-    // First-time synth returns a `dummy-value-for-...` placeholder before
-    // the SSM cache is populated by `cdk synth` against the live account.
-    // aws-cdk-lib ≥ 2.176 validates ARNs in `Topic.fromTopicArn` and rejects
-    // the dummy; substitute a syntactically valid placeholder so first
-    // synth succeeds. After the operator pre-populates SSM (see operator
-    // hand-off §7.3), the real ARN flows through unchanged.
-    const lookup = ssm.StringParameter.valueFromLookup(this, envConfig.alarmsSnsTopicSsmPath);
-    const snsTopicArn = lookup.startsWith("dummy-value-for-")
-      ? `arn:aws:sns:${envConfig.region}:${envConfig.account}:classification-alarms-${env}`
-      : lookup;
+    // Resolve the alarms SNS topic ARN from SSM as a DEPLOY-TIME value
+    // (Pattern P-2-2 of U-2 NFR Design Q3=A). `valueForStringParameter` returns
+    // a CloudFormation token resolved from SSM at deploy time — unlike
+    // `valueFromLookup`, it performs NO synth-time AWS call. That keeps
+    // `cdk synth` deterministic and fully offline (safe in CI and when local
+    // credentials are for a different account than the stack's target), and it
+    // sidesteps the aws-cdk-lib ≥ 2.176 `Topic.fromTopicArn` ARN validation
+    // because an unresolved token skips format checks. The operator
+    // pre-populates the parameter per operator hand-off §7.3; CloudFormation
+    // substitutes the real ARN at deploy with no code change.
+    const snsTopicArn = ssm.StringParameter.valueForStringParameter(
+      this,
+      envConfig.alarmsSnsTopicSsmPath,
+    );
     const snsTopic = sns.Topic.fromTopicArn(this, "AlarmsTopic", snsTopicArn);
     const snsAction = new cwActions.SnsAction(snsTopic);
 
