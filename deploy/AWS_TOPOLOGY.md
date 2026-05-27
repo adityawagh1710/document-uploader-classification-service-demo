@@ -63,7 +63,7 @@ cd infra
 npm ci
 npx cdk bootstrap aws://537462380503/eu-west-1 --profile opus2-dev   # once per acct/region
 # Deploy ONLY the data-stack — not the Lambda/observability stacks.
-npx cdk deploy ClassificationDataStack-dev --profile opus2-dev
+npx cdk deploy ClassificationData-dev --profile opus2-dev
 ```
 
 This creates `content-hashes-dev` and `workspace-config-dev` (PAY_PER_REQUEST,
@@ -73,7 +73,7 @@ aws dynamodb list-tables --region eu-west-1 --profile opus2-dev
 ```
 
 > Stack name: confirm with `npx cdk list`. If it differs from
-> `ClassificationDataStack-dev`, use the listed name.
+> `ClassificationData-dev`, use the listed name.
 
 ## Step 2 — Create the S3 bucket
 
@@ -199,7 +199,7 @@ Then classify a document in the dashboard and confirm the row lands in real
 ```bash
 helm uninstall classification-ui -n classification-service-sandbox
 # Optional — these persist data; delete only if you want a clean slate:
-#   aws dynamodb delete-table --table-name content-hashes-dev  (or `cdk destroy ClassificationDataStack-dev`)
+#   aws dynamodb delete-table --table-name content-hashes-dev  (or `cdk destroy ClassificationData-dev`)
 #   aws s3 rb s3://classification-ui-dev05 --force
 #   aws iam delete-role-policy / delete-role  for classification-ui-irsa
 ```
