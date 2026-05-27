@@ -1,4 +1,4 @@
-# Classification Service
+# Document Uploader Classification Service
 
 ![node](https://img.shields.io/badge/node-20%20LTS-339933?logo=node.js&logoColor=white)
 ![typescript](https://img.shields.io/badge/typescript-5.4-3178C6?logo=typescript&logoColor=white)
