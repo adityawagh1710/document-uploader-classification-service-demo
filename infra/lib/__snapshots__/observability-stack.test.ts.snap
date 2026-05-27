@@ -8,6 +8,10 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
       "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
       "Type": "AWS::SSM::Parameter::Value<String>",
     },
+    "SsmParameterValueobservabilitysnstopicarndev__CONTENT_HASH__Parameter": {
+      "Default": "/observability/sns-topic-arn/dev",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
   },
   "Resources": {
     "ClassificationDashboard__HASH__": {
@@ -61,7 +65,9 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
     "ContentHashesSystemErrors__HASH__": {
       "Properties": {
         "AlarmActions": [
-          "arn:aws:sns:us-east-1:111111111111:test-topic",
+          {
+            "Ref": "SsmParameterValueobservabilitysnstopicarndev__CONTENT_HASH__Parameter",
+          },
         ],
         "AlarmName": "content-hashes-system-errors-dev",
         "ComparisonOperator": "GreaterThanThreshold",
@@ -160,7 +166,9 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
     "ContentHashesThrottledRequests__HASH__": {
       "Properties": {
         "AlarmActions": [
-          "arn:aws:sns:us-east-1:111111111111:test-topic",
+          {
+            "Ref": "SsmParameterValueobservabilitysnstopicarndev__CONTENT_HASH__Parameter",
+          },
         ],
         "AlarmName": "content-hashes-throttled-requests-dev",
         "ComparisonOperator": "GreaterThanThreshold",
@@ -259,7 +267,9 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
     "ContentHashesUserErrors__HASH__": {
       "Properties": {
         "AlarmActions": [
-          "arn:aws:sns:us-east-1:111111111111:test-topic",
+          {
+            "Ref": "SsmParameterValueobservabilitysnstopicarndev__CONTENT_HASH__Parameter",
+          },
         ],
         "AlarmName": "content-hashes-user-errors-dev",
         "ComparisonOperator": "GreaterThanThreshold",
@@ -282,7 +292,9 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
     "LambdaColdStartP99Regression__HASH__": {
       "Properties": {
         "AlarmActions": [
-          "arn:aws:sns:us-east-1:111111111111:test-topic",
+          {
+            "Ref": "SsmParameterValueobservabilitysnstopicarndev__CONTENT_HASH__Parameter",
+          },
         ],
         "AlarmName": "lambda-cold-start-p99-regression-dev",
         "ComparisonOperator": "GreaterThanThreshold",
@@ -304,7 +316,9 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
     "LambdaDurationP99LargeDocs__HASH__": {
       "Properties": {
         "AlarmActions": [
-          "arn:aws:sns:us-east-1:111111111111:test-topic",
+          {
+            "Ref": "SsmParameterValueobservabilitysnstopicarndev__CONTENT_HASH__Parameter",
+          },
         ],
         "AlarmName": "lambda-duration-p99-large-docs-dev",
         "ComparisonOperator": "GreaterThanThreshold",
@@ -332,7 +346,9 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
     "LambdaDurationP99SmallDocs__HASH__": {
       "Properties": {
         "AlarmActions": [
-          "arn:aws:sns:us-east-1:111111111111:test-topic",
+          {
+            "Ref": "SsmParameterValueobservabilitysnstopicarndev__CONTENT_HASH__Parameter",
+          },
         ],
         "AlarmName": "lambda-duration-p99-small-docs-dev",
         "ComparisonOperator": "GreaterThanThreshold",
@@ -360,7 +376,9 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
     "LambdaErrors__HASH__": {
       "Properties": {
         "AlarmActions": [
-          "arn:aws:sns:us-east-1:111111111111:test-topic",
+          {
+            "Ref": "SsmParameterValueobservabilitysnstopicarndev__CONTENT_HASH__Parameter",
+          },
         ],
         "AlarmName": "lambda-errors-dev",
         "ComparisonOperator": "GreaterThanThreshold",
@@ -391,7 +409,9 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
     "LambdaThrottles__HASH__": {
       "Properties": {
         "AlarmActions": [
-          "arn:aws:sns:us-east-1:111111111111:test-topic",
+          {
+            "Ref": "SsmParameterValueobservabilitysnstopicarndev__CONTENT_HASH__Parameter",
+          },
         ],
         "AlarmName": "lambda-throttles-dev",
         "ComparisonOperator": "GreaterThanThreshold",
@@ -422,7 +442,9 @@ exports[`ClassificationObservabilityStack > matches snapshot (dev) 1`] = `
     "WorkspaceConfigNotFound__HASH__": {
       "Properties": {
         "AlarmActions": [
-          "arn:aws:sns:us-east-1:111111111111:test-topic",
+          {
+            "Ref": "SsmParameterValueobservabilitysnstopicarndev__CONTENT_HASH__Parameter",
+          },
         ],
         "AlarmName": "workspace-config-not-found-dev",
         "ComparisonOperator": "GreaterThanThreshold",
