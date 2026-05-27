@@ -1004,3 +1004,18 @@ Verified: `make help` lists target; `make -n tag-resources` + `make -n ecr-ensur
 **Context**: OPERATIONS — tag-consistency hygiene for cost-allocation/ownership across the out-of-band S3/IAM/ECR resources. Tagging only (additive, no data/security impact); naming left unchanged (renaming live resources is destructive).
 
 ---
+
+## OPERATIONS — add flag-gated `make undeploy-all` (data teardown)
+**Timestamp**: 2026-05-27T15:20:00Z
+**User Input**: "So who removes S3 and Dynamo DB with undeploy ?" → "Yes add make undeploy-all gated behind DEPLOY_NUKE_DATA flag"
+**AI Response**: Clarified that `make undeploy-dev` deliberately does NOT touch S3/DynamoDB/IRSA (kept by design — only the app layer route53+helm+ns is removed). Added (on branch `chore/dev05-resource-tags`) a flag-gated full-teardown:
+- `DEPLOY_NUKE_DATA` var (default empty; never defaulted on).
+- `check-nuke` guard — refuses unless `DEPLOY_NUKE_DATA=true`, printing exactly what would be destroyed (DDB stack `ClassificationData-<env>`, S3 `classification-ui-dev05`, IAM role) + pointing to `make undeploy-dev` for app-only.
+- `nuke-data` — `cdk destroy ClassificationData-<env>` (tables) + `aws s3 rb --force` (bucket) + `aws iam delete-role-policy`/`delete-role` (role). `[deploy]` group, DANGER-labeled.
+- `undeploy-all: check-nuke undeploy-dev nuke-data` — app teardown FIRST, then data nuke. Help var line added; AWS_TOPOLOGY.md Teardown section rewritten to show `make undeploy-dev` (keeps data) vs `make undeploy-all DEPLOY_NUKE_DATA=true` (destroys it).
+
+Verified: `make undeploy-all` (no flag) refuses + exits 1, runs nothing destructive; `make -n undeploy-all DEPLOY_NUKE_DATA=true` expands the correct ordered chain (route53-delete → helm uninstall → ns delete → cdk destroy → s3 rb → iam delete). `make qa` re-run green on this branch earlier. No live AWS mutation.
+
+**Context**: OPERATIONS — gives a single safe full-teardown command while keeping `undeploy-dev` non-destructive to data. Irreversible path is hard-gated behind an explicit confirmation flag.
+
+---
