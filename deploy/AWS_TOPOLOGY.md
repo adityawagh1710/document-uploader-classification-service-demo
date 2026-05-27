@@ -172,21 +172,41 @@ aws s3api put-bucket-tagging --bucket classification-ui-dev05 --profile opus2-de
 
 > **Optional — archive fan-out to zip-extraction.** The UI publishes a
 > claim-check to the sibling zip-extraction service's SQS queue when
-> classification returns `category=archive`. The default `values-aws.yaml`
-> ships with `ZIP_EXTRACTION_QUEUE_URL=""` so the fan-out is **disabled**
-> in AWS mode. To enable it, (a) provision the queue (`aws sqs create-queue
-> --queue-name zip-extraction-queue --region eu-west-1`), (b) add the
-> statement below to `perms.json` before creating the role, and (c) set
-> `ZIP_EXTRACTION_QUEUE_URL` at deploy time
-> (`--set config.ZIP_EXTRACTION_QUEUE_URL=https://sqs.eu-west-1.amazonaws.com/537462380503/zip-extraction-queue`).
-> If the queue and the URL are absent, the UI silently skips the dispatch
-> and classification still succeeds.
+> classification returns `category=archive`. `values-aws.yaml` now points
+> `ZIP_EXTRACTION_QUEUE_URL` at the **live** queue the zip-extraction service
+> already runs on dev05 — `https://sqs.eu-west-1.amazonaws.com/537462380503/zip-extraction-dev05`
+> (owned by that service; do NOT create or delete it). If the URL is blanked,
+> the UI silently skips the dispatch and classification still succeeds.
+>
+> **Verified 2026-05-27 with a live test claim-check:** the consumer accepts
+> our message schema (`{pipelineExecutionId, tenantId, documentId,
+> sourceBucket, sourceKey, correlationId}`) and fetches the object from the
+> **message's** `sourceBucket`/`sourceKey` (not its own configured uploads
+> bucket). The message was consumed without ever hitting the DLQ. The only
+> gap is IAM — two grants are required:
+>
+> 1. **This IRSA role → `sqs:SendMessage`** on the queue (add the statement
+>    below to `perms.json` before creating the role, or attach it after):
 > ```json
 > {
 >   "Sid": "ZipExtractionFanOut",
 >   "Effect": "Allow",
 >   "Action": ["sqs:SendMessage"],
->   "Resource": "arn:aws:sqs:eu-west-1:537462380503:zip-extraction-queue"
+>   "Resource": "arn:aws:sqs:eu-west-1:537462380503:zip-extraction-dev05"
+> }
+> ```
+> 2. **The `zip-extraction-dev05` role → `s3:GetObject`** on our bucket, else
+>    the consumer 403s on download (observed in its logs:
+>    `AccessDenied … s3:GetObject on classification-ui-dev05/…`). Grant it on
+>    OUR side via a bucket policy on `classification-ui-dev05` (keeps the
+>    change off the other service's role):
+> ```json
+> {
+>   "Sid": "AllowZipExtractionRead",
+>   "Effect": "Allow",
+>   "Principal": { "AWS": "arn:aws:iam::537462380503:role/zip-extraction-dev05" },
+>   "Action": "s3:GetObject",
+>   "Resource": "arn:aws:s3:::classification-ui-dev05/ui/*"
 > }
 > ```
 > `classifications-dev` backs the Recent-classifications feed (one row per upload,
