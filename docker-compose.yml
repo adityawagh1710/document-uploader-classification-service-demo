@@ -19,7 +19,7 @@ services:
     image: localstack/localstack:3.7.0
     environment:
       SERVICES: s3,dynamodb,stepfunctions,sqs
-      DEFAULT_REGION: us-east-1
+      DEFAULT_REGION: eu-west-1
       PERSISTENCE: "0"
       DEBUG: "0"
     ports:
@@ -42,7 +42,7 @@ services:
     environment:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
-      AWS_DEFAULT_REGION: us-east-1
+      AWS_DEFAULT_REGION: eu-west-1
       AWS_ENDPOINT_URL: http://localstack:4566
       UI_S3_BUCKET: classification-ui-bucket
       CONTENT_HASH_TABLE_NAME: content-hashes-ui
@@ -65,7 +65,7 @@ services:
         condition: service_completed_successfully
     environment:
       AWS_ENDPOINT_URL: http://localstack:4566
-      AWS_REGION: us-east-1
+      AWS_REGION: eu-west-1
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       CONTENT_HASH_TABLE_NAME: content-hashes-ui
@@ -91,7 +91,7 @@ services:
         condition: service_completed_successfully
     environment:
       AWS_ENDPOINT_URL: http://localstack:4566
-      AWS_REGION: us-east-1
+      AWS_REGION: eu-west-1
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       UI_S3_BUCKET: classification-ui-bucket
