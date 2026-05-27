@@ -28,6 +28,7 @@ interface RecentItem {
   failureReason: string | null;
   failureKind: string | null;
   objectKey: string | null;
+  archiveDispatch: "ok" | "skipped" | "failed";
   result: {
     documentId: string;
     workspaceId: string;

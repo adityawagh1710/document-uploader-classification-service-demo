@@ -7,6 +7,7 @@ import {
   ensureResourcesProvisioned,
   s3Client,
   BUCKET,
+  archiveDispatcher,
 } from "@/lib/classifier";
 import { recordFailure, recordSuccess } from "@/lib/stats";
 import { recordRun } from "@/lib/runs";
@@ -138,6 +139,28 @@ export async function POST(req: Request) {
     );
   }
 
+  // Archive fan-out — mirror of the Lambda handler. Failures are logged but
+  // never bubble up; classification is the primary contract.
+  let archiveDispatch: "ok" | "skipped" | "failed" = "skipped";
+  if (
+    archiveDispatcher !== undefined &&
+    result.value.classification.category === "archive"
+  ) {
+    const dispatch = await archiveDispatcher.dispatch({
+      pipelineExecutionId: documentId,
+      tenantId: workspaceId,
+      documentId,
+      sourceBucket: BUCKET,
+      sourceKey: objectKey,
+      correlationId: documentId,
+    });
+    archiveDispatch = dispatch.ok ? "ok" : "failed";
+    if (!dispatch.ok) {
+      // eslint-disable-next-line no-console
+      console.error("[classify] archive dispatch failed", { documentId, error: dispatch.error });
+    }
+  }
+
   const rec = recordSuccess({
     id: documentId,
     ts: new Date().toISOString(),
@@ -146,6 +169,7 @@ export async function POST(req: Request) {
     result: result.value,
     elapsedMs,
     objectKey,
+    archiveDispatch,
   });
   await recordRun(rec);
 
@@ -156,5 +180,6 @@ export async function POST(req: Request) {
     documentId,
     objectKey,
     inputName,
+    archiveDispatch,
   });
 }

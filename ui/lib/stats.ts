@@ -2,6 +2,8 @@
 // process restart — which is fine for a test UI; no persistence is implied.
 import type { ClassificationOutput, ClassificationFailure } from "@svc/application/index";
 
+export type ArchiveDispatchState = "ok" | "skipped" | "failed";
+
 export interface RecentRecord {
   readonly id: string;
   readonly ts: string;
@@ -13,6 +15,7 @@ export interface RecentRecord {
   readonly failureReason: string | null;
   readonly failureKind: string | null;
   readonly objectKey: string | null;
+  readonly archiveDispatch: ArchiveDispatchState;
 }
 
 export interface SuccessInit {
@@ -23,6 +26,7 @@ export interface SuccessInit {
   elapsedMs: number;
   result: ClassificationOutput;
   objectKey: string;
+  archiveDispatch: ArchiveDispatchState;
 }
 
 export interface FailureInit {
@@ -88,6 +92,7 @@ export function recordSuccess(init: SuccessInit): RecentRecord {
     failureReason: null,
     failureKind: null,
     objectKey: init.objectKey,
+    archiveDispatch: init.archiveDispatch,
   };
   s.recent.unshift(record);
   s.recent.splice(MAX_RECENT);
@@ -109,6 +114,7 @@ export function recordFailure(init: FailureInit): RecentRecord {
     failureReason: reason,
     failureKind: init.failure.kind,
     objectKey: init.objectKey,
+    archiveDispatch: "skipped",
   };
   s.recent.unshift(record);
   s.recent.splice(MAX_RECENT);

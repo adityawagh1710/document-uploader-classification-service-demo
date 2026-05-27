@@ -662,6 +662,7 @@ undeploy-summary: ## [deploy] Print summary of removed resources (also written t
 	  if [ "$(DEPLOY_BACKEND)" = "aws" ]; then \
 	    printf "    %-17s %s\n" "IRSA IAM role"   "out-of-band — see deploy/AWS_TOPOLOGY.md teardown"; \
 	    printf "    %-17s %s\n" "DDB tables/bkt"  "real AWS data kept — delete via cdk destroy / aws cli"; \
+	    printf "    %-17s %s\n" "SQS queue"       "if archive fan-out enabled — delete via aws sqs delete-queue"; \
 	  fi; \
 	  printf "    %-17s AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr delete-repository \\\\\n" "Nuke ECR via:"; \
 	  printf "                      --repository-name $(DEPLOY_ECR_REPO) --region $(DEPLOY_AWS_REGION) --force\n"; \

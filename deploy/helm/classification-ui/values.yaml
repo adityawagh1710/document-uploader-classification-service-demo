@@ -71,6 +71,10 @@ config:
   CONTENT_HASH_TABLE_NAME: "content-hashes-ui"
   WORKSPACE_CONFIG_TABLE_NAME: "workspace-config-ui"
   CLASSIFICATIONS_TABLE_NAME: "classifications-ui"
+  # Archive fan-out — claim-check destination for the sibling zip-extraction
+  # service. Default points at the in-cluster LocalStack pod. Override in the
+  # aws profile to the real SQS queue URL.
+  ZIP_EXTRACTION_QUEUE_URL: "http://localstack:4566/000000000000/zip-extraction-queue"
   # Pod-to-pod via in-cluster DNS bypasses the ALB ingress and its corp-CIDR
   # allowlist (which blocks pod NAT egress). Local dev falls back to the
   # public ingress URL hardcoded in ui/app/api/convert/route.ts.

@@ -12,6 +12,7 @@ CH_TABLE="${CONTENT_HASH_TABLE_NAME:-content-hashes-ui}"
 WC_TABLE="${WORKSPACE_CONFIG_TABLE_NAME:-workspace-config-ui}"
 CL_TABLE="${CLASSIFICATIONS_TABLE_NAME:-classifications-ui}"
 DEFAULT_WORKSPACE_ID="${DEFAULT_WORKSPACE_ID:-wks-ui-001}"
+ZIP_EXTRACTION_QUEUE_NAME="${ZIP_EXTRACTION_QUEUE_NAME:-zip-extraction-queue}"
 
 echo "Bootstrapping LocalStack at $ENDPOINT ..."
 
@@ -58,4 +59,9 @@ aws --endpoint-url="$ENDPOINT" dynamodb put-item \
     \"hashTtlDays\":     {\"NULL\": true}
   }" 2>/dev/null || true
 
-echo "Bootstrap complete: bucket=$BUCKET tables=$CH_TABLE,$WC_TABLE,$CL_TABLE workspace=$DEFAULT_WORKSPACE_ID"
+# SQS queue for archive fan-out to the zip-extraction service. Classifier
+# Lambda publishes a claim-check here when category=archive.
+aws --endpoint-url="$ENDPOINT" sqs create-queue \
+  --queue-name "$ZIP_EXTRACTION_QUEUE_NAME" 2>/dev/null || true
+
+echo "Bootstrap complete: bucket=$BUCKET tables=$CH_TABLE,$WC_TABLE,$CL_TABLE workspace=$DEFAULT_WORKSPACE_ID queue=$ZIP_EXTRACTION_QUEUE_NAME"

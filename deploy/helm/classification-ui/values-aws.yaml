@@ -33,3 +33,7 @@ config:
   CLASSIFICATIONS_TABLE_NAME: "classifications-dev"
   # Bucket created out-of-band (`aws s3 mb`) — see runbook.
   UI_S3_BUCKET: "classification-ui-dev05"
+  # Archive fan-out — empty string disables it. Set to the real SQS URL when
+  # the zip-extraction service's queue is provisioned in this account. The
+  # IRSA role needs sqs:SendMessage on the target queue (see runbook).
+  ZIP_EXTRACTION_QUEUE_URL: ""

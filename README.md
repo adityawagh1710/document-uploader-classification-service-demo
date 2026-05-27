@@ -33,9 +33,13 @@ flowchart LR
     Lambda -->|GetObject stream<br/>SHA-256 hash| S3
     Lambda -->|PutItem / UpdateItem /<br/>conditional Replace| CH[("content-hashes<br/>DynamoDB")]
     Lambda -->|SendTaskSuccess /<br/>SendTaskFailure| SFN
+    Lambda -->|SendMessage<br/>iff category=archive| ZQ[["zip-extraction-queue<br/>(SQS)"]]
+    ZQ --> ZX[zip-extraction service]
     Lambda -.->|logs + metrics<br/>+ X-Ray traces| CW[CloudWatch +<br/>X-Ray]
     SFN -->|route on category| Next["Downstream stages:<br/>convert · ocr-direct · email ·<br/>archive · media · slipsheet"]
 ```
+
+**Archive fan-out** (`ZIP_EXTRACTION_QUEUE_URL`): when classification returns `category=archive` (e.g. for a `.zip`), the Lambda publishes a claim-check `{pipelineExecutionId, tenantId, documentId, sourceBucket, sourceKey, correlationId}` to the [zip-extraction service](../zip-extraction/services/zip-extraction/)'s SQS queue. Dispatch failures are logged but do not block the `SendTaskSuccess` callback — classification's primary contract is preserved. The fan-out is opt-in: an empty `ZIP_EXTRACTION_QUEUE_URL` disables it without code changes.
 
 ## Architecture
 
@@ -114,8 +118,8 @@ The root `docker-compose.yml` brings up the **whole local stack** in one command
 
 | Service | Image | Endpoint | Purpose |
 |---|---|---|---|
-| `localstack` | `localstack/localstack:3.7.0` | `:4566` | S3 + DynamoDB + Step Functions |
-| `bootstrap` | `amazon/aws-cli:2.17.0` | one-shot | Seeds the bucket, both tables, and the default workspace row |
+| `localstack` | `localstack/localstack:3.7.0` | `:4566` | S3 + DynamoDB + Step Functions + SQS |
+| `bootstrap` | `amazon/aws-cli:2.17.0` | one-shot | Seeds the bucket, both tables, the default workspace row, and the `zip-extraction-queue` |
 | `lambda` | built from `Dockerfile.lambda` | `:9000` | Bundled handler running under the AWS Lambda RIE — invoke with `POST /2015-03-31/functions/function/invocations` |
 | `ui` | built from `ui/Dockerfile` | `:3000` | Next.js test dashboard |
 
