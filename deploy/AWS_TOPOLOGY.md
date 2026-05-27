@@ -115,6 +115,9 @@ For the sandbox, create it directly:
 aws s3api create-bucket --bucket classification-ui-dev05 \
   --region eu-west-1 --create-bucket-configuration LocationConstraint=eu-west-1 \
   --profile opus2-dev
+# Tag to match the CDK schema (or run `make tag-resources` later to reconcile all three):
+aws s3api put-bucket-tagging --bucket classification-ui-dev05 --profile opus2-dev \
+  --tagging 'TagSet=[{Key=Owner,Value=platform-team},{Key=CostCenter,Value=tbd},{Key=Service,Value=classification-service},{Key=Environment,Value=dev},{Key=Component,Value=ui},{Key=ManagedBy,Value=manual-dev05}]'
 ```
 (Match `UI_S3_BUCKET` in `values-aws.yaml` if you choose a different name.)
 
@@ -177,11 +180,19 @@ aws s3api create-bucket --bucket classification-ui-dev05 \
 
 ```bash
 aws iam create-role --role-name classification-ui-irsa \
-  --assume-role-policy-document file://trust.json --profile opus2-dev
+  --assume-role-policy-document file://trust.json --profile opus2-dev \
+  --tags Key=Owner,Value=platform-team Key=CostCenter,Value=tbd Key=Service,Value=classification-service Key=Environment,Value=dev Key=Component,Value=ui Key=ManagedBy,Value=manual-dev05
 aws iam put-role-policy --role-name classification-ui-irsa \
   --policy-name classification-ui-access \
   --policy-document file://perms.json --profile opus2-dev
 ```
+
+> **Consistent tagging:** the bucket, role, and ECR repo are created outside CDK,
+> so tag them to match the CDK schema (`Owner / CostCenter / Service / Environment
+> / Component=ui / ManagedBy=manual-dev05`). The create commands above bake the
+> tags in; to reconcile existing resources in one shot run **`make tag-resources`**
+> (`deploy/scripts/tag-resources.sh`). The CDK-managed DynamoDB tables + CFN stack
+> already carry the schema (`Component=data`, `ManagedBy=cdk`).
 
 ## Step 4 — Seed the default workspace row (one-time)
 

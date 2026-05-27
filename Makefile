@@ -419,6 +419,9 @@ DEPLOY_CHART_DIR       ?= deploy/helm/classification-ui
 DEPLOY_LOG_DIR         ?= deploy/logs
 DEPLOY_INGRESS_HOST    ?=
 DEPLOY_ROUTE53_ZONE_ID ?=
+# Out-of-band resources (created outside CDK) — used by `tag-resources`.
+DEPLOY_S3_BUCKET       ?= classification-ui-dev05
+DEPLOY_IRSA_ROLE_NAME  ?= classification-ui-irsa
 # Backend profile: localstack (default — in-cluster LocalStack sibling) or aws
 # (real DynamoDB + S3 via IRSA, Option A). See deploy/AWS_TOPOLOGY.md.
 DEPLOY_BACKEND         ?= localstack
@@ -470,8 +473,18 @@ ecr-ensure: check-aws ## [deploy] Create the ECR repo if missing (idempotent)
 		>/dev/null 2>&1 \
 	|| AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr create-repository \
 		--repository-name $(DEPLOY_ECR_REPO) --region $(DEPLOY_AWS_REGION) \
-		--image-scanning-configuration scanOnPush=true >/dev/null
+		--image-scanning-configuration scanOnPush=true \
+		--tags Key=Owner,Value=platform-team Key=CostCenter,Value=tbd Key=Service,Value=classification-service Key=Environment,Value=dev Key=Component,Value=ui Key=ManagedBy,Value=manual-dev05 >/dev/null
 	$(call ok,ECR repo present)
+
+.PHONY: tag-resources
+tag-resources: check-aws ## [deploy] Apply the standard tag set to the out-of-band S3 bucket + IRSA role + ECR repo (match CDK schema)
+	$(call banner,Tagging out-of-band resources → bucket=$(DEPLOY_S3_BUCKET) role=$(DEPLOY_IRSA_ROLE_NAME) ecr=$(DEPLOY_ECR_REPO))
+	@DEPLOY_AWS_PROFILE=$(DEPLOY_AWS_PROFILE) DEPLOY_AWS_REGION=$(DEPLOY_AWS_REGION) \
+		DEPLOY_AWS_ACCOUNT_ID=$(DEPLOY_AWS_ACCOUNT_ID) DEPLOY_ECR_REPO=$(DEPLOY_ECR_REPO) \
+		DEPLOY_S3_BUCKET=$(DEPLOY_S3_BUCKET) DEPLOY_IRSA_ROLE_NAME=$(DEPLOY_IRSA_ROLE_NAME) \
+		bash deploy/scripts/tag-resources.sh
+	$(call ok,Tagged S3 + IAM role + ECR repo)
 
 .PHONY: ecr-login
 ecr-login: check-aws ## [deploy] Docker login to ECR (60-min token)
