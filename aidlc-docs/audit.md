@@ -1036,3 +1036,14 @@ Then fixed the ns papercut on branch `fix/helm-ns-adoption`: `helm-deploy` now s
 **Context**: OPERATIONS — clean rebuild proving the toolkit end-to-end, plus a durable fix so a fresh redeploy no longer needs the manual `kubectl delete ns` workaround.
 
 ---
+
+## DESIGN — auto-convert (category=convert → office-convert → store PDF) feasibility + design doc
+**Timestamp**: 2026-05-27T17:30:00Z
+**User Input**: "Can you add one thing in when ever category is convert ... lambda or sqs to office convert ... store ... show in office convert Conversion History as well as Recent classifications as download pdf button ... just do research" → "Is you plan dev05 or production compatible ?" → "Yes, write up the design doc and keep in memory in separate branch"
+**AI Response**: Researched both repos (read-only). Findings: office-convert `/v1/convert` is SYNC HTTP only (multipart, or s3_input/s3_output feature-flagged OFF), returns PDF inline + presign endpoint; has NO persistent Conversion History (in-memory Streamlit UI list, cap 20, records only its own UI conversions); NO SQS/async. Our side already has a MANUAL convert button (browser-download, not stored) + classifications-dev Recent feed + presigned-download pattern. Key design call: do NOT trigger convert from the classify path (violates the classifier's pure-decision-point contract; prod routes via Step Functions). Production-compatible design = a **trigger-agnostic convert-worker Lambda** (S3 → /v1/convert → store PDF s3://…/converted/<documentId>.pdf → update run record), invoked by SQS on dev05 and by a Step Functions task in prod; the SQS trigger + Recent "Download PDF" button are dev05-only shells (classifications-dev is UI-only — no prod equivalent). office-convert Conversion History (req #4) is the hard part — needs a persistent store built in that repo; recommend skipping it now (surface in our Recent only).
+
+Wrote design doc `aidlc-docs/design/auto-convert-integration.md` on branch `docs/auto-convert-design` (3-phase plan, dev05-vs-prod matrix, storage procedure, open decisions, non-goals). Saved memory [[reference-auto-convert-design]]. NOT implemented — research/design only.
+
+**Context**: DESIGN — forward-looking integration design, prod-shaped so the dev05 build (convert-worker) carries to production rather than being a sandbox bolt-on.
+
+---
