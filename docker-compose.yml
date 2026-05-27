@@ -47,6 +47,7 @@ services:
       UI_S3_BUCKET: classification-ui-bucket
       CONTENT_HASH_TABLE_NAME: content-hashes-ui
       WORKSPACE_CONFIG_TABLE_NAME: workspace-config-ui
+      CLASSIFICATIONS_TABLE_NAME: classifications-ui
       DEFAULT_WORKSPACE_ID: wks-ui-001
     entrypoint: ["/bin/sh", "/bootstrap.sh"]
     volumes:
@@ -94,5 +95,10 @@ services:
       UI_S3_BUCKET: classification-ui-bucket
       CONTENT_HASH_TABLE_NAME: content-hashes-ui
       WORKSPACE_CONFIG_TABLE_NAME: workspace-config-ui
+      CLASSIFICATIONS_TABLE_NAME: classifications-ui
+      # Presigned download URLs must be signed for a host the browser can
+      # reach. The server talks to localstack:4566 internally, but the browser
+      # is on the host where LocalStack is published on localhost:4566.
+      S3_PUBLIC_ENDPOINT: http://localhost:4566
     ports:
       - "3000:3000"

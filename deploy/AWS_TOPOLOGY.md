@@ -115,7 +115,8 @@ aws s3api create-bucket --bucket classification-ui-dev05 \
       "Action": ["dynamodb:GetItem","dynamodb:PutItem","dynamodb:Query","dynamodb:DescribeTable"],
       "Resource": [
         "arn:aws:dynamodb:eu-west-1:537462380503:table/content-hashes-dev",
-        "arn:aws:dynamodb:eu-west-1:537462380503:table/workspace-config-dev"
+        "arn:aws:dynamodb:eu-west-1:537462380503:table/workspace-config-dev",
+        "arn:aws:dynamodb:eu-west-1:537462380503:table/classifications-dev"
       ]
     },
     {
@@ -133,6 +134,11 @@ aws s3api create-bucket --bucket classification-ui-dev05 \
   ]
 }
 ```
+> `classifications-dev` backs the Recent-classifications feed (one row per upload,
+> with the S3 object reference). `s3:GetObject` above also covers the **presigned
+> download** the Result panel mints on row-click (the URL is signed with the
+> pod's IRSA credentials, valid ~5 min). The CDK data-stack creates
+> `classifications-dev` alongside the other two tables in Step 1.
 > `dynamodb:ListTables` (resource `*`, account-level) backs `/api/health`,
 > which the pod readiness/liveness probes call. Drop it only if you also switch
 > the health check to `DescribeTable`.

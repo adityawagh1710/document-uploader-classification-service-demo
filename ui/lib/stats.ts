@@ -68,7 +68,7 @@ function getStore(): Stats {
   return globalThis.__CLASSIFICATION_STATS__;
 }
 
-export function recordSuccess(init: SuccessInit): void {
+export function recordSuccess(init: SuccessInit): RecentRecord {
   const s = getStore();
   s.total += 1;
   s.byTier[init.result.classification.detectionTier] =
@@ -91,9 +91,10 @@ export function recordSuccess(init: SuccessInit): void {
   };
   s.recent.unshift(record);
   s.recent.splice(MAX_RECENT);
+  return record;
 }
 
-export function recordFailure(init: FailureInit): void {
+export function recordFailure(init: FailureInit): RecentRecord {
   const s = getStore();
   s.errors += 1;
   const reason = formatFailureReason(init.failure);
@@ -111,6 +112,7 @@ export function recordFailure(init: FailureInit): void {
   };
   s.recent.unshift(record);
   s.recent.splice(MAX_RECENT);
+  return record;
 }
 
 function formatFailureReason(f: ClassificationFailure): string {

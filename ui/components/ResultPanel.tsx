@@ -43,6 +43,7 @@ interface RunDetail {
   } | null;
   bucket: string;
   table: string;
+  downloadUrl: string | null;
 }
 
 export function ResultPanel({ run }: { run: RecentItem }) {
@@ -69,7 +70,22 @@ export function ResultPanel({ run }: { run: RecentItem }) {
           RESULT
         </span>
         <Pill tone={run.status === "ok" ? "ok" : "crit"}>{run.status === "ok" ? "SUCCESS" : "FAILED"}</Pill>
-        <span className="ml-auto text-[10.5px] text-slate-500 tabular-nums">{run.elapsedMs} ms</span>
+        {detail?.downloadUrl ? (
+          <a
+            href={detail.downloadUrl}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="download-original"
+            className="ml-auto rounded border border-emerald-600/40 bg-emerald-500/10 px-2 py-1 text-[10.5px] font-medium text-emerald-300 hover:bg-emerald-500/20"
+          >
+            ⬇ Download original
+          </a>
+        ) : null}
+        <span
+          className={`${detail?.downloadUrl ? "" : "ml-auto "}text-[10.5px] text-slate-500 tabular-nums`}
+        >
+          {run.elapsedMs} ms
+        </span>
       </div>
 
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs font-mono">

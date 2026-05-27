@@ -30,5 +30,6 @@ config:
   # Tables created by the CDK data-stack (infra/lib/data-stack.ts) at env=dev.
   CONTENT_HASH_TABLE_NAME: "content-hashes-dev"
   WORKSPACE_CONFIG_TABLE_NAME: "workspace-config-dev"
+  CLASSIFICATIONS_TABLE_NAME: "classifications-dev"
   # Bucket created out-of-band (`aws s3 mb`) — see runbook.
   UI_S3_BUCKET: "classification-ui-dev05"

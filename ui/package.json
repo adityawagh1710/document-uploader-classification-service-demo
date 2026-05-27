@@ -21,6 +21,7 @@
     "@aws-sdk/client-sfn": "3.1053.0",
     "@aws-sdk/lib-dynamodb": "3.1053.0",
     "@aws-sdk/lib-storage": "3.1053.0",
+    "@aws-sdk/s3-request-presigner": "3.1053.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "file-type": "21.3.4",

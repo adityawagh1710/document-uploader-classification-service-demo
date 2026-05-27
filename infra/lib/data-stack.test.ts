@@ -6,9 +6,28 @@ import devConfig from "../config/dev.js";
 import prodConfig from "../config/prod.js";
 
 describe("ClassificationDataStack", () => {
-  it("creates exactly 2 DDB tables", () => {
+  it("creates exactly 3 DDB tables", () => {
     const { template } = buildAppAndStack(ClassificationDataStack);
-    template.resourceCountIs("AWS::DynamoDB::Table", 2);
+    template.resourceCountIs("AWS::DynamoDB::Table", 3);
+  });
+
+  it("classifications table has correct keys, billing mode, encryption, TTL", () => {
+    const { template } = buildAppAndStack(ClassificationDataStack);
+    template.hasResourceProperties(
+      "AWS::DynamoDB::Table",
+      Match.objectLike({
+        KeySchema: Match.arrayWith([
+          Match.objectLike({ AttributeName: "workspaceId", KeyType: "HASH" }),
+          Match.objectLike({ AttributeName: "runId", KeyType: "RANGE" }),
+        ]),
+        BillingMode: "PAY_PER_REQUEST",
+        SSESpecification: Match.objectLike({ SSEEnabled: true }),
+        TimeToLiveSpecification: Match.objectLike({
+          AttributeName: "expiresAt",
+          Enabled: true,
+        }),
+      }),
+    );
   });
 
   it("content-hashes table has correct keys, billing mode, encryption, TTL", () => {
@@ -45,7 +64,9 @@ describe("ClassificationDataStack", () => {
     const tables = template.findResources("AWS::DynamoDB::Table");
     const contentHashTable = Object.values(tables).find((t) => {
       const keySchema = (t.Properties as { KeySchema?: Array<{ AttributeName: string }> })?.KeySchema;
-      return keySchema?.length === 2;
+      // Both content-hashes and classifications have a 2-key schema; the
+      // content-hashes table is the one whose sort key is contentHash.
+      return keySchema?.some((k) => k.AttributeName === "contentHash");
     });
     expect(contentHashTable?.Properties).toMatchObject({
       PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true },
@@ -57,7 +78,9 @@ describe("ClassificationDataStack", () => {
     const tables = template.findResources("AWS::DynamoDB::Table");
     const contentHashTable = Object.values(tables).find((t) => {
       const keySchema = (t.Properties as { KeySchema?: Array<{ AttributeName: string }> })?.KeySchema;
-      return keySchema?.length === 2;
+      // Both content-hashes and classifications have a 2-key schema; the
+      // content-hashes table is the one whose sort key is contentHash.
+      return keySchema?.some((k) => k.AttributeName === "contentHash");
     });
     const pitr = (contentHashTable?.Properties as { PointInTimeRecoverySpecification?: { PointInTimeRecoveryEnabled?: boolean } })?.PointInTimeRecoverySpecification;
     expect(pitr?.PointInTimeRecoveryEnabled).toBe(false);
