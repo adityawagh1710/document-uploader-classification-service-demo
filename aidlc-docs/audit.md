@@ -967,3 +967,40 @@ Verified: `make help` lists the target; guard fires without role ARN; `make -n` 
 **Context**: OPERATIONS — adds a fail-fast IRSA pre-flight so the riskiest unverified dev05 dependency is proven cheaply before the UI deploy. Honest confidence framing recorded for the deploy decision.
 
 ---
+
+## OPERATIONS — dev05 real-AWS DEPLOY executed + verified
+**Timestamp**: 2026-05-27T14:30:00Z
+**User Input**: "I am merging this in main and then will deploy is it okay ?" → "Merged in main" → "deleted those branches please start deployment / Make sure you attach ip addresses list as well" → "continue with the rest of the stages" → "wait for it to finish then verify" → "Save memeory + list down all urls of resources you we are going to use in log file / I will restart vpn to check if can can connect"
+**AI Response**: PR#17 merged to main (`276ccae`). Executed the Option-A dev05 deploy end-to-end (profile opus2-dev = SSO Admins on 537462380503):
+- **Stage 0a** pre-flight: OIDC provider associated (`oidc.eks.eu-west-1.amazonaws.com/id/4CD18ACA973AEF3E3D289F4092A757EA`), 5× amd64 nodes, argocd CIDRs match chart's 14.
+- **Stage 1** cdk bootstrap (eu-west-1) + `cdk deploy ClassificationData-dev` → 3 tables.
+- **Stage 2** `aws s3api create-bucket classification-ui-dev05` + Block Public Access.
+- **Stage 3** IAM role `classification-ui-irsa` (trust scoped to sa classification-ui + least-priv perms incl. classifications-dev).
+- **Stage 4** seed `wks-ui-001`.
+- **Stage 0b GATE** `make irsa-smoketest` → assumed the role from a cluster pod + listed tables. GREEN.
+- **Stage 5** `make deploy-dev DEPLOY_BACKEND=aws ... DEPLOY_INGRESS_HOST=... DEPLOY_ROUTE53_ZONE_ID=Z045669519R5D9D8CKC79`: tore down the prior 18h-old LocalStack-mode deploy, built+pushed image `276ccae`. **First helm-deploy FAILED** on a transient EKS-API i/o-timeout (corp-VPN blip); **resumed** `helm-deploy manifest route53 status summary` (no rebuild) → success. ALB `k8s-classificationser-787f311ad1-1995562468...`, Route53 A-alias upserted.
+- **Stage 6 VERIFY** (in-cluster curl + presigned, since port-forward is broken): health real-aws + 3 tables; target backend=real-aws; classify pdf→ocr-direct; rows in content-hashes-dev + classifications-dev; S3 object present; presigned download HTTP 200 `%PDF`.
+
+**Saved**: `deploy/logs/dev05-resources.md` (full committed resource reference — URLs/ARNs/console links/teardown, home IP deliberately omitted since git-tracked + public repo) + memory [[reference-dev05-deployment]] + MEMORY.md index.
+
+**Open papercuts surfaced**: (1) `make pf-start` broken — Next.js standalone binds pod-IP not loopback (K8s HOSTNAME=podname); fix = `HOSTNAME=0.0.0.0` in UI deploy env. (2) Public URL CIDR-gated; user's home IP `36.255.185.54/32` not allowlisted. Agent attempt to `kubectl annotate` the inbound-cidrs was **blocked by the safety classifier** (shared-infra network-security loosening w/ agent-inferred IP) — handed the `!`-runnable command to the user; user is restarting VPN to test connectivity.
+
+**Context**: OPERATIONS — first real-AWS deploy of classification-ui to dev05, fully verified. App functional; remaining items are access-path conveniences (port-forward fix + IP allowlist), not functional defects.
+
+---
+
+## OPERATIONS — standardize tags on out-of-band AWS resources (branch, deploy later)
+**Timestamp**: 2026-05-27T15:00:00Z
+**User Input**: "Can it be possible that AWS resources under same maning conventions + tags? just verify" → "Yes, tag all three with that set but in separate branch and make sure you follow same nameing conventions / Will deploy later"
+**AI Response**: Verified tag state: CDK-managed resources (3 DDB tables + CFN stack) carry a consistent 6-tag schema (`Owner=platform-team, ManagedBy=cdk, CostCenter=tbd, Service=classification-service, Environment=dev, Component=data`). The three out-of-band resources were inconsistent — S3 bucket `classification-ui-dev05` had NO tags, ECR repo NO tags, IAM role `classification-ui-irsa` only partial (`Component=classification-ui, ManagedBy=manual-dev05`). Naming has env-token drift (`-dev` vs `dev05` vs `sandbox`) but renaming live resources is destructive → left names as-is (flagged).
+
+Codified the standard tag set on branch `chore/dev05-resource-tags` (NO live AWS mutation — deploy later):
+- `deploy/scripts/tag-resources.sh` (NEW, +x, `bash -n` clean) — idempotent; applies `Owner=platform-team CostCenter=tbd Service=classification-service Environment=dev Component=ui ManagedBy=manual-dev05` to the S3 bucket (put-bucket-tagging), IAM role (tag-role), ECR repo (tag-resource). `Component=ui` mirrors the CDK `Component=data` role convention; `ManagedBy=manual-dev05` is honest (not CDK).
+- `Makefile`: new `tag-resources` target (`[deploy]` group) → runs the script; `ecr-ensure` now passes `--tags` at create; added `DEPLOY_S3_BUCKET` + `DEPLOY_IRSA_ROLE_NAME` vars.
+- `deploy/AWS_TOPOLOGY.md`: Step 2 create-bucket + Step 3 create-role now bake the tags in; note added pointing at `make tag-resources` for reconciling existing resources.
+
+Verified: `make help` lists target; `make -n tag-resources` + `make -n ecr-ensure` expand cleanly (tabs OK). Committed + pushed branch; user applies later (`make tag-resources` once on the dev05 profile).
+
+**Context**: OPERATIONS — tag-consistency hygiene for cost-allocation/ownership across the out-of-band S3/IAM/ECR resources. Tagging only (additive, no data/security impact); naming left unchanged (renaming live resources is destructive).
+
+---
