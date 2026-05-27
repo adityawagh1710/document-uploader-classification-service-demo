@@ -105,6 +105,7 @@ help: ## Show this help (default)
 	@printf "    $(COL_GRN)DEPLOY_AWS_PROFILE$(COL_OFF)        AWS profile for ECR + Route 53 (default: opus2-dev)\n"
 	@printf "    $(COL_GRN)DEPLOY_BACKEND$(COL_OFF)            localstack (default) or aws (real DynamoDB+S3 via IRSA — see deploy/AWS_TOPOLOGY.md)\n"
 	@printf "    $(COL_GRN)DEPLOY_IRSA_ROLE_ARN$(COL_OFF)      IRSA role ARN for the SA. Required when $(COL_BOLD)DEPLOY_BACKEND=aws$(COL_OFF)\n"
+	@printf "    $(COL_GRN)DEPLOY_NUKE_DATA$(COL_OFF)          $(COL_RED)DANGER$(COL_OFF) =true lets $(COL_BOLD)undeploy-all$(COL_OFF) destroy DDB tables + S3 bucket + IRSA role\n"
 	@printf "\n"
 
 # ---------------------------------------------------------------------------
@@ -427,6 +428,9 @@ DEPLOY_IRSA_ROLE_NAME  ?= classification-ui-irsa
 DEPLOY_BACKEND         ?= localstack
 # IRSA role ARN annotated onto the ServiceAccount — REQUIRED when BACKEND=aws.
 DEPLOY_IRSA_ROLE_ARN   ?=
+# DANGER: set =true to let `undeploy-all` DESTROY persistent data (DDB tables +
+# S3 bucket + IRSA role). Empty/anything-else = refused. Never defaulted on.
+DEPLOY_NUKE_DATA       ?=
 
 # Derived — do not override these directly.
 DEPLOY_ECR_REGISTRY := $(DEPLOY_AWS_ACCOUNT_ID).dkr.ecr.$(DEPLOY_AWS_REGION).amazonaws.com
@@ -686,6 +690,35 @@ ns-delete: check-kubectl ## [deploy] Drop the namespace (waits for finalizers)
 undeploy-dev: route53-cleanup helm-undeploy ns-delete undeploy-summary ## [deploy] Full teardown: route53 DELETE (first!) → helm uninstall → namespace drop → summary
 	@mkdir -p $(DEPLOY_LOG_DIR)
 	$(call ok,undeploy-dev complete  log=$(DEPLOY_UNDEPLOY_LOG))
+
+.PHONY: check-nuke
+check-nuke:
+	@if [ "$(DEPLOY_NUKE_DATA)" != "true" ]; then \
+		printf "$(COL_RED)✗ undeploy-all DESTROYS persistent data — refused without explicit confirmation.$(COL_OFF)\n"; \
+		printf "  It would permanently delete (region=$(DEPLOY_AWS_REGION), profile=$(COL_BOLD)$(DEPLOY_AWS_PROFILE)$(COL_OFF)):\n"; \
+		printf "    • DynamoDB stack $(COL_BOLD)ClassificationData-$(ENV)$(COL_OFF)  (content-hashes / workspace-config / classifications + ALL rows)\n"; \
+		printf "    • S3 bucket      $(COL_BOLD)$(DEPLOY_S3_BUCKET)$(COL_OFF)  (+ every uploaded object)\n"; \
+		printf "    • IAM role       $(COL_BOLD)$(DEPLOY_IRSA_ROLE_NAME)$(COL_OFF)\n"; \
+		printf "  For app-only teardown (keeps data) use $(COL_BOLD)make undeploy-dev$(COL_OFF).\n"; \
+		printf "  To really destroy data, re-run: $(COL_BOLD)make undeploy-all DEPLOY_NUKE_DATA=true$(COL_OFF)\n"; \
+		exit 1; \
+	fi
+
+.PHONY: nuke-data
+nuke-data: check-nuke check-aws ## [deploy] DANGER: destroy DDB tables + S3 bucket + IRSA role (needs DEPLOY_NUKE_DATA=true)
+	$(call banner,NUKING persistent data — DDB stack + S3 bucket + IRSA role)
+	@printf "$(COL_YEL)→ cdk destroy ClassificationData-$(ENV) (DynamoDB tables)$(COL_OFF)\n"
+	-@npx cdk destroy ClassificationData-$(ENV) -c env=$(ENV) --profile $(DEPLOY_AWS_PROFILE) --force 2>&1 | tail -4
+	@printf "$(COL_YEL)→ aws s3 rb s3://$(DEPLOY_S3_BUCKET) --force (bucket + objects)$(COL_OFF)\n"
+	-@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws s3 rb s3://$(DEPLOY_S3_BUCKET) --force 2>&1 | tail -3
+	@printf "$(COL_YEL)→ delete IAM role $(DEPLOY_IRSA_ROLE_NAME)$(COL_OFF)\n"
+	-@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws iam delete-role-policy --role-name $(DEPLOY_IRSA_ROLE_NAME) --policy-name classification-ui-access 2>/dev/null || true
+	-@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws iam delete-role --role-name $(DEPLOY_IRSA_ROLE_NAME) 2>&1 | tail -2
+	$(call ok,Data resources destroyed)
+
+.PHONY: undeploy-all
+undeploy-all: check-nuke undeploy-dev nuke-data ## [deploy] DANGER: full teardown INCL. DATA — undeploy-dev + destroy tables/bucket/role (needs DEPLOY_NUKE_DATA=true)
+	$(call ok,undeploy-all complete — app removed AND persistent data destroyed)
 
 .PHONY: pf-start
 pf-start: check-kubectl ## [deploy] Start kubectl port-forward to classification-ui (localhost:3000)

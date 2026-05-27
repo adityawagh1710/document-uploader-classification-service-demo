@@ -250,12 +250,20 @@ Then classify a document in the dashboard and confirm the row lands in real
 ## Teardown
 
 ```bash
-helm uninstall classification-ui -n classification-service-sandbox
-# Optional — these persist data; delete only if you want a clean slate:
-#   aws dynamodb delete-table --table-name content-hashes-dev  (or `cdk destroy ClassificationData-dev`)
-#   aws s3 rb s3://classification-ui-dev05 --force
-#   aws iam delete-role-policy / delete-role  for classification-ui-irsa
+# App only (KEEPS data — route53 + helm + namespace; tables/bucket/role retained):
+make undeploy-dev DEPLOY_INGRESS_HOST=classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com DEPLOY_ROUTE53_ZONE_ID=Z045669519R5D9D8CKC79
+
+# Full clean slate INCL. DATA — undeploy-dev + destroy DDB stack + S3 bucket + IRSA role.
+# Gated: refuses unless DEPLOY_NUKE_DATA=true (irreversible — deletes all rows + uploads):
+make undeploy-all DEPLOY_NUKE_DATA=true \
+  DEPLOY_INGRESS_HOST=classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com \
+  DEPLOY_ROUTE53_ZONE_ID=Z045669519R5D9D8CKC79
 ```
+> `make undeploy-dev` never touches the DynamoDB tables, S3 bucket, or IRSA role —
+> those are kept by design. Only `make undeploy-all DEPLOY_NUKE_DATA=true` destroys
+> them (DDB via `cdk destroy`, bucket via `aws s3 rb --force`, role via `aws iam`).
+> The equivalent raw commands: `cdk destroy ClassificationData-dev`,
+> `aws s3 rb s3://classification-ui-dev05 --force`, `aws iam delete-role-policy/delete-role`.
 
 ## Local is unaffected
 
