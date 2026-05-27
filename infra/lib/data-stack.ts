@@ -11,6 +11,7 @@ export interface DataStackProps extends cdk.StackProps {
 export class ClassificationDataStack extends cdk.Stack {
   readonly contentHashTable: dynamodb.ITable;
   readonly workspaceConfigTable: dynamodb.ITable;
+  readonly classificationsTable: dynamodb.ITable;
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, {
@@ -59,11 +60,42 @@ export class ClassificationDataStack extends cdk.Stack {
       },
     ]);
 
+    // classifications table — per-upload dashboard activity log (UI-owned, NOT
+    // touched by the Lambda). One row per classify attempt (success, duplicate,
+    // or failure), keyed for newest-first Query: PK=workspaceId, SK=runId
+    // (`<ISO-ts>#<documentId>`, lexically chronological). Holds the full result
+    // + the S3 object reference (s3Bucket/s3Key) + a presign target. TTL-bounded
+    // via `expiresAt` so the sandbox log self-prunes.
+    const classificationsTable = new dynamodb.Table(this, "Classifications", {
+      tableName: env === "prod" ? "classifications" : `classifications-${env}`,
+      partitionKey: { name: "workspaceId", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "runId", type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: false },
+      timeToLiveAttribute: "expiresAt",
+      deletionProtection: props.envConfig.deletionProtectionEnabled,
+      removalPolicy,
+      contributorInsightsEnabled: true,
+    });
+
+    // cdk-nag suppression for classifications (no PITR — ephemeral, TTL-bounded
+    // dashboard activity log; not a system of record).
+    NagSuppressions.addResourceSuppressions(classificationsTable, [
+      {
+        id: "AwsSolutions-DDB3",
+        reason:
+          "Classifications is an ephemeral, TTL-bounded UI activity log (not a system of record). " +
+          "PITR overhead not justified.",
+      },
+    ]);
+
     // Component tag for cost slicing
     cdk.Tags.of(this).add("Component", "data");
 
     this.contentHashTable = contentHashTable;
     this.workspaceConfigTable = workspaceConfigTable;
+    this.classificationsTable = classificationsTable;
 
     // Cross-stack exports
     new cdk.CfnOutput(this, "ContentHashTableName", {
@@ -81,6 +113,14 @@ export class ClassificationDataStack extends cdk.Stack {
     new cdk.CfnOutput(this, "WorkspaceConfigTableArn", {
       value: workspaceConfigTable.tableArn,
       exportName: `ClassificationWorkspaceConfigTableArn-${env}`,
+    });
+    new cdk.CfnOutput(this, "ClassificationsTableName", {
+      value: classificationsTable.tableName,
+      exportName: `ClassificationClassificationsTableName-${env}`,
+    });
+    new cdk.CfnOutput(this, "ClassificationsTableArn", {
+      value: classificationsTable.tableArn,
+      exportName: `ClassificationClassificationsTableArn-${env}`,
     });
   }
 }

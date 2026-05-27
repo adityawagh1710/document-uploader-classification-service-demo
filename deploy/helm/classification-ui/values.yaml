@@ -70,6 +70,7 @@ config:
   UI_S3_BUCKET: "classification-ui-bucket"
   CONTENT_HASH_TABLE_NAME: "content-hashes-ui"
   WORKSPACE_CONFIG_TABLE_NAME: "workspace-config-ui"
+  CLASSIFICATIONS_TABLE_NAME: "classifications-ui"
   # Pod-to-pod via in-cluster DNS bypasses the ALB ingress and its corp-CIDR
   # allowlist (which blocks pod NAT egress). Local dev falls back to the
   # public ingress URL hardcoded in ui/app/api/convert/route.ts.

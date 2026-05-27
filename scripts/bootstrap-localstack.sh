@@ -10,6 +10,7 @@ ENDPOINT="${AWS_ENDPOINT_URL:-http://localstack:4566}"
 BUCKET="${UI_S3_BUCKET:-classification-ui-bucket}"
 CH_TABLE="${CONTENT_HASH_TABLE_NAME:-content-hashes-ui}"
 WC_TABLE="${WORKSPACE_CONFIG_TABLE_NAME:-workspace-config-ui}"
+CL_TABLE="${CLASSIFICATIONS_TABLE_NAME:-classifications-ui}"
 DEFAULT_WORKSPACE_ID="${DEFAULT_WORKSPACE_ID:-wks-ui-001}"
 
 echo "Bootstrapping LocalStack at $ENDPOINT ..."
@@ -32,6 +33,17 @@ aws --endpoint-url="$ENDPOINT" dynamodb create-table \
   --key-schema AttributeName=workspaceId,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST 2>/dev/null || true
 
+# classifications — per-upload activity log powering the Recent table.
+aws --endpoint-url="$ENDPOINT" dynamodb create-table \
+  --table-name "$CL_TABLE" \
+  --attribute-definitions \
+    AttributeName=workspaceId,AttributeType=S \
+    AttributeName=runId,AttributeType=S \
+  --key-schema \
+    AttributeName=workspaceId,KeyType=HASH \
+    AttributeName=runId,KeyType=RANGE \
+  --billing-mode PAY_PER_REQUEST 2>/dev/null || true
+
 # Seed the default workspace row so the Lambda is invocable without first
 # touching the UI (the UI's lazy provisioning will overwrite-equivalent this).
 aws --endpoint-url="$ENDPOINT" dynamodb put-item \
@@ -46,4 +58,4 @@ aws --endpoint-url="$ENDPOINT" dynamodb put-item \
     \"hashTtlDays\":     {\"NULL\": true}
   }" 2>/dev/null || true
 
-echo "Bootstrap complete: bucket=$BUCKET tables=$CH_TABLE,$WC_TABLE workspace=$DEFAULT_WORKSPACE_ID"
+echo "Bootstrap complete: bucket=$BUCKET tables=$CH_TABLE,$WC_TABLE,$CL_TABLE workspace=$DEFAULT_WORKSPACE_ID"

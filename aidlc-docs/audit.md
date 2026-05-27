@@ -927,3 +927,28 @@ make deploy-dev \
 **Context**: OPERATIONS — environment-topology switch. Net: infra + IRSA + one Helm profile + one TS module (+ 2 route internals for health/target accuracy); UI components + all API contracts unchanged. Lambda/Step Functions intentionally NOT created — they are the production shape, deferred until the real upstream document-ingestion pipeline exists.
 
 ---
+
+## OPERATIONS — DynamoDB-backed Recent feed + S3 ref + presigned download
+**Timestamp**: 2026-05-27T13:30:00Z
+**User Input**: "Can you verify Recent classifications will ve fetched from dynamodb right ?" → "Then what does it store in dynamodb or s3 ?" → "Wire up the full version on the branch but i want 2 things one ref of s3 record in dynamodb is it possible ?" → "I want option 1 for sure" → "I want presigned S3 download link on row-click" → "commit it then push and verify CI"
+**AI Response**: Found that the Recent-classifications table was an IN-MEMORY ring buffer (`lib/stats.ts` globalThis, wiped on restart, per-pod) — NOT a DynamoDB query. content-hashes only stored the dedup ledger (format + first/last-seen + hitCount), not the rich result. Built the **full version (Option 1)**: a new per-upload `classifications` table so Recent reflects DynamoDB (every upload incl. duplicates + failures), survives restarts, carries the S3 object reference, and powers a presigned download on row-click.
+
+**Design**: new table `classifications` — PK `workspaceId`, SK `runId=<ISO-ts>#<documentId>` (plain Query newest-first, ScanIndexForward=false, ConsistentRead so a just-written row is visible to the next dashboard poll — no flakiness), TTL `expiresAt` (30 d). UI-layer concern (NOT touched by the Lambda; the core service stays classify+dedup+signal). Recent scoped per workspace, default `wks-ui-001` (matches ClassifyForm + all Cypress); `/api/stats?workspaceId=` overrides. KPI tiles stay in-memory session counters.
+
+**Files (1 new + 12 changed)**:
+- `infra/lib/data-stack.ts` — new `classifications` table + nag DDB3 suppression + CfnOutputs; `data-stack.test.ts` (count 2→3, new keys test, PITR finders disambiguated by `contentHash` since classifications also has a 2-key schema) + snapshot regen.
+- `ui/lib/runs.ts` (NEW) — `recordRun` (PutCommand: full RecentRecord + s3Bucket/s3Key + expiresAt; best-effort, swallows errors so a log write never fails a classification) + `queryRecentRuns(workspaceId,limit)` (Query newest-first, ConsistentRead, degrades to []).
+- `ui/lib/classifier.ts` — `CLASSIFICATIONS_TABLE`; `presignS3Client` (AWS mode reuses s3Client/regional; LocalStack signs against browser-reachable `S3_PUBLIC_ENDPOINT` default localhost:4566 — the in-cluster `localstack:4566` host isn't reachable from the host browser, and the host is part of the SigV4 signature); `ensureClassificationsTable()` added to LocalStack lazy-provision.
+- `ui/lib/stats.ts` — `recordSuccess`/`recordFailure` now return the built `RecentRecord` (classify route hands it to `recordRun`).
+- `ui/app/api/classify/route.ts` — persists a run record (success/dup/failure) to the table after classify.
+- `ui/app/api/stats/route.ts` — `recent` now from `queryRecentRuns` (per workspace); tiles still in-memory.
+- `ui/app/api/runs/[documentId]/route.ts` — mints a 5-min presigned GET (`ResponseContentDisposition: attachment; filename=...`) ONLY for keys under the `ui/` prefix (defence-in-depth); returns `downloadUrl`.
+- `ui/components/ResultPanel.tsx` — "⬇ Download original" link (`data-testid=download-original`) on row-click.
+- `ui/package.json`/lock — add `@aws-sdk/s3-request-presigner@3.1053.0` (pin-matched).
+- `scripts/bootstrap-localstack.sh` + `docker-compose.yml` (ui+bootstrap: `CLASSIFICATIONS_TABLE_NAME`, ui: `S3_PUBLIC_ENDPOINT=http://localhost:4566`) + `values.yaml`/`values-aws.yaml` (`CLASSIFICATIONS_TABLE_NAME`) + `deploy/AWS_TOPOLOGY.md` (IRSA perms add `classifications-dev`; note s3:GetObject covers the presign).
+
+**Verifications**: `make qa` green (QA_EXIT=0 — data-stack now 3 tables, snapshot regenerated); `cd ui && tsc` exit 0 + `next lint` clean; `helm template` both profiles carry the new table; `sh -n` bootstrap OK. Cypress run pending (local stack mid-rebuild at commit time — to run + report next; not in CI). Committed on `feat/dev05-aws-topology` (PR#17) + pushed; CI verification in progress.
+
+**Context**: OPERATIONS — makes the Recent feed truly reflect DynamoDB on dev05 (was per-pod/ephemeral) + adds the per-upload S3 reference and a presigned download. One cohesive feature commit on the existing topology branch.
+
+---

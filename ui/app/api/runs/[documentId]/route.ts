@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
-import { HeadObjectCommand } from "@aws-sdk/client-s3";
-import { ddb, s3Client, CONTENT_HASH_TABLE, BUCKET } from "@/lib/classifier";
+import { HeadObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { ddb, s3Client, presignS3Client, CONTENT_HASH_TABLE, BUCKET } from "@/lib/classifier";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,6 +50,28 @@ export async function GET(req: Request, { params }: RouteContext) {
         .catch(() => null)
     : null;
 
+  // Short-lived presigned GET so the operator can download the original
+  // upload straight from S3. Defence-in-depth: only sign keys under the UI's
+  // own `ui/` prefix — never an arbitrary caller-supplied key. The presigned
+  // host is browser-reachable (regional in AWS mode, S3_PUBLIC_ENDPOINT in
+  // LocalStack — see presignS3Client).
+  let downloadUrl: string | null = null;
+  if (objectKey && objectKey.startsWith("ui/")) {
+    const filename = objectKey.split("/").pop() || "download";
+    downloadUrl = await getSignedUrl(
+      presignS3Client,
+      new GetObjectCommand({
+        Bucket: BUCKET,
+        Key: objectKey,
+        // Force a browser download with the original filename (the <a download>
+        // attribute is ignored cross-origin, so do it server-side via the
+        // signed response-content-disposition).
+        ResponseContentDisposition: `attachment; filename="${filename}"`,
+      }),
+      { expiresIn: 300 },
+    ).catch(() => null);
+  }
+
   return NextResponse.json({
     documentId: params.documentId,
     workspaceId,
@@ -56,5 +79,6 @@ export async function GET(req: Request, { params }: RouteContext) {
     s3Object,
     bucket: BUCKET,
     table: CONTENT_HASH_TABLE,
+    downloadUrl,
   });
 }

@@ -60,6 +60,7 @@ export const DISPLAY_ENDPOINT = USE_LOCALSTACK ? ENDPOINT : `aws:${REGION}`;
 export const BUCKET = process.env.UI_S3_BUCKET ?? "classification-ui-bucket";
 export const CONTENT_HASH_TABLE = process.env.CONTENT_HASH_TABLE_NAME ?? "content-hashes-ui";
 export const WORKSPACE_CONFIG_TABLE = process.env.WORKSPACE_CONFIG_TABLE_NAME ?? "workspace-config-ui";
+export const CLASSIFICATIONS_TABLE = process.env.CLASSIFICATIONS_TABLE_NAME ?? "classifications-ui";
 
 // Auto-seeded on cold start so the dashboard's classify form works without a
 // manual "Seed workspace" step. LocalStack runs with PERSISTENCE=0 so the row
@@ -107,6 +108,27 @@ export const s3Client = USE_LOCALSTACK
       maxAttempts: 3,
     });
 
+// Client used ONLY to mint presigned GET URLs for the "download original"
+// action. The presigned URL's host is part of the SigV4 signature, so it must
+// be a host the *browser* can reach:
+//   • AWS mode → reuse s3Client; the regional endpoint (bucket.s3.<region>
+//     .amazonaws.com) is public, and the IRSA temp creds sign it.
+//   • LocalStack → the server talks to `localstack:4566` (in-cluster/compose
+//     DNS) which the host browser can't resolve, so sign against a
+//     browser-reachable endpoint instead (S3_PUBLIC_ENDPOINT, default the
+//     published localhost:4566).
+const S3_PUBLIC_ENDPOINT = process.env.S3_PUBLIC_ENDPOINT ?? "http://localhost:4566";
+export const presignS3Client = USE_LOCALSTACK
+  ? new S3Client({
+      region: REGION,
+      endpoint: S3_PUBLIC_ENDPOINT,
+      credentials,
+      forcePathStyle: true,
+      responseChecksumValidation: "WHEN_REQUIRED",
+      requestChecksumCalculation: "WHEN_REQUIRED",
+    })
+  : s3Client;
+
 const ddbLowLevel = USE_LOCALSTACK
   ? new DynamoDBClient({
       region: REGION,
@@ -121,7 +143,13 @@ const ddbLowLevel = USE_LOCALSTACK
       maxAttempts: 3,
     });
 
-export const ddb = DynamoDBDocumentClient.from(ddbLowLevel);
+// removeUndefinedValues: the run-log writer (lib/runs.ts) persists the full
+// nested ClassificationOutput; the DDB marshaller throws on any `undefined`
+// (unlike JSON), so strip them rather than risk a swallowed write that would
+// leave the row — and thus the Recent feed — missing.
+export const ddb = DynamoDBDocumentClient.from(ddbLowLevel, {
+  marshallOptions: { removeUndefinedValues: true },
+});
 
 const sfnClient = USE_LOCALSTACK
   ? new SFNClient({ region: REGION, endpoint: ENDPOINT, credentials })
@@ -181,6 +209,7 @@ export async function ensureResourcesProvisioned(): Promise<void> {
       ensureBucket(),
       ensureContentHashTable(),
       ensureWorkspaceConfigTable(),
+      ensureClassificationsTable(),
     ]);
     // Seed AFTER the table is confirmed present — `PutCommand` would race
     // with `CreateTable` if run in parallel.
@@ -240,6 +269,28 @@ async function ensureWorkspaceConfigTable(): Promise<void> {
         TableName: WORKSPACE_CONFIG_TABLE,
         AttributeDefinitions: [{ AttributeName: "workspaceId", AttributeType: "S" }],
         KeySchema: [{ AttributeName: "workspaceId", KeyType: "HASH" }],
+        BillingMode: "PAY_PER_REQUEST",
+      }),
+    );
+  } catch (e: unknown) {
+    if ((e as Error)?.name !== "ResourceInUseException") throw e;
+  }
+}
+
+async function ensureClassificationsTable(): Promise<void> {
+  if (await tableExists(CLASSIFICATIONS_TABLE)) return;
+  try {
+    await ddbLowLevel.send(
+      new CreateTableCommand({
+        TableName: CLASSIFICATIONS_TABLE,
+        AttributeDefinitions: [
+          { AttributeName: "workspaceId", AttributeType: "S" },
+          { AttributeName: "runId", AttributeType: "S" },
+        ],
+        KeySchema: [
+          { AttributeName: "workspaceId", KeyType: "HASH" },
+          { AttributeName: "runId", KeyType: "RANGE" },
+        ],
         BillingMode: "PAY_PER_REQUEST",
       }),
     );

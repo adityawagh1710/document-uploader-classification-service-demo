@@ -9,6 +9,7 @@ import {
   BUCKET,
 } from "@/lib/classifier";
 import { recordFailure, recordSuccess } from "@/lib/stats";
+import { recordRun } from "@/lib/runs";
 import type { TaskPayload } from "@svc/shared/types";
 
 export const runtime = "nodejs";
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
     });
     await upload.done();
   } catch (e: unknown) {
-    recordFailure({
+    const rec = recordFailure({
       id: documentId,
       ts: new Date().toISOString(),
       inputName,
@@ -82,6 +83,7 @@ export async function POST(req: Request) {
       failure: { kind: "s3", reason: "unknown" },
       objectKey,
     });
+    await recordRun(rec);
     return NextResponse.json(
       { error: "s3 upload failed", detail: (e as Error)?.message },
       { status: 502 },
@@ -106,7 +108,7 @@ export async function POST(req: Request) {
   const elapsedMs = Date.now() - start;
 
   if (!result.ok) {
-    recordFailure({
+    const rec = recordFailure({
       id: documentId,
       ts: new Date().toISOString(),
       inputName,
@@ -115,6 +117,7 @@ export async function POST(req: Request) {
       failure: result.error,
       objectKey,
     });
+    await recordRun(rec);
     // eslint-disable-next-line no-console
     console.error(
       "[classify] failed",
@@ -135,7 +138,7 @@ export async function POST(req: Request) {
     );
   }
 
-  recordSuccess({
+  const rec = recordSuccess({
     id: documentId,
     ts: new Date().toISOString(),
     inputName,
@@ -144,6 +147,7 @@ export async function POST(req: Request) {
     elapsedMs,
     objectKey,
   });
+  await recordRun(rec);
 
   return NextResponse.json({
     ok: true,
