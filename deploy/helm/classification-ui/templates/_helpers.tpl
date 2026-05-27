@@ -30,6 +30,19 @@ Resolve the target namespace from values.namespace.name.
 {{- end -}}
 
 {{/*
+ServiceAccount name. When serviceAccount.create=true the chart creates and
+uses this SA (default name "classification-ui"); otherwise the pod falls back
+to the namespace "default" SA — LocalStack mode needs no AWS identity.
+*/}}
+{{- define "classification-ui.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+{{- default "classification-ui" .Values.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Fully-qualified image reference. Fails fast with a useful message at
 template time when the operator forgot --set image.repository / image.tag.
 */}}

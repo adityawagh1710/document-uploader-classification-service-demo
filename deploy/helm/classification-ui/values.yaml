@@ -44,9 +44,10 @@ ui:
     initialDelaySeconds: 30
     periodSeconds: 30
 
-# LocalStack sibling — keeps the test loop self-contained. Disable
-# (`localstack.enabled=false`) and re-point AWS_ENDPOINT_URL at real AWS via
-# IRSA when you're ready to test against deployed adapters.
+# LocalStack sibling — keeps the test loop self-contained. To run against real
+# AWS instead, use the aws profile (`-f values-aws.yaml`), which sets
+# localstack.enabled=false, CLASSIFIER_AWS_MODE=true, and IRSA. See
+# deploy/AWS_TOPOLOGY.md.
 localstack:
   enabled: true
   image: localstack/localstack:3.7.0
@@ -62,11 +63,10 @@ localstack:
 # Env vars rendered into a ConfigMap, mounted into the UI pod via envFrom.
 # Names match what ui/lib/classifier.ts reads from process.env.
 config:
-  AWS_ENDPOINT_URL: "http://localstack:4566"
+  # Backend selector. "false" → LocalStack (default). The aws profile
+  # (values-aws.yaml) flips this to "true" for real AWS via IRSA.
+  CLASSIFIER_AWS_MODE: "false"
   AWS_REGION: "us-east-1"
-  # LocalStack accepts any creds — placeholders satisfy the SDK.
-  AWS_ACCESS_KEY_ID: "test"
-  AWS_SECRET_ACCESS_KEY: "test"
   UI_S3_BUCKET: "classification-ui-bucket"
   CONTENT_HASH_TABLE_NAME: "content-hashes-ui"
   WORKSPACE_CONFIG_TABLE_NAME: "workspace-config-ui"
@@ -74,6 +74,27 @@ config:
   # allowlist (which blocks pod NAT egress). Local dev falls back to the
   # public ingress URL hardcoded in ui/app/api/convert/route.ts.
   OFFICE_CONVERT_API_URL: "http://office-convert.office-convert-dev.svc.cluster.local"
+
+# LocalStack-only env — rendered into the ConfigMap ONLY when
+# localstack.enabled=true. In real-AWS mode these MUST be absent: the SDK
+# default credential chain reads AWS_ACCESS_KEY_ID/SECRET before the IRSA
+# web-identity token, so leaving "test" creds in the pod env would silently
+# bypass IRSA and break every AWS call.
+localstackConfig:
+  AWS_ENDPOINT_URL: "http://localstack:4566"
+  # LocalStack accepts any creds — placeholders satisfy the SDK.
+  AWS_ACCESS_KEY_ID: "test"
+  AWS_SECRET_ACCESS_KEY: "test"
+
+# ServiceAccount — required for IRSA in real-AWS mode. Disabled by default
+# (LocalStack needs no AWS identity, so the pod uses the namespace "default"
+# SA). The aws profile enables it; the operator supplies the role ARN at
+# install:
+#   --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=<role-arn>
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
 
 # Ingress (ALB) — disabled by default. Operator workflow uses port-forward
 # (deploy/scripts/portforward.sh) which costs nothing. Enable when you want

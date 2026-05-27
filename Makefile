@@ -103,6 +103,8 @@ help: ## Show this help (default)
 	@printf "    $(COL_GRN)DEPLOY_INGRESS_HOST$(COL_OFF)       FQDN for the ALB Ingress. Unset = no Ingress + no Route 53 sync (use $(COL_BOLD)make pf-start$(COL_OFF))\n"
 	@printf "    $(COL_GRN)DEPLOY_ROUTE53_ZONE_ID$(COL_OFF)    Hosted zone holding DEPLOY_INGRESS_HOST. Required when host is set\n"
 	@printf "    $(COL_GRN)DEPLOY_AWS_PROFILE$(COL_OFF)        AWS profile for ECR + Route 53 (default: opus2-dev)\n"
+	@printf "    $(COL_GRN)DEPLOY_BACKEND$(COL_OFF)            localstack (default) or aws (real DynamoDB+S3 via IRSA — see deploy/AWS_TOPOLOGY.md)\n"
+	@printf "    $(COL_GRN)DEPLOY_IRSA_ROLE_ARN$(COL_OFF)      IRSA role ARN for the SA. Required when $(COL_BOLD)DEPLOY_BACKEND=aws$(COL_OFF)\n"
 	@printf "\n"
 
 # ---------------------------------------------------------------------------
@@ -417,6 +419,11 @@ DEPLOY_CHART_DIR       ?= deploy/helm/classification-ui
 DEPLOY_LOG_DIR         ?= deploy/logs
 DEPLOY_INGRESS_HOST    ?=
 DEPLOY_ROUTE53_ZONE_ID ?=
+# Backend profile: localstack (default — in-cluster LocalStack sibling) or aws
+# (real DynamoDB + S3 via IRSA, Option A). See deploy/AWS_TOPOLOGY.md.
+DEPLOY_BACKEND         ?= localstack
+# IRSA role ARN annotated onto the ServiceAccount — REQUIRED when BACKEND=aws.
+DEPLOY_IRSA_ROLE_ARN   ?=
 
 # Derived — do not override these directly.
 DEPLOY_ECR_REGISTRY := $(DEPLOY_AWS_ACCOUNT_ID).dkr.ecr.$(DEPLOY_AWS_REGION).amazonaws.com
@@ -429,6 +436,13 @@ DEPLOY_UNDEPLOY_LOG := $(DEPLOY_LOG_DIR)/undeploy-$(DEPLOY_TS).log
 
 # Conditional `--set` flags for ingress, evaluated at parse time.
 HELM_INGRESS_FLAGS := $(if $(DEPLOY_INGRESS_HOST),--set ingress.enabled=true --set ingress.host=$(DEPLOY_INGRESS_HOST),)
+
+# Backend profile flags. BACKEND=aws layers the real-AWS overlay (which sets
+# localstack.enabled=false + CLASSIFIER_AWS_MODE=true + serviceAccount.create)
+# and, when supplied, the IRSA role-arn annotation. Single-quoted so the shell
+# preserves the `\.`-escaped annotation key for helm. Default localstack = base.
+HELM_BACKEND_FLAGS := $(if $(filter aws,$(DEPLOY_BACKEND)),--values $(DEPLOY_CHART_DIR)/values-aws.yaml,)
+HELM_IRSA_FLAGS    := $(if $(DEPLOY_IRSA_ROLE_ARN),--set-string 'serviceAccount.annotations.eks\.amazonaws\.com/role-arn=$(DEPLOY_IRSA_ROLE_ARN)',)
 
 .PHONY: check-helm
 check-helm: ## [deploy] Verify Helm CLI installed
@@ -477,29 +491,41 @@ image-push: ecr-ensure ecr-login image-build ## [deploy] Push UI image to ECR
 	@docker push $(DEPLOY_IMAGE_FULL)
 	$(call ok,Pushed)
 
+.PHONY: check-deploy-backend
+check-deploy-backend: ## [deploy] Validate DEPLOY_BACKEND (aws requires DEPLOY_IRSA_ROLE_ARN)
+	@if [ "$(DEPLOY_BACKEND)" = "aws" ] && [ -z "$(DEPLOY_IRSA_ROLE_ARN)" ]; then \
+		printf "$(COL_RED)✗ DEPLOY_BACKEND=aws requires DEPLOY_IRSA_ROLE_ARN=<role-arn>$(COL_OFF)\n"; \
+		printf "  Create the IRSA role first — see deploy/AWS_TOPOLOGY.md (Step 3).\n"; \
+		exit 1; \
+	elif [ "$(DEPLOY_BACKEND)" != "localstack" ] && [ "$(DEPLOY_BACKEND)" != "aws" ]; then \
+		printf "$(COL_RED)✗ DEPLOY_BACKEND must be 'localstack' or 'aws' (got '$(DEPLOY_BACKEND)')$(COL_OFF)\n"; \
+		exit 1; \
+	fi
+
 .PHONY: helm-lint
 helm-lint: check-helm ## [deploy] helm lint the chart
-	@helm lint $(DEPLOY_CHART_DIR) --set image.repository=$(DEPLOY_IMAGE_REPO) --set image.tag=$(DEPLOY_IMAGE_TAG)
+	@helm lint $(DEPLOY_CHART_DIR) --set image.repository=$(DEPLOY_IMAGE_REPO) --set image.tag=$(DEPLOY_IMAGE_TAG) \
+		$(HELM_BACKEND_FLAGS) $(HELM_IRSA_FLAGS)
 
 .PHONY: helm-template
-helm-template: check-helm ## [deploy] helm template the chart (dry-run render — also written to deploy/logs)
+helm-template: check-helm check-deploy-backend ## [deploy] helm template the chart (dry-run render — also written to deploy/logs)
 	@mkdir -p $(DEPLOY_LOG_DIR)
 	@helm template $(DEPLOY_HELM_RELEASE) $(DEPLOY_CHART_DIR) \
 		--namespace $(DEPLOY_NAMESPACE) \
 		--set image.repository=$(DEPLOY_IMAGE_REPO) \
 		--set image.tag=$(DEPLOY_IMAGE_TAG) \
-		$(HELM_INGRESS_FLAGS) | tee $(DEPLOY_MANIFEST)
+		$(HELM_INGRESS_FLAGS) $(HELM_BACKEND_FLAGS) $(HELM_IRSA_FLAGS) | tee $(DEPLOY_MANIFEST)
 	$(call ok,Rendered manifest → $(DEPLOY_MANIFEST))
 
 .PHONY: helm-deploy
-helm-deploy: check-helm check-kubectl ## [deploy] helm upgrade --install
-	$(call banner,Deploying $(DEPLOY_HELM_RELEASE) → ns=$(DEPLOY_NAMESPACE))
+helm-deploy: check-helm check-kubectl check-deploy-backend ## [deploy] helm upgrade --install
+	$(call banner,Deploying $(DEPLOY_HELM_RELEASE) → ns=$(DEPLOY_NAMESPACE) backend=$(DEPLOY_BACKEND))
 	@mkdir -p $(DEPLOY_LOG_DIR)
 	@helm upgrade --install $(DEPLOY_HELM_RELEASE) $(DEPLOY_CHART_DIR) \
 		--namespace $(DEPLOY_NAMESPACE) --create-namespace \
 		--set image.repository=$(DEPLOY_IMAGE_REPO) \
 		--set image.tag=$(DEPLOY_IMAGE_TAG) \
-		$(HELM_INGRESS_FLAGS) \
+		$(HELM_INGRESS_FLAGS) $(HELM_BACKEND_FLAGS) $(HELM_IRSA_FLAGS) \
 		--wait --timeout=5m 2>&1 | tee -a $(DEPLOY_LOG)
 	$(call ok,Helm release upgraded)
 
@@ -574,6 +600,10 @@ undeploy-summary: ## [deploy] Print summary of removed resources (also written t
 	  printf "    %-17s %s\n" "ECR image"       "$(DEPLOY_IMAGE_FULL)"; \
 	  printf "    %-17s %s\n" "ECR repository"  "$(DEPLOY_ECR_REPO)"; \
 	  printf "    %-17s %s\n" "Local logs"      "$(DEPLOY_LOG_DIR)/"; \
+	  if [ "$(DEPLOY_BACKEND)" = "aws" ]; then \
+	    printf "    %-17s %s\n" "IRSA IAM role"   "out-of-band — see deploy/AWS_TOPOLOGY.md teardown"; \
+	    printf "    %-17s %s\n" "DDB tables/bkt"  "real AWS data kept — delete via cdk destroy / aws cli"; \
+	  fi; \
 	  printf "    %-17s AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr delete-repository \\\\\n" "Nuke ECR via:"; \
 	  printf "                      --repository-name $(DEPLOY_ECR_REPO) --region $(DEPLOY_AWS_REGION) --force\n"; \
 	  printf "  $(COL_BOLD)%-17s$(COL_OFF) %s\n\n" "Log"            "$(DEPLOY_UNDEPLOY_LOG)"; \
@@ -589,7 +619,7 @@ __undeploy-soft:
 	fi
 
 .PHONY: deploy-dev
-deploy-dev: __undeploy-soft image-push helm-deploy manifest-snapshot route53-sync status deploy-summary ## [deploy] Full 9-step pipeline: undeploy-first → ECR → build → push → helm upgrade → manifest snapshot → route53 → status → summary
+deploy-dev: check-deploy-backend __undeploy-soft image-push helm-deploy manifest-snapshot route53-sync status deploy-summary ## [deploy] Full pipeline: validate backend → undeploy-first → ECR → build → push → helm upgrade → manifest snapshot → route53 → status → summary
 	$(call ok,deploy-dev complete  tag=$(DEPLOY_IMAGE_TAG)  log=$(DEPLOY_LOG))
 
 .PHONY: helm-undeploy

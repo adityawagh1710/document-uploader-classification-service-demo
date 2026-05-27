@@ -16,6 +16,7 @@ spec:
       labels:
         {{- include "classification-ui.uiSelector" . | nindent 8 }}
     spec:
+      serviceAccountName: {{ include "classification-ui.serviceAccountName" . }}
       containers:
         - name: ui
           image: {{ include "classification-ui.image" . | quote }}
