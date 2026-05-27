@@ -569,6 +569,17 @@ helm-template: check-helm check-deploy-backend ## [deploy] helm template the cha
 helm-deploy: check-helm check-kubectl check-deploy-backend ## [deploy] helm upgrade --install
 	$(call banner,Deploying $(DEPLOY_HELM_RELEASE) → ns=$(DEPLOY_NAMESPACE) backend=$(DEPLOY_BACKEND))
 	@mkdir -p $(DEPLOY_LOG_DIR)
+	@# Adopt a pre-existing namespace into the release so the chart's Namespace
+	@# resource doesn't fail with "invalid ownership metadata". This happens when
+	@# the ns was created out-of-band (e.g. by `make irsa-smoketest`) and there's
+	@# no prior release for `__undeploy-soft` to clean. No-op when the ns is absent
+	@# (helm --create-namespace creates it) or already owned by this release.
+	@if kubectl get ns $(DEPLOY_NAMESPACE) >/dev/null 2>&1; then \
+		kubectl label ns $(DEPLOY_NAMESPACE) app.kubernetes.io/managed-by=Helm --overwrite >/dev/null 2>&1 || true; \
+		kubectl annotate ns $(DEPLOY_NAMESPACE) \
+			meta.helm.sh/release-name=$(DEPLOY_HELM_RELEASE) \
+			meta.helm.sh/release-namespace=$(DEPLOY_NAMESPACE) --overwrite >/dev/null 2>&1 || true; \
+	fi
 	@helm upgrade --install $(DEPLOY_HELM_RELEASE) $(DEPLOY_CHART_DIR) \
 		--namespace $(DEPLOY_NAMESPACE) --create-namespace \
 		--set image.repository=$(DEPLOY_IMAGE_REPO) \

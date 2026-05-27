@@ -1019,3 +1019,20 @@ Verified: `make undeploy-all` (no flag) refuses + exits 1, runs nothing destruct
 **Context**: OPERATIONS — gives a single safe full-teardown command while keeping `undeploy-dev` non-destructive to data. Irreversible path is hard-gated behind an explicit confirmation flag.
 
 ---
+
+## OPERATIONS — full destroy+rebuild from main + fix ns-adoption papercut
+**Timestamp**: 2026-05-27T16:45:00Z
+**User Input**: "undeploy-all and deploy everything again from main / make sure keep log of everything" → "continue through all phases then verify" → "Yes, fix the namespace papercut in the tooling"
+**AI Response**: Ran a full destroy-and-rebuild from main, all logged to `deploy/logs/full-redeploy-20260527-160053.log` (+ Makefile deploy/undeploy/manifest logs). 5 phases, 2 transient retries:
+- P1 `make undeploy-all DEPLOY_NUKE_DATA=true` — destroyed app + 3 DDB tables + S3 bucket + IRSA role.
+- P2 re-provision — `cdk deploy` tables + create/tag bucket + create/tag IRSA role + seed wks-ui-001. RETRY: `cdk` hit a transient "no credentials" (SSO) blip while `aws` CLI worked → resolved by re-running with `AWS_PROFILE=opus2-dev` env.
+- P3 `make irsa-smoketest` gate — green.
+- P4 `make deploy-dev` (image `6397b21`) — image built+pushed; helm-deploy FAILED: the P3 smoketest left an un-owned namespace and (no prior release → `__undeploy-soft` skipped) `helm` refused to adopt it. RETRY: `kubectl delete ns` + resume `make helm-deploy …` → success (new ALB, route53 upserted).
+- `make tag-resources` — tagged the pre-existing untagged ECR repo (bucket+role tagged at create in P2).
+- P5 verify — health/target real-aws, classify pdf→ocr-direct, content-hashes-dev + classifications-dev rows + S3 object, and tags consistent across ALL resources (Service=classification-service everywhere; Component=data for CDK tables, Component=ui for bucket/role/ECR).
+
+Then fixed the ns papercut on branch `fix/helm-ns-adoption`: `helm-deploy` now stamps Helm-ownership metadata (`app.kubernetes.io/managed-by=Helm` + `meta.helm.sh/release-name`/`release-namespace`) onto a pre-existing namespace before `helm upgrade`, so the chart's Namespace resource ADOPTS it instead of erroring. Chosen over `namespace.create=false` because the LIVE release manages the ns — flipping that would prune it on upgrade. Idempotent (verified: stamp sets exactly the metadata the live ns already carries); no-op when ns absent (helm --create-namespace makes it) or already owned. Verified `make -n helm-deploy` shows the stamp; `helm lint` passes.
+
+**Context**: OPERATIONS — clean rebuild proving the toolkit end-to-end, plus a durable fix so a fresh redeploy no longer needs the manual `kubectl delete ns` workaround.
+
+---
