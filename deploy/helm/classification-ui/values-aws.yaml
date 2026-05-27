@@ -33,7 +33,11 @@ config:
   CLASSIFICATIONS_TABLE_NAME: "classifications-dev"
   # Bucket created out-of-band (`aws s3 mb`) — see runbook.
   UI_S3_BUCKET: "classification-ui-dev05"
-  # Archive fan-out — empty string disables it. Set to the real SQS URL when
-  # the zip-extraction service's queue is provisioned in this account. The
-  # IRSA role needs sqs:SendMessage on the target queue (see runbook).
-  ZIP_EXTRACTION_QUEUE_URL: ""
+  # Archive fan-out — empty string disables it. Points at the LIVE
+  # zip-extraction service's input queue on dev05 (owned by that service; do
+  # not create/delete it). Verified 2026-05-27: the consumer accepts our
+  # claim-check schema and fetches the object from the message's sourceBucket.
+  # Requires TWO grants (see runbook): (1) this IRSA role needs sqs:SendMessage
+  # on the queue ARN, (2) the zip-extraction-dev05 role needs s3:GetObject on
+  # classification-ui-dev05 (else the consumer 403s on download).
+  ZIP_EXTRACTION_QUEUE_URL: "https://sqs.eu-west-1.amazonaws.com/537462380503/zip-extraction-dev05"
