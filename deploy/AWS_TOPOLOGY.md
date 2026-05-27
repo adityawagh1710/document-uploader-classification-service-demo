@@ -147,7 +147,7 @@ aws s3api put-bucket-tagging --bucket classification-ui-dev05 --profile opus2-de
     {
       "Sid": "Tables",
       "Effect": "Allow",
-      "Action": ["dynamodb:GetItem","dynamodb:PutItem","dynamodb:Query","dynamodb:DescribeTable"],
+      "Action": ["dynamodb:GetItem","dynamodb:PutItem","dynamodb:UpdateItem","dynamodb:Query","dynamodb:DescribeTable"],
       "Resource": [
         "arn:aws:dynamodb:eu-west-1:537462380503:table/content-hashes-dev",
         "arn:aws:dynamodb:eu-west-1:537462380503:table/workspace-config-dev",
