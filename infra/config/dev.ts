@@ -23,6 +23,9 @@ const config: EnvConfig = {
   stateMachineArn: "arn:aws:states:eu-west-1:537462380503:stateMachine:document-ingestion-dev",
   // PLACEHOLDER (LambdaStack-only): real document bucket not yet provisioned.
   documentBucketArn: "arn:aws:s3:::document-bucket-dev",
+  // PLACEHOLDER (LambdaStack-only): real zip-extraction-queue not yet provisioned.
+  zipExtractionQueueArn: "arn:aws:sqs:eu-west-1:537462380503:zip-extraction-queue-dev",
+  zipExtractionQueueUrl: "https://sqs.eu-west-1.amazonaws.com/537462380503/zip-extraction-queue-dev",
   xraySamplingReservoirSize: 1,
   xraySamplingFixedRate: 0.5,
   alarmsSnsTopicSsmPath: "/observability/sns-topic-arn/dev",

@@ -51,6 +51,10 @@ export interface TaskPayload {
     readonly parentArchiveDepth: number;
     readonly overrideDuplicateCheck: boolean;
   };
+  // Optional pass-through for downstream claim-check dispatch (e.g. archive → zip-extraction).
+  // When absent, the dispatcher falls back to documentId.
+  readonly pipelineExecutionId?: string;
+  readonly correlationId?: string;
 }
 
 export interface WorkspaceConfig {

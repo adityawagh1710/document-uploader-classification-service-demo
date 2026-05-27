@@ -25,7 +25,7 @@ spec:
               name: edge
           env:
             - name: SERVICES
-              value: s3,dynamodb,stepfunctions
+              value: s3,dynamodb,stepfunctions,sqs
             - name: DEFAULT_REGION
               value: {{ .Values.config.AWS_REGION | quote }}
             - name: PERSISTENCE

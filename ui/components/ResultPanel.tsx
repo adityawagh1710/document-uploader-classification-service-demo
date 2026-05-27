@@ -13,6 +13,7 @@ interface RecentItem {
   failureReason: string | null;
   failureKind: string | null;
   objectKey: string | null;
+  archiveDispatch: "ok" | "skipped" | "failed";
   result: {
     documentId: string;
     workspaceId: string;
@@ -70,6 +71,11 @@ export function ResultPanel({ run }: { run: RecentItem }) {
           RESULT
         </span>
         <Pill tone={run.status === "ok" ? "ok" : "crit"}>{run.status === "ok" ? "SUCCESS" : "FAILED"}</Pill>
+        {run.archiveDispatch === "ok" ? (
+          <Pill tone="info">→ zip-extraction</Pill>
+        ) : run.archiveDispatch === "failed" ? (
+          <Pill tone="warn">dispatch failed</Pill>
+        ) : null}
         {detail?.downloadUrl ? (
           <a
             href={detail.downloadUrl}

@@ -169,6 +169,26 @@ aws s3api put-bucket-tagging --bucket classification-ui-dev05 --profile opus2-de
   ]
 }
 ```
+
+> **Optional — archive fan-out to zip-extraction.** The UI publishes a
+> claim-check to the sibling zip-extraction service's SQS queue when
+> classification returns `category=archive`. The default `values-aws.yaml`
+> ships with `ZIP_EXTRACTION_QUEUE_URL=""` so the fan-out is **disabled**
+> in AWS mode. To enable it, (a) provision the queue (`aws sqs create-queue
+> --queue-name zip-extraction-queue --region eu-west-1`), (b) add the
+> statement below to `perms.json` before creating the role, and (c) set
+> `ZIP_EXTRACTION_QUEUE_URL` at deploy time
+> (`--set config.ZIP_EXTRACTION_QUEUE_URL=https://sqs.eu-west-1.amazonaws.com/537462380503/zip-extraction-queue`).
+> If the queue and the URL are absent, the UI silently skips the dispatch
+> and classification still succeeds.
+> ```json
+> {
+>   "Sid": "ZipExtractionFanOut",
+>   "Effect": "Allow",
+>   "Action": ["sqs:SendMessage"],
+>   "Resource": "arn:aws:sqs:eu-west-1:537462380503:zip-extraction-queue"
+> }
+> ```
 > `classifications-dev` backs the Recent-classifications feed (one row per upload,
 > with the S3 object reference). `s3:GetObject` above also covers the **presigned
 > download** the Result panel mints on row-click (the URL is signed with the
@@ -258,6 +278,10 @@ make undeploy-dev DEPLOY_INGRESS_HOST=classification-ui-dev-sandbox-v1.dev05.k8s
 make undeploy-all DEPLOY_NUKE_DATA=true \
   DEPLOY_INGRESS_HOST=classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com \
   DEPLOY_ROUTE53_ZONE_ID=Z045669519R5D9D8CKC79
+
+# Archive fan-out (if enabled): the zip-extraction SQS queue is SEPARATE infra and is
+# NOT touched by undeploy-all — delete it manually if you provisioned one:
+#   aws sqs delete-queue --queue-url <queue-url> --profile opus2-dev
 ```
 > `make undeploy-dev` never touches the DynamoDB tables, S3 bucket, or IRSA role —
 > those are kept by design. Only `make undeploy-all DEPLOY_NUKE_DATA=true` destroys

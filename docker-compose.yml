@@ -18,7 +18,7 @@ services:
   localstack:
     image: localstack/localstack:3.7.0
     environment:
-      SERVICES: s3,dynamodb,stepfunctions
+      SERVICES: s3,dynamodb,stepfunctions,sqs
       DEFAULT_REGION: us-east-1
       PERSISTENCE: "0"
       DEBUG: "0"
@@ -49,6 +49,7 @@ services:
       WORKSPACE_CONFIG_TABLE_NAME: workspace-config-ui
       CLASSIFICATIONS_TABLE_NAME: classifications-ui
       DEFAULT_WORKSPACE_ID: wks-ui-001
+      ZIP_EXTRACTION_QUEUE_NAME: zip-extraction-queue
     entrypoint: ["/bin/sh", "/bootstrap.sh"]
     volumes:
       - ./scripts/bootstrap-localstack.sh:/bootstrap.sh:ro
@@ -69,6 +70,7 @@ services:
       AWS_SECRET_ACCESS_KEY: test
       CONTENT_HASH_TABLE_NAME: content-hashes-ui
       WORKSPACE_CONFIG_TABLE_NAME: workspace-config-ui
+      ZIP_EXTRACTION_QUEUE_URL: http://localstack:4566/000000000000/zip-extraction-queue
       LOG_LEVEL: DEBUG
       POWERTOOLS_DEV: "true"
       POWERTOOLS_SERVICE_NAME: classification-service
@@ -96,6 +98,7 @@ services:
       CONTENT_HASH_TABLE_NAME: content-hashes-ui
       WORKSPACE_CONFIG_TABLE_NAME: workspace-config-ui
       CLASSIFICATIONS_TABLE_NAME: classifications-ui
+      ZIP_EXTRACTION_QUEUE_URL: http://localstack:4566/000000000000/zip-extraction-queue
       # Presigned download URLs must be signed for a host the browser can
       # reach. The server talks to localstack:4566 internally, but the browser
       # is on the host where LocalStack is published on localhost:4566.

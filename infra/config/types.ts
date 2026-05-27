@@ -20,6 +20,11 @@ export interface EnvConfig {
   readonly stateMachineArn: string;
   readonly documentBucketArn: string;
 
+  // Downstream archive fan-out — when category=archive the Lambda
+  // publishes a claim-check here. Empty string disables the fan-out.
+  readonly zipExtractionQueueArn: string;
+  readonly zipExtractionQueueUrl: string;
+
   // X-Ray sampling
   readonly xraySamplingReservoirSize: number;
   readonly xraySamplingFixedRate: number;

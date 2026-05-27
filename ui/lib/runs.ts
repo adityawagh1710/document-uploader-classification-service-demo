@@ -101,5 +101,7 @@ function toRecentRecord(item: Record<string, unknown>): RecentRecord {
     failureReason: (item.failureReason as string | null) ?? null,
     failureKind: (item.failureKind as string | null) ?? null,
     objectKey: (item.objectKey as string | null) ?? null,
+    archiveDispatch:
+      (item.archiveDispatch as RecentRecord["archiveDispatch"]) ?? "skipped",
   };
 }

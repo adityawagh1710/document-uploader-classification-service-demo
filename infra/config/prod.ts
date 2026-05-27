@@ -13,6 +13,8 @@ const config: EnvConfig = {
   logRetentionDays: 90,
   stateMachineArn: "arn:aws:states:us-east-1:333333333333:stateMachine:document-ingestion",
   documentBucketArn: "arn:aws:s3:::document-bucket-prod",
+  zipExtractionQueueArn: "arn:aws:sqs:us-east-1:333333333333:zip-extraction-queue",
+  zipExtractionQueueUrl: "https://sqs.us-east-1.amazonaws.com/333333333333/zip-extraction-queue",
   xraySamplingReservoirSize: 1,
   xraySamplingFixedRate: 0.05,
   alarmsSnsTopicSsmPath: "/observability/sns-topic-arn/prod",

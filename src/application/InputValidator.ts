@@ -20,6 +20,8 @@ const TaskPayloadSchema = z.object({
     parentArchiveDepth: z.number().int().min(0),
     overrideDuplicateCheck: z.boolean(),
   }),
+  pipelineExecutionId: z.string().min(1).optional(),
+  correlationId: z.string().min(1).optional(),
 }).passthrough();
 
 export function createInputValidator(): InputValidator {

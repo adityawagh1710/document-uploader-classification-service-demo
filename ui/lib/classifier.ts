@@ -6,6 +6,7 @@ import { DynamoDBClient, CreateTableCommand, DescribeTableCommand } from "@aws-s
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { S3Client, CreateBucketCommand, HeadBucketCommand } from "@aws-sdk/client-s3";
 import { SFNClient } from "@aws-sdk/client-sfn";
+import { SQSClient, CreateQueueCommand } from "@aws-sdk/client-sqs";
 import type { WorkspaceConfig } from "@svc/shared/types";
 
 import { silentLogger } from "@svc/ports/Logger";
@@ -13,6 +14,8 @@ import { createS3Adapter } from "@svc/adapters/s3/index";
 import { createNodeCryptoHasher } from "@svc/adapters/crypto/index";
 import { createDDBContentHashAdapter } from "@svc/adapters/dynamo-content-hashes/index";
 import { createDDBWorkspaceConfigAdapter } from "@svc/adapters/dynamo-workspace-config/index";
+import { createSqsArchiveDispatcher } from "@svc/adapters/sqs-archive-dispatcher/index";
+import type { ArchiveDispatcher } from "@svc/ports/ArchiveDispatcher";
 
 import { createTier1FileTypeDetector } from "@svc/domain/tier1-filetype/index";
 import { createOLE2Parser, createTier2OLE2Detector } from "@svc/domain/tier2-ole2/index";
@@ -156,6 +159,29 @@ const sfnClient = USE_LOCALSTACK
   : new SFNClient({ region: REGION });
 void sfnClient; // adapter constructed but never called by this UI
 
+// --- Archive fan-out (zip-extraction) ---------------------------------------
+// Mirrors the Lambda handler's dispatcher. In LocalStack mode the queue URL
+// defaults to the in-cluster/compose LocalStack queue; in AWS mode it MUST be
+// set explicitly (regional SQS URL) via env. An unset/empty value disables
+// the fan-out — classification still runs; only the SQS dispatch is skipped.
+export const ZIP_EXTRACTION_QUEUE_URL =
+  process.env.ZIP_EXTRACTION_QUEUE_URL ??
+  (USE_LOCALSTACK ? `${ENDPOINT}/000000000000/zip-extraction-queue` : "");
+export const ZIP_EXTRACTION_QUEUE_NAME = "zip-extraction-queue";
+
+const sqsClient = USE_LOCALSTACK
+  ? new SQSClient({ region: REGION, endpoint: ENDPOINT, credentials })
+  : new SQSClient({ region: REGION });
+
+export const archiveDispatcher: ArchiveDispatcher | undefined =
+  ZIP_EXTRACTION_QUEUE_URL !== ""
+    ? createSqsArchiveDispatcher({
+        sqs: sqsClient,
+        queueUrl: ZIP_EXTRACTION_QUEUE_URL,
+        logger: silentLogger,
+      })
+    : undefined;
+
 const s3Adapter = createS3Adapter({ s3: s3Client, logger: silentLogger });
 
 let cachedService: ClassificationService | undefined;
@@ -210,6 +236,7 @@ export async function ensureResourcesProvisioned(): Promise<void> {
       ensureContentHashTable(),
       ensureWorkspaceConfigTable(),
       ensureClassificationsTable(),
+      ensureArchiveQueue(),
     ]);
     // Seed AFTER the table is confirmed present — `PutCommand` would race
     // with `CreateTable` if run in parallel.
@@ -296,6 +323,16 @@ async function ensureClassificationsTable(): Promise<void> {
     );
   } catch (e: unknown) {
     if ((e as Error)?.name !== "ResourceInUseException") throw e;
+  }
+}
+
+async function ensureArchiveQueue(): Promise<void> {
+  // LocalStack-only: real AWS owns the queue out-of-band.
+  try {
+    await sqsClient.send(new CreateQueueCommand({ QueueName: ZIP_EXTRACTION_QUEUE_NAME }));
+  } catch (e: unknown) {
+    const name = (e as Error)?.name ?? "";
+    if (name !== "QueueAlreadyExists") throw e;
   }
 }
 

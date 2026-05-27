@@ -62,6 +62,7 @@ export class ClassificationLambdaStack extends cdk.Stack {
         CONTENT_HASH_TABLE_NAME: contentHashTable.tableName,
         WORKSPACE_CONFIG_TABLE_NAME: workspaceConfigTable.tableName,
         STATE_MACHINE_ARN: envConfig.stateMachineArn,
+        ZIP_EXTRACTION_QUEUE_URL: envConfig.zipExtractionQueueUrl,
       },
       logRetention,
       insightsVersion: envConfig.lambdaInsightsEnabled
@@ -100,6 +101,14 @@ export class ClassificationLambdaStack extends cdk.Stack {
         effect: iam.Effect.ALLOW,
         actions: ["states:SendTaskSuccess", "states:SendTaskFailure"],
         resources: [envConfig.stateMachineArn],
+      }),
+    );
+    fn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: "ZipExtractionFanOut",
+        effect: iam.Effect.ALLOW,
+        actions: ["sqs:SendMessage"],
+        resources: [envConfig.zipExtractionQueueArn],
       }),
     );
 

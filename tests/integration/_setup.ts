@@ -24,7 +24,7 @@ export async function setup({ provide }: GlobalSetupContext): Promise<void> {
   container = await new GenericContainer(LOCALSTACK_IMAGE)
     .withExposedPorts(4566)
     .withEnvironment({
-      SERVICES: "dynamodb,s3,stepfunctions",
+      SERVICES: "dynamodb,s3,stepfunctions,sqs",
       DEFAULT_REGION: "us-east-1",
       PERSISTENCE: "0",
     })
