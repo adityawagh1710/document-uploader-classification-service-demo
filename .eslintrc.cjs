@@ -125,6 +125,11 @@ module.exports = {
     // UI has its own ESLint setup (Next.js's eslint-next) — keep it out of
     // the root type-aware ESLint pass which references the service tsconfigs.
     "ui",
+    // Worker is its own self-contained package under worker/ — own deps,
+    // own tsconfig (worker/tsconfig.json + worker/tsconfig.test.json), own
+    // vitest config. Same treatment as ui/: the root type-aware ESLint
+    // pass cannot resolve worker/**/*.ts against the root tsconfigs.
+    "worker",
     // Root-level config files that aren't in any service tsconfig include.
     "vitest.config.ts",
     "cdk.json",
