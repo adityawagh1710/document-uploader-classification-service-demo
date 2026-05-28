@@ -1,0 +1,256 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ClassificationConvertQueueStack > matches snapshot (full template; scrubbed of CDK volatile fields) 1`] = `
+{
+  "Outputs": {
+    "ConvertDlqArn": {
+      "Export": {
+        "Name": "ClassificationConvertDlqArn-dev",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "ConvertDlq__HASH__",
+          "Arn",
+        ],
+      },
+    },
+    "ConvertDlqUrl": {
+      "Export": {
+        "Name": "ClassificationConvertDlqUrl-dev",
+      },
+      "Value": {
+        "Ref": "ConvertDlq__HASH__",
+      },
+    },
+    "ConvertQueueArn": {
+      "Export": {
+        "Name": "ClassificationConvertQueueArn-dev",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "ConvertQueue__HASH__",
+          "Arn",
+        ],
+      },
+    },
+    "ConvertQueueUrl": {
+      "Export": {
+        "Name": "ClassificationConvertQueueUrl-dev",
+      },
+      "Value": {
+        "Ref": "ConvertQueue__HASH__",
+      },
+    },
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "__BOOTSTRAP_PARAM__",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "ConvertDlqDepthAlarm__HASH__": {
+      "Properties": {
+        "AlarmDescription": "Convert-worker failed >= maxReceiveCount (3) times for at least one message. Inspect the DLQ body for the office-convert failure_class or the worker's local diagnostic. The classifications-dev row will carry convertStatus=failed.",
+        "AlarmName": "classification-convert-queue-dev-dlq-depth",
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "Dimensions": [
+          {
+            "Name": "QueueName",
+            "Value": {
+              "Fn::GetAtt": [
+                "ConvertDlq__HASH__",
+                "QueueName",
+              ],
+            },
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "ApproximateNumberOfMessagesVisible",
+        "Namespace": "AWS/SQS",
+        "Period": 300,
+        "Statistic": "Maximum",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "convert",
+          },
+        ],
+        "Threshold": 1,
+        "TreatMissingData": "notBreaching",
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "ConvertDlqPolicy__HASH__": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "ConvertDlq__HASH__",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "ConvertDlq__HASH__",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "ConvertDlq__HASH__": {
+      "DeletionPolicy": "Delete",
+      "Metadata": "__SCRUBBED_METADATA__",
+      "Properties": {
+        "KmsMasterKeyId": "alias/aws/sqs",
+        "MessageRetentionPeriod": 1209600,
+        "QueueName": "classification-convert-queue-dev-dlq",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "convert",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "ConvertQueueAgeAlarm__HASH__": {
+      "Properties": {
+        "AlarmDescription": "Convert queue's oldest message has been waiting > 30 min. Worker may be stalled or scaled to zero. Check \`kubectl -n classification-service-sandbox get pods -l app=convert-worker\` and the worker pod logs.",
+        "AlarmName": "classification-convert-queue-dev-age",
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "Dimensions": [
+          {
+            "Name": "QueueName",
+            "Value": {
+              "Fn::GetAtt": [
+                "ConvertQueue__HASH__",
+                "QueueName",
+              ],
+            },
+          },
+        ],
+        "EvaluationPeriods": 2,
+        "MetricName": "ApproximateAgeOfOldestMessage",
+        "Namespace": "AWS/SQS",
+        "Period": 300,
+        "Statistic": "Maximum",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "convert",
+          },
+        ],
+        "Threshold": 1800,
+        "TreatMissingData": "notBreaching",
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "ConvertQueuePolicy__HASH__": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "ConvertQueue__HASH__",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "ConvertQueue__HASH__",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "ConvertQueue__HASH__": {
+      "DeletionPolicy": "Delete",
+      "Metadata": "__SCRUBBED_METADATA__",
+      "Properties": {
+        "KmsMasterKeyId": "alias/aws/sqs",
+        "MessageRetentionPeriod": 1209600,
+        "QueueName": "classification-convert-queue-dev",
+        "RedrivePolicy": {
+          "deadLetterTargetArn": {
+            "Fn::GetAtt": [
+              "ConvertDlq__HASH__",
+              "Arn",
+            ],
+          },
+          "maxReceiveCount": 3,
+        },
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "convert",
+          },
+        ],
+        "VisibilityTimeout": 1800,
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;
