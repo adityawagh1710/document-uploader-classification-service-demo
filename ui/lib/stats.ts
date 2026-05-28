@@ -3,6 +3,8 @@
 import type { ClassificationOutput, ClassificationFailure } from "@svc/application/index";
 
 export type ArchiveDispatchState = "ok" | "skipped" | "failed";
+export type ConvertDispatchState = "ok" | "skipped" | "failed" | "dwg-excluded";
+export type ConvertStatus = "queued" | "converting" | "done" | "failed" | null;
 
 export interface RecentRecord {
   readonly id: string;
@@ -16,6 +18,13 @@ export interface RecentRecord {
   readonly failureKind: string | null;
   readonly objectKey: string | null;
   readonly archiveDispatch: ArchiveDispatchState;
+  // Convert fan-out state. Populated on rows where category=convert;
+  // null on other categories (UI renders the column blank). Worker
+  // mutates the DDB row directly (feat/03+04); the in-memory recent[]
+  // ring carries the initial state here, NOT the worker's later updates.
+  readonly convertStatus: ConvertStatus;
+  readonly convertQueuedAt: string | null;
+  readonly convertDispatch: ConvertDispatchState;
 }
 
 export interface SuccessInit {
@@ -27,6 +36,7 @@ export interface SuccessInit {
   result: ClassificationOutput;
   objectKey: string;
   archiveDispatch: ArchiveDispatchState;
+  convertDispatch: ConvertDispatchState;
 }
 
 export interface FailureInit {
@@ -81,6 +91,20 @@ export function recordSuccess(init: SuccessInit): RecentRecord {
     (s.byCategory[init.result.classification.category] ?? 0) + 1;
   s.byFormat[init.result.classification.format] =
     (s.byFormat[init.result.classification.format] ?? 0) + 1;
+  // Convert initial state mirrors the dispatch outcome.
+  //   - dispatch "ok"             → queued (worker will flip to converting/done/failed)
+  //   - dispatch "failed"         → failed (SQS SendMessage threw; nothing will ever process)
+  //   - dispatch "dwg-excluded"   → failed (categorically unsupported)
+  //   - dispatch "skipped"        → null   (non-convert category OR convert queue disabled)
+  // The UI Recent column reads convertStatus directly.
+  const isConvert = init.result.classification.category === "convert";
+  const convertStatus: ConvertStatus = (() => {
+    if (!isConvert) return null;
+    if (init.convertDispatch === "ok") return "queued";
+    if (init.convertDispatch === "failed") return "failed";
+    if (init.convertDispatch === "dwg-excluded") return "failed";
+    return null;
+  })();
   const record: RecentRecord = {
     id: init.id,
     ts: init.ts,
@@ -93,6 +117,9 @@ export function recordSuccess(init: SuccessInit): RecentRecord {
     failureKind: null,
     objectKey: init.objectKey,
     archiveDispatch: init.archiveDispatch,
+    convertStatus,
+    convertQueuedAt: convertStatus === "queued" ? init.ts : null,
+    convertDispatch: init.convertDispatch,
   };
   s.recent.unshift(record);
   s.recent.splice(MAX_RECENT);
@@ -115,6 +142,9 @@ export function recordFailure(init: FailureInit): RecentRecord {
     failureKind: init.failure.kind,
     objectKey: init.objectKey,
     archiveDispatch: "skipped",
+    convertStatus: null,
+    convertQueuedAt: null,
+    convertDispatch: "skipped",
   };
   s.recent.unshift(record);
   s.recent.splice(MAX_RECENT);

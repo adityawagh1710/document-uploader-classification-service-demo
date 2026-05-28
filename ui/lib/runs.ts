@@ -89,6 +89,9 @@ export async function queryRecentRuns(
 
 // Strip the DynamoDB-only attributes back to the RecentRecord the dashboard
 // expects (objectKey is retained; runId/s3*/expiresAt are dropped).
+// Worker-mutated convert fields (convertStatus / convertS3Key / convertError /
+// convertCompletedAt etc.) are surfaced — the row may have been transitioned
+// from queued → converting → done since the original recordRun() write.
 function toRecentRecord(item: Record<string, unknown>): RecentRecord {
   return {
     id: item.id as string,
@@ -103,5 +106,10 @@ function toRecentRecord(item: Record<string, unknown>): RecentRecord {
     objectKey: (item.objectKey as string | null) ?? null,
     archiveDispatch:
       (item.archiveDispatch as RecentRecord["archiveDispatch"]) ?? "skipped",
+    convertStatus:
+      (item.convertStatus as RecentRecord["convertStatus"]) ?? null,
+    convertQueuedAt: (item.convertQueuedAt as string | null) ?? null,
+    convertDispatch:
+      (item.convertDispatch as RecentRecord["convertDispatch"]) ?? "skipped",
   };
 }
