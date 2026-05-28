@@ -1,0 +1,19 @@
+apiVersion: v2
+name: convert-worker
+description: |
+  classification-convert-worker — SQS poller that drives office-convert
+  /v1/convert for category=convert classifications and writes the result
+  back to classifications-dev. Pairs with the classification-ui chart;
+  consumes from the queue provisioned by ClassificationConvertQueueStack
+  (CDK) and bridges to office-convert in the office-convert-dev namespace.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/adityawagh1710/document-uploader-classification-service-demo
+keywords:
+  - classification
+  - convert
+  - sqs-poller
+  - office-convert-bridge
+maintainers:
+  - name: classification-service maintainers

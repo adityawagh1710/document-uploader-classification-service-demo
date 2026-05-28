@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: convert-worker
+  namespace: {{ include "convert-worker.namespace" . }}
+  labels:
+    {{- include "convert-worker.labels" . | nindent 4 }}
+    {{- include "convert-worker.selector" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  # Recreate (not RollingUpdate): each pod holds a long-poll SQS connection,
+  # and during a rolling update the in-flight HTTP call to office-convert
+  # could be killed in the middle of a 25-min conversion. Recreate gives a
+  # clean stop → SQS visibility-timeout redelivery → new pod picks up.
+  # Trade-off: brief downtime on every upgrade. Worth it for correctness.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "convert-worker.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "convert-worker.selector" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "convert-worker.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # SIGTERM grace — must be ≥ the longest in-flight office-convert call
+      # we're willing to wait on. We don't try to drain (the worker doesn't
+      # know how to interrupt office-convert cleanly), but k8s will SIGKILL
+      # at grace-period boundary, so set high enough that most in-flight
+      # conversions complete before the kill. Trade-off vs deployment time:
+      # 120s gives operators reasonable upgrade tempo without dropping most
+      # short conversions; long conversions (>2 min in) will get SQS-redrived.
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: worker
+          image: {{ include "convert-worker.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: convert-worker-config
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
