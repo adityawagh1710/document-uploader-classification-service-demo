@@ -24,13 +24,18 @@ ui:
   resources:
     requests:
       cpu: 200m
-      memory: 512Mi
-    limits:
-      # 1 GiB pairs with the 1 GiB upload cap in ui/app/api/classify/route.ts.
-      # Multipart streaming keeps actual usage low, but Node's V8 holds onto
-      # buffers + intermediate parts so headroom matters at the ceiling.
-      cpu: "1"
       memory: 1Gi
+    limits:
+      # 2 GiB chosen to handle the 1 GiB upload cap with overhead. Despite
+      # the route comment, `req.formData()` in Next.js DOES buffer the full
+      # body before exposing file.stream() — so a 1 GiB upload allocates
+      # ~1 GiB just for the parse, plus V8 heap baseline + lib-storage's
+      # 8 MiB × 4 in-flight parts. Verified OOMKilled at 1 GiB pod limit on
+      # ~800 MB+ uploads (exit 137 at 2026-05-28). True streaming would
+      # need a busboy-based parser replacing req.formData() — tracked as a
+      # follow-up. For now, bumping memory is the surgical fix.
+      cpu: "1"
+      memory: 2Gi
   readinessProbe:
     httpGet:
       path: /api/health
