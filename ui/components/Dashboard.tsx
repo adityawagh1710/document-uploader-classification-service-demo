@@ -149,7 +149,21 @@ export function Dashboard() {
     <main className="mx-auto max-w-[1600px] px-4 py-4">
       <header className="flex items-baseline gap-3 mb-4">
         <h1 className="text-lg font-bold text-slate-100">📄 Classification test harness</h1>
-        <span className="text-[11px] text-slate-500">Monitor › Local + dev EKS</span>
+        <span className="text-[11px] text-slate-500">
+          {(() => {
+            // Subtitle reflects the current backend, derived from
+            // health.endpoint (synthesized by classifier.ts DISPLAY_ENDPOINT).
+            //   `aws:<region>` → real-AWS on dev05
+            //   `http://localstack:4566` → compose
+            //   `http://localhost:4566` → npm-dev
+            const ep = health?.endpoint ?? "";
+            if (ep.startsWith("aws:")) {
+              return `Monitor › dev05 · ${ep.slice(4)}`;
+            }
+            if (!ep) return "Monitor";
+            return "Monitor › LocalStack";
+          })()}
+        </span>
         <span className="ml-auto inline-flex items-center gap-2 text-[11px] text-slate-500">
           <span className="eq-bars" aria-label="Live">
             <span></span>
@@ -165,7 +179,17 @@ export function Dashboard() {
           label="Service"
           value={health?.ready ? "OK" : "DOWN"}
           status={health?.ready ? "ok" : "crit"}
-          sub={health?.endpoint ?? ""}
+          sub={(() => {
+            // Pretty-print the synthesized DISPLAY_ENDPOINT instead of
+            // surfacing the raw value. Same source-of-truth as the
+            // subtitle, separate styling for the KPI tile's limited
+            // sub-line width.
+            const ep = health?.endpoint ?? "";
+            if (ep.startsWith("aws:")) return `dev05 · ${ep.slice(4)}`;
+            if (ep === "http://localstack:4566") return "compose · localstack";
+            if (ep === "http://localhost:4566") return "npm dev · localhost";
+            return ep;
+          })()}
         />
         <KpiTile
           // Label switches with backend mode — health.endpoint is "aws:<region>"
