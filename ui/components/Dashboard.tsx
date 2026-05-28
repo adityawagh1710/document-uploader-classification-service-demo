@@ -119,20 +119,59 @@ export function Dashboard() {
     }
   }, [stats?.recent]);
 
-  const totalRecent = stats?.recent.length ?? 0;
+  // "Clear" UI-side hide — sets a `clearedSince` ISO timestamp; rows older
+  // than it are filtered out of the table. Persisted in localStorage per
+  // workspace so the choice survives reloads. Does NOT touch DDB / S3 —
+  // 30-day TTL on classifications-dev handles the real cleanup. Click
+  // again on "Show all (N hidden)" to undo.
+  const workspaceIdForClear = stats?.recent?.[0]?.workspaceId ?? "wks-ui-001";
+  const clearStorageKey = `recent_cleared_since_${workspaceIdForClear}`;
+  const [clearedSince, setClearedSince] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setClearedSince(localStorage.getItem(clearStorageKey));
+  }, [clearStorageKey]);
+
+  const filteredRecent = useMemo(() => {
+    const all = stats?.recent ?? [];
+    if (!clearedSince) return all;
+    return all.filter((r) => r.ts > clearedSince);
+  }, [stats?.recent, clearedSince]);
+  const hiddenCount = (stats?.recent?.length ?? 0) - filteredRecent.length;
+
+  const totalRecent = filteredRecent.length;
   const totalPages = Math.max(1, Math.ceil(totalRecent / pageSize));
   useEffect(() => {
     if (page > totalPages - 1) setPage(Math.max(0, totalPages - 1));
   }, [page, totalPages]);
 
   const visibleRecent = useMemo(
-    () => (stats?.recent ?? []).slice(page * pageSize, (page + 1) * pageSize),
-    [stats?.recent, page, pageSize],
+    () => filteredRecent.slice(page * pageSize, (page + 1) * pageSize),
+    [filteredRecent, page, pageSize],
   );
 
+  const handleClear = () => {
+    const now = new Date().toISOString();
+    setClearedSince(now);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(clearStorageKey, now);
+    }
+    setSelectedRunId(null);
+    setPage(0);
+  };
+  const handleShowAll = () => {
+    setClearedSince(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(clearStorageKey);
+    }
+  };
+
+  // Use filteredRecent so a Clear that hides the selected row also hides
+  // the ResultPanel — keeps "what's visible in the table" and "what's
+  // shown in the panel" consistent.
   const selectedRun = useMemo(
-    () => stats?.recent.find((r) => r.id === selectedRunId) ?? null,
-    [stats?.recent, selectedRunId],
+    () => filteredRecent.find((r) => r.id === selectedRunId) ?? null,
+    [filteredRecent, selectedRunId],
   );
 
   const tierCount = (k: string) => stats?.byTier[k] ?? 0;
@@ -260,7 +299,29 @@ export function Dashboard() {
         <span className="text-slate-500 font-normal normal-case tracking-normal text-[10.5px] ml-2">
           — newest first, max 100
         </span>
-        <span className="right">
+        <span className="right inline-flex items-center gap-2">
+          {hiddenCount > 0 ? (
+            <button
+              type="button"
+              onClick={handleShowAll}
+              data-testid="recent-show-all"
+              className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10.5px] text-amber-300 hover:bg-amber-500/20 normal-case tracking-normal"
+              title={`Reveal ${hiddenCount} row${hiddenCount === 1 ? "" : "s"} hidden by Clear (since ${clearedSince})`}
+            >
+              Show all ({hiddenCount} hidden)
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleClear}
+              disabled={(stats?.recent?.length ?? 0) === 0}
+              data-testid="recent-clear"
+              className="rounded border border-border-subtle bg-slate-800/50 px-2 py-0.5 text-[10.5px] text-slate-400 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed normal-case tracking-normal"
+              title="Hide all current rows from the view. Stored in localStorage; doesn't touch DDB/S3. 30-day TTL handles real cleanup."
+            >
+              Clear view
+            </button>
+          )}
           <span className="mr-3">updated {lastRefreshedLabel}</span>
           <span>· {totalRecent} run{totalRecent === 1 ? "" : "s"}</span>
           {totalRecent > 0 ? (
