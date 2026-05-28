@@ -496,6 +496,30 @@ ecr-login: check-aws ## [deploy] Docker login to ECR (60-min token)
 		| docker login --username AWS --password-stdin $(DEPLOY_ECR_REGISTRY) >/dev/null
 	$(call ok,Logged into $(DEPLOY_ECR_REGISTRY))
 
+.PHONY: ecr-lifecycle
+ecr-lifecycle: check-aws ## [deploy] Apply the keep-last-3 + expire-untagged lifecycle policy to the ECR repo (idempotent)
+	$(call banner,Applying lifecycle policy → $(DEPLOY_ECR_REPO))
+	@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr put-lifecycle-policy \
+		--repository-name $(DEPLOY_ECR_REPO) --region $(DEPLOY_AWS_REGION) \
+		--lifecycle-policy-text file://deploy/ecr-lifecycle-policy.json >/dev/null
+	$(call ok,Lifecycle policy applied (see deploy/ecr-lifecycle-policy.json))
+
+.PHONY: ecr-lifecycle-status
+ecr-lifecycle-status: check-aws ## [deploy] Show the currently-applied lifecycle policy + a preview of what would be expired now
+	@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr get-lifecycle-policy \
+		--repository-name $(DEPLOY_ECR_REPO) --region $(DEPLOY_AWS_REGION) \
+		--query 'lifecyclePolicyText' --output text 2>/dev/null \
+		| python3 -m json.tool || printf "$(COL_RED)✗ no policy applied (run: make ecr-lifecycle)$(COL_OFF)\n"
+	@printf "\n$(COL_BLU)--- preview (what the policy would expire now) ---$(COL_OFF)\n"
+	@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr start-lifecycle-policy-preview \
+		--repository-name $(DEPLOY_ECR_REPO) --region $(DEPLOY_AWS_REGION) \
+		--lifecycle-policy-text file://deploy/ecr-lifecycle-policy.json >/dev/null 2>&1 || true
+	@sleep 3
+	@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr get-lifecycle-policy-preview \
+		--repository-name $(DEPLOY_ECR_REPO) --region $(DEPLOY_AWS_REGION) \
+		--query 'previewResults[].{action:action.type,tags:imageTags,pushed:imagePushedAt,reason:appliedRulePriority}' \
+		--output table 2>/dev/null || true
+
 .PHONY: image-build
 image-build: check-docker ## [deploy] Build the UI image for linux/amd64 (EKS node arch)
 	$(call banner,Building UI image $(DEPLOY_IMAGE_FULL))
