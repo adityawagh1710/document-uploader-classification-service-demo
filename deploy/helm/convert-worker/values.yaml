@@ -1,0 +1,100 @@
+# Default values for convert-worker.
+# Override at install via `--set` or a values overlay.
+#
+# Required at install time (no defaults):
+#   --set image.repository=<acct>.dkr.ecr.<region>.amazonaws.com/<repo>
+#   --set image.tag=<git-sha>
+#   --set serviceAccount.roleArn=arn:aws:iam::537462380503:role/convert-worker-irsa
+#   --set worker.convertQueueUrl=https://sqs.eu-west-1.amazonaws.com/537462380503/classification-convert-queue-dev
+
+# Target namespace. Default matches the classification-ui chart so the worker
+# and UI share a namespace and the SAME IRSA OIDC trust scope is reusable
+# inside the cluster (separate SA names, same namespace).
+namespace:
+  create: false
+  name: classification-service-sandbox
+
+image:
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Single replica is the right default for dev05 — each conversion can take
+# ~30 min and there's no concurrent inflight on a single worker. Scale
+# horizontally for higher throughput (KEDA on queue depth lands in feat/07).
+replicaCount: 1
+
+serviceAccount:
+  # When true, chart creates the SA. Set false ONLY if the SA is provisioned
+  # out-of-band (e.g. via ArgoCD's app-of-apps pattern).
+  create: true
+  # SA name. Helm release name (`convert-worker`) is the default. MUST match
+  # the IAM role trust policy's `system:serviceaccount:<ns>:<name>` clause.
+  name: convert-worker
+  # IRSA role ARN. REQUIRED in AWS mode (i.e. when targeting dev05). Empty
+  # in LocalStack-mode dev loop (the worker picks up dummy creds from env).
+  roleArn: ""
+
+worker:
+  # SQS queue URL (CDK exports as ClassificationConvertQueueUrl-<env>).
+  convertQueueUrl: ""
+  sqsWaitTimeSeconds: 20
+  sqsMaxMessages: 1
+
+  # Office-convert base URL. In-cluster default — no ALB, no CIDR allowlist,
+  # no public egress required. Override if office-convert is in a different
+  # namespace or being reached via the public ALB (corp-VPN allowlist hurdle).
+  officeConvertBaseUrl: "http://office-convert.office-convert-dev.svc.cluster.local"
+  # 30-min HTTP timeout. Matches the SQS visibility timeout in the CDK stack
+  # — so a stuck call is detected on either side (worker times out OR SQS
+  # redelivers, never both at once, never never).
+  officeConvertTimeoutMs: 1800000
+
+  # DDB table name. Maps to the CDK data-stack's classifications-<env> table.
+  classificationsTableName: "classifications-dev"
+
+  awsRegion: "eu-west-1"
+  # LocalStack endpoint override. Empty on dev05 — SDK resolves regional.
+  awsEndpointUrl: ""
+
+  # DWG short-circuit (office-convert's 4-libs vendor path has no Aspose.CAD).
+  excludeDwg: true
+
+  logLevel: "info"
+  # Stamped into every log line. Override at deploy with --set worker.workerVersion=<git-sha>.
+  workerVersion: "dev"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    # Modest cap — the worker doesn't process the document content itself
+    # (office-convert does), just shuttles HTTP + SQS + DDB. 256 MiB is
+    # comfortable headroom for the Node runtime + SDK clients.
+    cpu: 500m
+    memory: 256Mi
+
+# Probes — the worker has no HTTP endpoint, so we use the process-liveness
+# check that comes for free (cmd-exec). Liveness is on; readiness is off
+# (a poller is always "ready" once the process is up). If liveness probes
+# become noisy in the future, replace with an `exec` of a small healthcheck
+# command that touches SQS.
+livenessProbe:
+  exec:
+    command: ["node", "-e", "process.exit(0)"]
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  failureThreshold: 3
+
+# Pod-level security context (non-root, read-only FS) — minimal blast radius
+# for a poller that has no need for filesystem writes.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
