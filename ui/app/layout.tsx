@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Classification Service · Test UI",
-  description: "Local + dev EKS test dashboard for the Classification Service",
+  title: "Classification test harness",
+  description: "Local + dev EKS test harness for the Classification Service",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

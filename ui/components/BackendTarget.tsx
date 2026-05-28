@@ -11,7 +11,7 @@ interface Target {
   backend: "localstack" | "real-aws";
 }
 
-export function LocalStackTarget() {
+export function BackendTarget() {
   const [target, setTarget] = useState<Target | null>(null);
 
   useEffect(() => {
