@@ -18,6 +18,9 @@ interface Health {
   error?: string;
 }
 
+type ConvertStatus = "queued" | "converting" | "done" | "failed" | null;
+type ConvertDispatch = "ok" | "skipped" | "failed" | "dwg-excluded";
+
 interface RecentItem {
   id: string;
   ts: string;
@@ -29,6 +32,19 @@ interface RecentItem {
   failureKind: string | null;
   objectKey: string | null;
   archiveDispatch: "ok" | "skipped" | "failed";
+  // Convert fan-out (feat/05 dispatcher + feat/03 worker). Worker UpdateItem's
+  // mutate these on the classifications-dev row directly; queryRecentRuns
+  // surfaces them on each /api/stats poll.
+  convertStatus: ConvertStatus;
+  convertQueuedAt: string | null;
+  convertDispatch: ConvertDispatch;
+  convertStartedAt?: string | null;
+  convertCompletedAt?: string | null;
+  convertS3Bucket?: string | null;
+  convertS3Key?: string | null;
+  convertRequestId?: string | null;
+  convertError?: string | null;
+  convertAttempts?: number | null;
   result: {
     documentId: string;
     workspaceId: string;
@@ -78,11 +94,22 @@ export function Dashboard() {
     }
   }, []);
 
+  // Adaptive polling: speed up when there are non-terminal convert rows
+  // visible (worker is mid-conversion → UI should show transitions promptly).
+  // Stays slow at 4s when everything is steady-state.
+  const hasInflightConvert = useMemo(
+    () =>
+      (stats?.recent ?? []).some(
+        (r) => r.convertStatus === "queued" || r.convertStatus === "converting",
+      ),
+    [stats?.recent],
+  );
+  const refreshIntervalMs = hasInflightConvert ? 2000 : 4000;
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 4000);
+    const t = setInterval(refresh, refreshIntervalMs);
     return () => clearInterval(t);
-  }, [refresh]);
+  }, [refresh, refreshIntervalMs]);
 
   useEffect(() => {
     const newest = stats?.recent[0]?.id ?? null;
@@ -217,13 +244,14 @@ export function Dashboard() {
               <th>Score</th>
               <th>Dedup</th>
               <th>Elapsed</th>
+              <th>Conversion</th>
               <th>Failure reason</th>
             </tr>
           </thead>
           <tbody>
             {totalRecent === 0 ? (
               <tr>
-                <td colSpan={11} className="text-center text-slate-500 py-6">
+                <td colSpan={12} className="text-center text-slate-500 py-6">
                   No classifications yet — upload a file above
                 </td>
               </tr>
@@ -288,6 +316,9 @@ export function Dashboard() {
                       )}
                     </td>
                     <td>{r.elapsedMs} ms</td>
+                    <td data-testid={`convert-cell-${r.id}`}>
+                      <ConvertCell row={r} />
+                    </td>
                     <td className="text-rose-300 max-w-[280px] truncate" title={r.failureReason ?? ""}>
                       {r.failureReason ?? <span className="text-slate-600">—</span>}
                     </td>
@@ -372,4 +403,123 @@ export function Dashboard() {
       <LocalStackTarget />
     </main>
   );
+}
+
+/**
+ * Conversion-column cell. Renders one of five states per row:
+ *
+ *   null         → "—"             (non-convert category, or convert queue disabled)
+ *   queued       → ⏳ "queued · 12s"
+ *   converting   → ⟳ "converting · 1m 23s"
+ *   done         → ⬇ "Download PDF" (fetches the presigned URL on click)
+ *   failed       → ⚠ "<error>"     (tooltip = convertError, truncated)
+ *
+ * The download button intentionally lazy-fetches the presigned URL on click
+ * rather than pre-warming every row (which would multiply DDB GetItem calls).
+ * The 5-min TTL is comfortably long enough for an operator to click → fetch
+ * → browser-download without expiry.
+ */
+function ConvertCell({ row }: { row: RecentItem }) {
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const status = row.convertStatus;
+  if (status === null) {
+    return <span className="text-slate-600">—</span>;
+  }
+
+  if (status === "queued" || status === "converting") {
+    const base = row.convertStartedAt ?? row.convertQueuedAt ?? row.ts;
+    return (
+      <span
+        className={
+          status === "queued"
+            ? "inline-flex items-center gap-1 text-amber-300"
+            : "inline-flex items-center gap-1 text-sky-300"
+        }
+        data-convert-status={status}
+      >
+        <span className="opacity-70">{status === "queued" ? "⏳" : "⟳"}</span>
+        <span>{status === "queued" ? "queued" : "converting"}</span>
+        <span className="text-slate-500">· {elapsedSince(base)}</span>
+      </span>
+    );
+  }
+
+  if (status === "failed") {
+    const reason = row.convertError ?? row.convertDispatch ?? "unknown";
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-rose-300 max-w-[200px] truncate"
+        title={reason}
+        data-convert-status="failed"
+      >
+        <span className="opacity-70">⚠</span>
+        <span className="truncate">{reason}</span>
+      </span>
+    );
+  }
+
+  // status === "done" — clickable download
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // don't toggle row selection
+    if (downloading) return;
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const params = new URLSearchParams({
+        workspaceId: row.workspaceId,
+        runId: `${row.ts}#${row.id}`,
+      });
+      const res = await fetch(`/api/runs/${row.id}?${params.toString()}`);
+      if (!res.ok) throw new Error(`runs api ${res.status}`);
+      const body = (await res.json()) as { convertedDownloadUrl?: string | null };
+      const url = body.convertedDownloadUrl;
+      if (!url) throw new Error("no convertedDownloadUrl");
+      // Open in a new tab so the operator stays on the dashboard.
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setDownloadError((err as Error)?.message ?? "download failed");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <span className="inline-flex items-center gap-2" data-convert-status="done">
+      <button
+        type="button"
+        onClick={handleDownload}
+        disabled={downloading}
+        data-testid={`convert-download-${row.id}`}
+        className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
+      >
+        {downloading ? "…" : "⬇ Download PDF"}
+      </button>
+      {downloadError ? (
+        <span className="text-rose-300 text-[10.5px]" title={downloadError}>
+          (failed)
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * Format a duration from `iso` until now as a compact, human-readable string.
+ * Reaches into seconds for the first minute, then `Nm Ss` up to an hour, then
+ * `Nh Mm`. Returns an em-dash if the timestamp is invalid (defensive — DDB
+ * rows can be malformed in dev).
+ */
+function elapsedSince(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "—";
+  const sec = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m < 60) return s === 0 ? `${m}m` : `${m}m ${s}s`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return mm === 0 ? `${h}h` : `${h}h ${mm}m`;
 }
