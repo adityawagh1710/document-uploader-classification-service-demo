@@ -100,7 +100,19 @@ Lives in `deploy/helm/classification-ui/values-aws.yaml`. **Forget this and the 
 
 | Date | classification HEAD | office-convert state | Result |
 |---|---|---|---|
-| 2026-05-28 | `feat/auto-convert-integration` | `feat/01` IAM + ConfigMap applied to dev05 | IAM simulator green; office-convert pod env has `classification-ui-dev05` in both allowlists |
+| 2026-05-28 (morning) | `feat/auto-convert-integration` | `feat/01` IAM + ConfigMap applied to dev05 | IAM simulator green; office-convert pod env has `classification-ui-dev05` in both allowlists |
+| 2026-05-28 (afternoon) | `feat/auto-convert-integration` deployed end-to-end on dev05 | office-convert main image `d535452` + cross-service IAM/ConfigMap live | **8 real Office files converted live**: DOCX 4.7–7.4s, PPT(legacy) 3.7–12.5s, XLSX 19.4s, ODS 0.4s, legacy-DOC 26.4s (xlsx→docx format-retry walked). Synthetic OLE2 failed cleanly with `office_convert_422:input_unprocessable`. attempts=1 across the board, DLQ depth=0. |
+
+### Live verification — what worked end-to-end on real-AWS dev05
+
+- ✓ Worker SQS `ReceiveMessage` via `convert-worker-irsa`
+- ✓ Worker HTTP POST to office-convert via in-cluster Service DNS
+- ✓ Office-convert `s3:GetObject` on `classification-ui-dev05/ui/*` (proven by successful conversions)
+- ✓ Office-convert `s3:PutObject` on `classification-ui-dev05/converted/*` (`s3_output_uploaded` events confirmed)
+- ✓ Worker captured office-convert's `X-Request-ID` and `X-S3-Output-{Bucket,Key}` headers, stored on DDB row
+- ✓ Worker `dynamodb:UpdateItem` on classifications-dev (success + failure paths)
+- ✓ 4xx caller errors correctly terminal (no SQS redrive, no DLQ message)
+- ✓ Watchdog CronJob curling `/api/admin/convert-watchdog` — returns 200, scans classifications-dev, reaps stuck rows older than 35 min
 
 ---
 
