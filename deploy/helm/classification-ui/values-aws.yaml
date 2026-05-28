@@ -41,3 +41,15 @@ config:
   # on the queue ARN, (2) the zip-extraction-dev05 role needs s3:GetObject on
   # classification-ui-dev05 (else the consumer 403s on download).
   ZIP_EXTRACTION_QUEUE_URL: "https://sqs.eu-west-1.amazonaws.com/537462380503/zip-extraction-dev05"
+  # Auto-convert fan-out — empty string disables it. Points at OUR queue
+  # (created by ClassificationConvertQueue-dev CDK stack — feat/02). When
+  # category=convert, /api/classify enqueues a ConvertClaim here and the
+  # convert-worker (deploy/helm/convert-worker chart) consumes + bridges to
+  # office-convert. Cross-service contract: deploy/INTEGRATIONS.md §"Sends
+  # to → office-convert".
+  # Without this env var set, the convert dispatcher silently becomes
+  # undefined → convertDispatch="skipped" on every classify → the entire
+  # convert pipeline is dark.
+  # IRSA: classification-ui-irsa Sid `ConvertFanOut` grants sqs:SendMessage
+  # on this queue ARN. Tracked in deploy/iam/classification-ui-irsa-perms.json.
+  CONVERT_QUEUE_URL: "https://sqs.eu-west-1.amazonaws.com/537462380503/classification-convert-queue-dev"

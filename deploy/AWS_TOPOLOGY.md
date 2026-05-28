@@ -147,7 +147,17 @@ aws s3api put-bucket-tagging --bucket classification-ui-dev05 --profile opus2-de
 }
 ```
 
-**Permissions policy** (`perms.json`) — least-priv for Option A:
+**Permissions policy** — least-priv for Option A. The canonical source is `deploy/iam/classification-ui-irsa-perms.json` (tracked in git). Apply with:
+
+```bash
+aws iam put-role-policy --role-name classification-ui-irsa \
+  --policy-name classification-ui-access \
+  --policy-document file://deploy/iam/classification-ui-irsa-perms.json \
+  --profile opus2-dev
+```
+
+The policy has 5 Sids: `Tables`, `HealthProbe`, `Bucket`, `ZipExtractionFanOut`, and `ConvertFanOut` (added 2026-05-28 for the auto-convert pipeline — `sqs:SendMessage` on `classification-convert-queue-dev`). Inline shape for reference:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -173,6 +183,18 @@ aws s3api put-bucket-tagging --bucket classification-ui-dev05 --profile opus2-de
       "Effect": "Allow",
       "Action": ["s3:GetObject","s3:PutObject"],
       "Resource": "arn:aws:s3:::classification-ui-dev05/*"
+    },
+    {
+      "Sid": "ZipExtractionFanOut",
+      "Effect": "Allow",
+      "Action": ["sqs:SendMessage"],
+      "Resource": "arn:aws:sqs:eu-west-1:537462380503:zip-extraction-dev05"
+    },
+    {
+      "Sid": "ConvertFanOut",
+      "Effect": "Allow",
+      "Action": ["sqs:SendMessage"],
+      "Resource": "arn:aws:sqs:eu-west-1:537462380503:classification-convert-queue-dev"
     }
   ]
 }
