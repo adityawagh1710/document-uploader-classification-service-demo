@@ -1,12 +1,12 @@
-# Classification Service · Test UI
+# Classification test harness
 
-Next.js 14 dashboard that wraps `ClassificationService` for **interactive local testing** and **dev EKS smoke checks**. Modeled after the office-convert reference dashboard, scaled for the simpler classification flow (sub-second per doc, no long-running jobs).
+Next.js 14 harness that wraps `ClassificationService` for **interactive local testing** and **dev EKS smoke checks**. Modeled after the office-convert reference dashboard, scaled for the simpler classification flow (sub-second per doc, no long-running jobs). The "LocalStack" KPI tile auto-switches to "DynamoDB" when `CLASSIFIER_AWS_MODE=true` (dev05); the tables-count sub becomes `present/expected` so out-of-account tables don't inflate it.
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│  📄 Classification Service · Test UI                LIVE ▮▮▮ │
+│  📄 Classification test harness                     LIVE ▮▮▮ │
 ├───────────────────────────────────────────────────────────────┤
-│ [Service OK] [LocalStack 12ms] [Total 47] [Errs 0] [Succ 100%]│
+│ [Service OK] [DynamoDB 12ms · 3/3] [Total 47] [Errs 0] [Succ %]│
 │                                                               │
 │ Detection tier breakdown                                      │
 │ [file-type 28] [ole2 4] [zip 9] [text 3] [ext-fallback 3]    │

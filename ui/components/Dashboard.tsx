@@ -6,7 +6,7 @@ import { Pill } from "./Pill";
 import { ClassifyForm } from "./ClassifyForm";
 import { WorkspaceForm } from "./WorkspaceForm";
 import { ResultPanel } from "./ResultPanel";
-import { LocalStackTarget } from "./LocalStackTarget";
+import { BackendTarget } from "./BackendTarget";
 
 const PAGE_SIZES = [10, 25, 50] as const;
 
@@ -148,7 +148,7 @@ export function Dashboard() {
   return (
     <main className="mx-auto max-w-[1600px] px-4 py-4">
       <header className="flex items-baseline gap-3 mb-4">
-        <h1 className="text-lg font-bold text-slate-100">📄 Classification Service · Test UI</h1>
+        <h1 className="text-lg font-bold text-slate-100">📄 Classification test harness</h1>
         <span className="text-[11px] text-slate-500">Monitor › Local + dev EKS</span>
         <span className="ml-auto inline-flex items-center gap-2 text-[11px] text-slate-500">
           <span className="eq-bars" aria-label="Live">
@@ -168,7 +168,10 @@ export function Dashboard() {
           sub={health?.endpoint ?? ""}
         />
         <KpiTile
-          label="LocalStack"
+          // Label switches with backend mode — health.endpoint is "aws:<region>"
+          // in AWS mode (set by classifier.ts DISPLAY_ENDPOINT) and
+          // "http://localstack:4566" / "http://localhost:4566" in LocalStack.
+          label={(health?.endpoint ?? "").startsWith("aws:") ? "DynamoDB" : "LocalStack"}
           value={
             health?.ready
               ? `${health.latencyMs ?? 0} ms`
@@ -177,7 +180,23 @@ export function Dashboard() {
                 : "unknown"
           }
           status={health?.ready ? "ok" : "crit"}
-          sub={`${health?.tables?.length ?? 0} tables`}
+          // ListTables grants on classification-ui-irsa are scoped to `*`, so
+          // we see EVERY table in the account on dev05 (count was 9 even
+          // though only 3 are ours). Filter to "ours" so the count is
+          // operator-useful, not raw account telemetry.
+          sub={(() => {
+            const ours = new Set([
+              "content-hashes-dev",
+              "workspace-config-dev",
+              "classifications-dev",
+              "content-hashes-ui",
+              "workspace-config-ui",
+              "classifications-ui",
+            ]);
+            const present = (health?.tables ?? []).filter((t) => ours.has(t)).length;
+            const expected = (health?.endpoint ?? "").startsWith("aws:") ? 3 : 3;
+            return `${present}/${expected} tables`;
+          })()}
         />
         <KpiTile label="Total classified" value={stats?.total ?? 0} status="info" />
         <KpiTile
@@ -400,7 +419,7 @@ export function Dashboard() {
       ) : null}
 
       <div className="section-hdr">Target</div>
-      <LocalStackTarget />
+      <BackendTarget />
     </main>
   );
 }

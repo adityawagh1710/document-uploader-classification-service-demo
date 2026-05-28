@@ -1,9 +1,9 @@
 /// <reference types="cypress" />
 
 describe("Smoke", () => {
-  it("dashboard renders + LocalStack is reachable + default workspace auto-seeded", () => {
+  it("harness renders + backend is reachable + default workspace auto-seeded", () => {
     cy.visit("/");
-    cy.contains("Classification Service · Test UI");
+    cy.contains("Classification test harness");
 
     // Health KPI should flip to OK within the 4s poll cadence.
     cy.contains(".kpi-tile .label", /service/i)
