@@ -13,6 +13,8 @@ WC_TABLE="${WORKSPACE_CONFIG_TABLE_NAME:-workspace-config-ui}"
 CL_TABLE="${CLASSIFICATIONS_TABLE_NAME:-classifications-ui}"
 DEFAULT_WORKSPACE_ID="${DEFAULT_WORKSPACE_ID:-wks-ui-001}"
 ZIP_EXTRACTION_QUEUE_NAME="${ZIP_EXTRACTION_QUEUE_NAME:-zip-extraction-queue}"
+CONVERT_QUEUE_NAME="${CONVERT_QUEUE_NAME:-classification-convert-queue}"
+CONVERT_DLQ_NAME="${CONVERT_DLQ_NAME:-classification-convert-queue-dlq}"
 
 echo "Bootstrapping LocalStack at $ENDPOINT ..."
 
@@ -64,4 +66,19 @@ aws --endpoint-url="$ENDPOINT" dynamodb put-item \
 aws --endpoint-url="$ENDPOINT" sqs create-queue \
   --queue-name "$ZIP_EXTRACTION_QUEUE_NAME" 2>/dev/null || true
 
-echo "Bootstrap complete: bucket=$BUCKET tables=$CH_TABLE,$WC_TABLE,$CL_TABLE workspace=$DEFAULT_WORKSPACE_ID queue=$ZIP_EXTRACTION_QUEUE_NAME"
+# SQS queues for the auto-convert fan-out (category=convert). DLQ first so
+# the main queue's redrive policy points at a real ARN. Mirrors the dev05
+# CDK shape (visibility 30 min, redrive maxReceiveCount=3).
+aws --endpoint-url="$ENDPOINT" sqs create-queue \
+  --queue-name "$CONVERT_DLQ_NAME" 2>/dev/null || true
+
+DLQ_ARN="arn:aws:sqs:us-east-1:000000000000:$CONVERT_DLQ_NAME"
+aws --endpoint-url="$ENDPOINT" sqs create-queue \
+  --queue-name "$CONVERT_QUEUE_NAME" \
+  --attributes "{
+    \"VisibilityTimeout\":\"1800\",
+    \"MessageRetentionPeriod\":\"1209600\",
+    \"RedrivePolicy\":\"{\\\"deadLetterTargetArn\\\":\\\"$DLQ_ARN\\\",\\\"maxReceiveCount\\\":\\\"3\\\"}\"
+  }" 2>/dev/null || true
+
+echo "Bootstrap complete: bucket=$BUCKET tables=$CH_TABLE,$WC_TABLE,$CL_TABLE workspace=$DEFAULT_WORKSPACE_ID queues=$ZIP_EXTRACTION_QUEUE_NAME,$CONVERT_QUEUE_NAME(+dlq)"

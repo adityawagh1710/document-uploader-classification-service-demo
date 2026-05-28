@@ -96,16 +96,24 @@ npm ci
 npx cdk bootstrap aws://537462380503/eu-west-1 --profile opus2-dev   # once per acct/region
 # Deploy ONLY the data-stack — not the Lambda/observability stacks.
 npx cdk deploy ClassificationData-dev --profile opus2-dev
+# Also deploy the auto-convert fan-out SQS infra (separate stack — see below).
+npx cdk deploy ClassificationConvertQueue-dev --profile opus2-dev
 ```
 
-This creates `content-hashes-dev` and `workspace-config-dev` (PAY_PER_REQUEST,
-AWS-managed encryption). Confirm:
+This creates:
+- `content-hashes-dev`, `workspace-config-dev`, `classifications-dev` (DDB, PAY_PER_REQUEST, AWS-managed encryption)
+- `classification-convert-queue-dev` + `classification-convert-queue-dev-dlq` (SQS, 30-min visibility, 14-day retention, KMS-managed; redrive maxReceiveCount=3) — consumed by the convert-worker, produced to by `/api/classify` when category=convert
+- Two CloudWatch alarms on the queue pair: `…-dlq-depth` (any DLQ message → ALARM) and `…-age` (oldest message > 30 min → ALARM)
+
+Confirm:
 ```bash
 aws dynamodb list-tables --region eu-west-1 --profile opus2-dev
+aws sqs list-queues --region eu-west-1 --profile opus2-dev \
+  --queue-name-prefix classification-convert-queue
 ```
 
-> Stack name: confirm with `npx cdk list`. If it differs from
-> `ClassificationData-dev`, use the listed name.
+> Stack names: confirm with `npx cdk list`. If they differ from
+> `ClassificationData-dev` / `ClassificationConvertQueue-dev`, use the listed names.
 
 ## Step 2 — Create the S3 bucket
 
