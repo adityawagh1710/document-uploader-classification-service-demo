@@ -94,6 +94,8 @@ help: ## Show this help (default)
 	@awk 'BEGIN{FS=":.*##"} /^[a-z-]+:.*## \[combo\]/ {printf "    $(COL_GRN)%-18s$(COL_OFF) %s\n", $$1, gensub(/^ ?\[combo\] ?/, "", "g", $$2)}' $(MAKEFILE_LIST)
 	@printf "\n  $(COL_CYN)Deploy (DEV05 EKS)$(COL_OFF)\n"
 	@awk 'BEGIN{FS=":.*##"} /^[a-z-]+:.*## \[deploy\]/ {printf "    $(COL_GRN)%-18s$(COL_OFF) %s\n", $$1, gensub(/^ ?\[deploy\] ?/, "", "g", $$2)}' $(MAKEFILE_LIST)
+	@printf "\n  $(COL_CYN)Convert-worker (auto-convert fan-out)$(COL_OFF)\n"
+	@awk 'BEGIN{FS=":.*##"} /^[a-z-]+:.*## \[worker\]/ {printf "    $(COL_GRN)%-22s$(COL_OFF) %s\n", $$1, gensub(/^ ?\[worker\] ?/, "", "g", $$2)}' $(MAKEFILE_LIST)
 	@printf "\n  $(COL_CYN)Housekeeping$(COL_OFF)\n"
 	@awk 'BEGIN{FS=":.*##"} /^[a-z-]+:.*## \[misc\]/ {printf "    $(COL_GRN)%-18s$(COL_OFF) %s\n", $$1, gensub(/^ ?\[misc\] ?/, "", "g", $$2)}' $(MAKEFILE_LIST)
 	@printf "\n  $(COL_CYN)Variables$(COL_OFF)\n"
@@ -773,6 +775,125 @@ pf-stop: ## [deploy] Stop the running port-forward
 pf-restart: check-kubectl ## [deploy] Restart the port-forward
 	@K8S_NAMESPACE=$(DEPLOY_NAMESPACE) HELM_RELEASE=$(DEPLOY_HELM_RELEASE) \
 		bash deploy/scripts/portforward.sh restart
+
+# ---------------------------------------------------------------------------
+# Convert-worker deploy targets (feat/03+04)
+# ---------------------------------------------------------------------------
+# Parallel set of targets to the classification-ui ones above, scoped to the
+# convert-worker chart + image + IRSA role. Reuses DEPLOY_AWS_* / DEPLOY_NAMESPACE
+# (same cluster + namespace as the UI) but its OWN ECR repo + Helm release.
+
+WORKER_ECR_REPO        ?= classification-service-sandbox/classification-convert-worker
+WORKER_HELM_RELEASE    ?= convert-worker
+WORKER_CHART_DIR       ?= deploy/helm/convert-worker
+WORKER_IRSA_ROLE_NAME  ?= convert-worker-irsa
+WORKER_IRSA_ROLE_ARN   ?=
+# CONVERT_QUEUE_URL — REQUIRED for worker-helm-deploy in AWS mode. Read from
+# the CDK output:
+#   aws cloudformation list-exports --region eu-west-1 --profile opus2-dev \
+#     --query "Exports[?Name=='ClassificationConvertQueueUrl-dev'].Value"
+WORKER_CONVERT_QUEUE_URL  ?=
+# Override the in-cluster default if office-convert is in a different ns.
+WORKER_OFFICE_CONVERT_URL ?= http://office-convert.office-convert-dev.svc.cluster.local
+
+WORKER_IMAGE_REPO := $(DEPLOY_ECR_REGISTRY)/$(WORKER_ECR_REPO)
+WORKER_IMAGE_FULL := $(WORKER_IMAGE_REPO):$(DEPLOY_IMAGE_TAG)
+
+.PHONY: worker-ecr-ensure
+worker-ecr-ensure: check-aws ## [worker] Create the worker ECR repo if missing (idempotent)
+	$(call banner,Ensuring ECR repo $(WORKER_ECR_REPO))
+	@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr describe-repositories \
+		--repository-names $(WORKER_ECR_REPO) --region $(DEPLOY_AWS_REGION) \
+		>/dev/null 2>&1 \
+	|| AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr create-repository \
+		--repository-name $(WORKER_ECR_REPO) --region $(DEPLOY_AWS_REGION) \
+		--image-scanning-configuration scanOnPush=true \
+		--tags Key=Owner,Value=platform-team Key=CostCenter,Value=tbd Key=Service,Value=classification-service Key=Environment,Value=dev Key=Component,Value=convert-worker Key=ManagedBy,Value=manual-dev05 >/dev/null
+	$(call ok,Worker ECR repo present)
+
+.PHONY: worker-image-build
+worker-image-build: check-docker ## [worker] Build the worker image for linux/amd64
+	$(call banner,Building worker image $(WORKER_IMAGE_FULL))
+	@docker build --platform linux/amd64 -f worker/Dockerfile -t $(WORKER_IMAGE_FULL) .
+	$(call ok,Built $(WORKER_IMAGE_FULL))
+
+.PHONY: worker-image-push
+worker-image-push: worker-ecr-ensure ecr-login worker-image-build ## [worker] Push worker image to ECR
+	$(call banner,Pushing $(WORKER_IMAGE_FULL))
+	@docker push $(WORKER_IMAGE_FULL)
+	$(call ok,Pushed)
+
+.PHONY: worker-helm-lint
+worker-helm-lint: check-helm ## [worker] helm lint the worker chart
+	@helm lint $(WORKER_CHART_DIR) \
+		--set image.repository=$(WORKER_IMAGE_REPO) \
+		--set image.tag=$(DEPLOY_IMAGE_TAG) \
+		--set worker.convertQueueUrl=$(if $(WORKER_CONVERT_QUEUE_URL),$(WORKER_CONVERT_QUEUE_URL),placeholder-for-lint)
+
+.PHONY: worker-helm-template
+worker-helm-template: check-helm ## [worker] helm template (dry-run render → deploy/logs)
+	@mkdir -p $(DEPLOY_LOG_DIR)
+	@helm template $(WORKER_HELM_RELEASE) $(WORKER_CHART_DIR) \
+		--namespace $(DEPLOY_NAMESPACE) \
+		--set image.repository=$(WORKER_IMAGE_REPO) \
+		--set image.tag=$(DEPLOY_IMAGE_TAG) \
+		--set worker.convertQueueUrl=$(WORKER_CONVERT_QUEUE_URL) \
+		--set worker.officeConvertBaseUrl=$(WORKER_OFFICE_CONVERT_URL) \
+		--set worker.workerVersion=$(DEPLOY_IMAGE_TAG) \
+		$(if $(WORKER_IRSA_ROLE_ARN),--set serviceAccount.roleArn=$(WORKER_IRSA_ROLE_ARN),) \
+		| tee $(DEPLOY_LOG_DIR)/manifest-worker-$(DEPLOY_TS).yaml
+	$(call ok,Rendered worker manifest)
+
+.PHONY: check-worker-deploy
+check-worker-deploy:
+	@if [ -z "$(WORKER_CONVERT_QUEUE_URL)" ]; then \
+		printf "$(COL_RED)✗ worker-helm-deploy requires WORKER_CONVERT_QUEUE_URL=<full sqs url>$(COL_OFF)\n"; \
+		printf "  Read from CDK output:\n"; \
+		printf "    AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws cloudformation list-exports --region $(DEPLOY_AWS_REGION) \\\n"; \
+		printf "      --query \"Exports[?Name=='ClassificationConvertQueueUrl-dev'].Value\" --output text\n"; \
+		exit 1; \
+	fi
+	@if [ -z "$(WORKER_IRSA_ROLE_ARN)" ]; then \
+		printf "$(COL_RED)✗ worker-helm-deploy requires WORKER_IRSA_ROLE_ARN=<role-arn>$(COL_OFF)\n"; \
+		printf "  Create the role first — see deploy/iam/README.md\n"; \
+		exit 1; \
+	fi
+
+.PHONY: worker-helm-deploy
+worker-helm-deploy: check-helm check-kubectl check-worker-deploy ## [worker] helm upgrade --install the convert-worker
+	$(call banner,Deploying $(WORKER_HELM_RELEASE) → ns=$(DEPLOY_NAMESPACE))
+	@mkdir -p $(DEPLOY_LOG_DIR)
+	@helm upgrade --install $(WORKER_HELM_RELEASE) $(WORKER_CHART_DIR) \
+		--namespace $(DEPLOY_NAMESPACE) --create-namespace \
+		--set image.repository=$(WORKER_IMAGE_REPO) \
+		--set image.tag=$(DEPLOY_IMAGE_TAG) \
+		--set worker.convertQueueUrl=$(WORKER_CONVERT_QUEUE_URL) \
+		--set worker.officeConvertBaseUrl=$(WORKER_OFFICE_CONVERT_URL) \
+		--set worker.workerVersion=$(DEPLOY_IMAGE_TAG) \
+		--set serviceAccount.roleArn=$(WORKER_IRSA_ROLE_ARN) \
+		--wait --timeout=3m 2>&1 | tee -a $(DEPLOY_LOG_DIR)/worker-deploy-$(DEPLOY_TS).log
+	$(call ok,Worker release upgraded)
+
+.PHONY: worker-deploy
+worker-deploy: worker-image-push worker-helm-deploy ## [worker] Full pipeline: build → push → helm upgrade
+	$(call ok,worker-deploy complete  tag=$(DEPLOY_IMAGE_TAG))
+
+.PHONY: worker-undeploy
+worker-undeploy: check-helm check-kubectl ## [worker] helm uninstall the convert-worker (data + IRSA role kept)
+	@if helm status $(WORKER_HELM_RELEASE) --namespace $(DEPLOY_NAMESPACE) >/dev/null 2>&1; then \
+		helm uninstall $(WORKER_HELM_RELEASE) --namespace $(DEPLOY_NAMESPACE) 2>&1 | tee -a $(DEPLOY_LOG_DIR)/worker-undeploy-$(DEPLOY_TS).log; \
+	else \
+		printf "$(COL_YEL)! Worker release not present — skipping$(COL_OFF)\n"; \
+	fi
+
+.PHONY: worker-logs
+worker-logs: check-kubectl ## [worker] Tail worker pod logs (-f)
+	@kubectl -n $(DEPLOY_NAMESPACE) logs -l app=convert-worker --tail=200 -f
+
+.PHONY: worker-status
+worker-status: check-kubectl ## [worker] kubectl get for worker pod + SA + cm
+	@kubectl -n $(DEPLOY_NAMESPACE) get pods,sa,cm -l app.kubernetes.io/name=convert-worker 2>&1 || \
+		kubectl -n $(DEPLOY_NAMESPACE) get deploy/convert-worker sa/convert-worker cm/convert-worker-config 2>&1 || true
 
 # ---------------------------------------------------------------------------
 # Housekeeping

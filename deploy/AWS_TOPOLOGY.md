@@ -250,6 +250,45 @@ aws dynamodb put-item --table-name workspace-config-dev --region eu-west-1 --pro
   }'
 ```
 
+## Step 4b — Deploy the convert-worker (optional — auto-convert fan-out)
+
+Only relevant once branches `feat/02` through `feat/06` are merged. The worker is OFF by default — without it, `category=convert` files just sit in `convertStatus=queued`.
+
+```bash
+# 1. Create the IRSA role (one-time per account) — see deploy/iam/README.md
+aws iam create-role --role-name convert-worker-irsa \
+  --assume-role-policy-document file://deploy/iam/convert-worker-irsa-trust.json \
+  --profile opus2-dev
+aws iam put-role-policy --role-name convert-worker-irsa \
+  --policy-name convert-worker-access \
+  --policy-document file://deploy/iam/convert-worker-irsa-perms.json \
+  --profile opus2-dev
+
+# 2. Resolve the queue URL from the CDK output (feat/02)
+WORKER_CONVERT_QUEUE_URL=$(aws cloudformation list-exports \
+  --region eu-west-1 --profile opus2-dev \
+  --query "Exports[?Name=='ClassificationConvertQueueUrl-dev'].Value" \
+  --output text)
+
+# 3. Build, push, deploy
+make worker-deploy \
+  WORKER_CONVERT_QUEUE_URL="$WORKER_CONVERT_QUEUE_URL" \
+  WORKER_IRSA_ROLE_ARN=arn:aws:iam::537462380503:role/convert-worker-irsa
+
+# 4. Verify
+make worker-status
+make worker-logs   # should show `worker.boot` JSON line + `poller.start`
+```
+
+Once running, the worker pulls messages from `classification-convert-queue-dev`, POSTs to office-convert in the `office-convert-dev` namespace via in-cluster Service DNS, and writes `convertStatus=done`/`failed` back to `classifications-dev`. Pre-flight depends on office-convert's branch 01 changes being deployed (IRSA + bucket allowlist).
+
+Teardown:
+```bash
+make worker-undeploy   # helm uninstall only — IRSA role + ECR image kept
+```
+
+---
+
 ## Step 5 — Deploy the UI with the aws profile
 
 **Gate:** only run this once `make irsa-smoketest` (Step 0b) is green.

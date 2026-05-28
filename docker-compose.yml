@@ -99,9 +99,44 @@ services:
       WORKSPACE_CONFIG_TABLE_NAME: workspace-config-ui
       CLASSIFICATIONS_TABLE_NAME: classifications-ui
       ZIP_EXTRACTION_QUEUE_URL: http://localstack:4566/000000000000/zip-extraction-queue
+      CONVERT_QUEUE_URL: http://localstack:4566/000000000000/classification-convert-queue
       # Presigned download URLs must be signed for a host the browser can
       # reach. The server talks to localstack:4566 internally, but the browser
       # is on the host where LocalStack is published on localhost:4566.
       S3_PUBLIC_ENDPOINT: http://localhost:4566
     ports:
       - "3000:3000"
+
+  # ── Auto-convert worker (feat/03 + feat/04) ────────────────────────────
+  # Polls the convert queue (bootstrapped by scripts/bootstrap-localstack.sh)
+  # and bridges to office-convert. Disabled by default in the compose dev loop
+  # because office-convert runs in ITS OWN compose stack — to wire them up
+  # locally, either:
+  #   1. Point OFFICE_CONVERT_BASE_URL at the office-convert host port:
+  #        OFFICE_CONVERT_BASE_URL=http://host.docker.internal:8080 \
+  #          docker compose --profile worker up worker
+  #   2. Run office-convert + classification on a shared external network.
+  #
+  # Activated via `--profile worker` so the default `docker compose up`
+  # stays minimal (LocalStack + bootstrap + lambda + ui).
+  worker:
+    image: classification-service-convert-worker:dev
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    profiles: ["worker"]
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    environment:
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      CONVERT_QUEUE_URL: http://localstack:4566/000000000000/classification-convert-queue
+      OFFICE_CONVERT_BASE_URL: ${OFFICE_CONVERT_BASE_URL:-http://host.docker.internal:8080}
+      OFFICE_CONVERT_TIMEOUT_MS: "1800000"
+      CLASSIFICATIONS_TABLE_NAME: classifications-ui
+      LOG_LEVEL: debug
+      WORKER_VERSION: compose-dev
+      EXCLUDE_DWG: "true"
