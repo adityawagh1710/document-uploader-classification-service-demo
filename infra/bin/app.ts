@@ -4,6 +4,7 @@ import { Aspects } from "aws-cdk-lib";
 import { AwsSolutionsChecks } from "cdk-nag";
 
 import { loadEnvConfig } from "../config/load.js";
+import { ClassificationConvertQueueStack } from "../lib/convert-queue-stack.js";
 import { ClassificationDataStack } from "../lib/data-stack.js";
 import { ClassificationLambdaStack } from "../lib/lambda-stack.js";
 import { ClassificationObservabilityStack } from "../lib/observability-stack.js";
@@ -28,6 +29,15 @@ cdk.Tags.of(app).add("CostCenter", envConfig.costCenter);
 const data = new ClassificationDataStack(
   app,
   `ClassificationData-${envConfig.envName}`,
+  { env, envConfig },
+);
+
+// Auto-convert fan-out SQS infra (category === "convert" path). Consumed by
+// the convert-worker (feat/03+04) and produced to by the /api/classify route
+// (feat/05). Independent stack so it can be deployed/destroyed separately.
+new ClassificationConvertQueueStack(
+  app,
+  `ClassificationConvertQueue-${envConfig.envName}`,
   { env, envConfig },
 );
 
