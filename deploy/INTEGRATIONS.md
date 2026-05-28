@@ -158,6 +158,102 @@ Live verified 2026-05-27. See `aidlc-docs/audit.md` "OPERATIONS — dev05 real-A
 
 ---
 
+## Sends to → `email-extraction` (App Runner) (added 2026-05-28 by ukadam@opus2.com)
+
+**Use case:** When the classifier emits `category=email` (typically for `.eml` / RFC 5322 / MHTML inputs), the `/api/classify` route makes a **synchronous HTTP fan-out** to a separate email-extraction service running on AWS App Runner. The service parses the message, returns structured JSON (subject / body / attachments / emitted events / etc.), and that response is cached in-process keyed by classifier `documentId`. Clicking the green "email" badge on the Result panel pops a modal that reads the cache.
+
+**No counterpart doc** — email-extraction is owned by a separate team / repo (App Runner endpoint hard-coded today; URL serves as the contract). If they ever start an `INTEGRATIONS.md`, we mirror.
+
+### Architecture (synchronous, no queue)
+
+```
+classify route                              email-extraction (App Runner)
+─────────────                               ─────────────────
+category=email detected                     POST /upload?tenant=…&document=…&message=…
+  ↓                                            body: raw file bytes (application/octet-stream)
+  POST to EMAIL_EXTRACTION_URL/upload ──────▶
+  ↓                                            parses (subject/body/attachments/events)
+  receive JSON response  ◀──────────────────  returns JSON
+  ↓
+  cache JSON in process-local Map<docId, response>  (ui/lib/email-extractions.ts)
+  return {ok, emailDispatch: "ok|failed|skipped", ...} to UI
+
+UI Result panel
+─────────────
+  user clicks green "email" badge
+  ↓
+  GET /api/runs/<docId>/email-extraction
+  ↓
+  cache hit → modal renders subject + body + attachments + Raw JSON
+  cache miss → 404 → modal shows "no cached extraction"
+```
+
+Differs from convert (async via SQS) and archive (async via SQS) in that email is **synchronous in the classify request path** — adds latency to /api/classify but keeps the UX simple. Acceptable because email parsing is fast (typically <1 s per message).
+
+### Request shape — `POST /upload`
+
+| Query param | Value | Note |
+|---|---|---|
+| `tenant` | `workspaceId` from the classify form | URL-encoded |
+| `document` | `documentId` (classifier-assigned) | URL-encoded |
+| `message` | fresh `randomUUID()` per classify call | Lets email-extraction key per-message |
+| Body | raw file bytes (Content-Type: `application/octet-stream`) | Same bytes that went to S3 |
+
+### Response shape — cached as-is
+
+Open-ended record (App Runner may add fields):
+
+```jsonc
+{
+  "tenant_id":           "wks-ui-001",
+  "document_id":         "doc-<uuid>",
+  "message_id":          "<uuid>",
+  "subject":             "…" | null,
+  "body_source":         "…" | null,
+  "is_html":             true | false,
+  "body":                "…" | null,
+  "body_key":            "s3-key" | null,
+  "metadata_key":        "s3-key" | null,
+  "attachment_keys":     ["…"] | null,
+  "emitted_events":      <number>,
+  "nested_emits":        <number>,
+  "attachment_failures": <number>,
+  "duplicate_skipped":   true | false,
+  "depth_limited":       true | false
+}
+```
+
+### What email-extraction needs from us
+
+| Surface | Detail |
+|---|---|
+| **Nothing on our infra side** | App Runner is **public HTTPS**; no IAM grants, no bucket policy. The service trusts the upload contract via its own logic. |
+| Outbound from our pod | Egress from `classification-service-sandbox` namespace must reach `*.awsapprunner.com` (dev05 cluster nodes have public egress — verified). |
+
+### What we provide internally
+
+| Surface | File |
+|---|---|
+| **Env var** | `EMAIL_EXTRACTION_URL` (default baked in: `https://byzxx7ymun.eu-west-1.awsapprunner.com`). Empty string disables the fan-out. |
+| **Classify-route fan-out** | `ui/app/api/classify/route.ts` — synchronous POST after the classifier emits `category=email`. Failures don't fail the classification (best-effort; logged + `emailDispatch: "failed"` returned). |
+| **In-process cache** | `ui/lib/email-extractions.ts` — `Map<documentId, EmailExtractionResponse>` pinned to `globalThis` (survives Next.js HMR, lost on container restart). DDB persistence is the noted upgrade path. |
+| **Cache-read endpoint** | `ui/app/api/runs/[documentId]/email-extraction/route.ts` — GET returns cached JSON or 404. |
+| **UI surface** | `ui/components/ResultPanel.tsx` — clickable green "email" badge → modal with subject / body source / attachments / events / Raw JSON. |
+
+### Known limitations
+
+- **Cache is process-local** — UI pod restart loses all entries. A row uploaded before the restart will 404 from `/email-extraction` even though the classify succeeded.
+- **Lambda parity not yet there** — the deployed Lambda handler (`src/handler/lambda.ts`) doesn't yet fan out to email-extraction. UI-only fan-out for now (per commit `fc721cf` body — "Out of scope: Lambda handler parity").
+- **No retries** — synchronous fetch; if App Runner returns 5xx or times out, the row's `emailDispatch="failed"` is final. Re-upload is the recovery.
+
+### Tested against
+
+| Date | classification HEAD | email-extraction state | Result |
+|---|---|---|---|
+| TBD | `fc721cf` deployed to dev05 | App Runner endpoint live | Awaiting live end-to-end smoke. UI badge click → modal expected. |
+
+---
+
 ## Adding a new integration
 
 1. Edit this file: add a new "Sends to" or "Consumes from" section.
