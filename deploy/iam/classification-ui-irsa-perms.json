@@ -18,6 +18,12 @@
       ]
     },
     {
+      "Sid": "WatchdogScan",
+      "Effect": "Allow",
+      "Action": ["dynamodb:Scan"],
+      "Resource": "arn:aws:dynamodb:eu-west-1:537462380503:table/classifications-dev"
+    },
+    {
       "Sid": "HealthProbe",
       "Effect": "Allow",
       "Action": ["dynamodb:ListTables"],
