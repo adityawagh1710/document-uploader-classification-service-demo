@@ -203,6 +203,16 @@ export const convertDispatcher: ConvertDispatcher | undefined =
       })
     : undefined;
 
+// --- Email fan-out (email-extraction service) ------------------------------
+// When classification returns category=email, the UI POSTs the raw file bytes
+// to this URL's /upload endpoint with tenant/document/message query params.
+// The endpoint is the document-uploader/email-extraction App Runner service;
+// empty disables the fan-out (parallel to archive/convert above). Set this to
+// "" in real-prod values when the service is locked down to internal callers.
+export const EMAIL_EXTRACTION_URL =
+  process.env.EMAIL_EXTRACTION_URL ??
+  "https://byzxx7ymun.eu-west-1.awsapprunner.com";
+
 const s3Adapter = createS3Adapter({ s3: s3Client, logger: silentLogger });
 
 let cachedService: ClassificationService | undefined;
