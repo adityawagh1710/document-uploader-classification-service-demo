@@ -8,6 +8,7 @@ import {
   s3Client,
   BUCKET,
   archiveDispatcher,
+  convertDispatcher,
 } from "@/lib/classifier";
 import { recordFailure, recordSuccess } from "@/lib/stats";
 import { recordRun } from "@/lib/runs";
@@ -161,15 +162,58 @@ export async function POST(req: Request) {
     }
   }
 
+  // Convert fan-out — parallel to archive. When category=convert, drop a
+  // claim-check on the convert queue (feat/02) for the worker (feat/03+04)
+  // to consume. `runId` is the classifications-dev SK that recordRun() will
+  // compute the same way (ISO-ts # documentId) — we precompute it here so
+  // the SQS body and the DDB row agree.
+  //
+  // DWG short-circuit: the worker also denies DWG (its 4-libs vendor path
+  // has no Aspose.CAD), but we skip enqueue here too to avoid noisy queue
+  // traffic + DLQ alarms for guaranteed-unsupported inputs. The UI still
+  // gets a row marked convertStatus=failed via convertError below.
+  const category = result.value.classification.category;
+  const subCategory =
+    "subCategory" in result.value.classification
+      ? (result.value.classification as { subCategory: string | null }).subCategory ?? null
+      : null;
+  const isConvertCategory = category === "convert";
+  const isDwg = /\.dwg$/i.test(inputName);
+  let convertDispatch: "ok" | "skipped" | "failed" | "dwg-excluded" = "skipped";
+  const runTs = new Date().toISOString();
+  const runId = `${runTs}#${documentId}`;
+
+  if (isConvertCategory && isDwg) {
+    convertDispatch = "dwg-excluded";
+  } else if (isConvertCategory && convertDispatcher !== undefined) {
+    const dispatch = await convertDispatcher.dispatch({
+      pipelineExecutionId: documentId,
+      tenantId: workspaceId,
+      documentId,
+      runId,
+      sourceBucket: BUCKET,
+      sourceKey: objectKey,
+      filename: inputName,
+      subCategory,
+      correlationId: documentId,
+    });
+    convertDispatch = dispatch.ok ? "ok" : "failed";
+    if (!dispatch.ok) {
+      // eslint-disable-next-line no-console
+      console.error("[classify] convert dispatch failed", { documentId, error: dispatch.error });
+    }
+  }
+
   const rec = recordSuccess({
     id: documentId,
-    ts: new Date().toISOString(),
+    ts: runTs,
     inputName,
     workspaceId,
     result: result.value,
     elapsedMs,
     objectKey,
     archiveDispatch,
+    convertDispatch,
   });
   await recordRun(rec);
 
@@ -181,5 +225,6 @@ export async function POST(req: Request) {
     objectKey,
     inputName,
     archiveDispatch,
+    convertDispatch,
   });
 }

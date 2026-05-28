@@ -15,7 +15,9 @@ import { createNodeCryptoHasher } from "@svc/adapters/crypto/index";
 import { createDDBContentHashAdapter } from "@svc/adapters/dynamo-content-hashes/index";
 import { createDDBWorkspaceConfigAdapter } from "@svc/adapters/dynamo-workspace-config/index";
 import { createSqsArchiveDispatcher } from "@svc/adapters/sqs-archive-dispatcher/index";
+import { createSqsConvertDispatcher } from "@svc/adapters/sqs-convert-dispatcher/index";
 import type { ArchiveDispatcher } from "@svc/ports/ArchiveDispatcher";
+import type { ConvertDispatcher } from "@svc/ports/ConvertDispatcher";
 
 import { createTier1FileTypeDetector } from "@svc/domain/tier1-filetype/index";
 import { createOLE2Parser, createTier2OLE2Detector } from "@svc/domain/tier2-ole2/index";
@@ -182,6 +184,25 @@ export const archiveDispatcher: ArchiveDispatcher | undefined =
       })
     : undefined;
 
+// --- Convert fan-out (auto-convert worker) ---------------------------------
+// Mirrors the archive fan-out: in LocalStack mode the queue URL defaults to
+// the in-cluster/compose LocalStack queue created by bootstrap-localstack.sh;
+// in AWS mode it MUST be set via env. Empty disables the fan-out — classify
+// still runs and writes convertStatus=queued, but nothing consumes it.
+export const CONVERT_QUEUE_URL =
+  process.env.CONVERT_QUEUE_URL ??
+  (USE_LOCALSTACK ? `${ENDPOINT}/000000000000/classification-convert-queue` : "");
+export const CONVERT_QUEUE_NAME = "classification-convert-queue";
+
+export const convertDispatcher: ConvertDispatcher | undefined =
+  CONVERT_QUEUE_URL !== ""
+    ? createSqsConvertDispatcher({
+        sqs: sqsClient,
+        queueUrl: CONVERT_QUEUE_URL,
+        logger: silentLogger,
+      })
+    : undefined;
+
 const s3Adapter = createS3Adapter({ s3: s3Client, logger: silentLogger });
 
 let cachedService: ClassificationService | undefined;
@@ -237,6 +258,7 @@ export async function ensureResourcesProvisioned(): Promise<void> {
       ensureWorkspaceConfigTable(),
       ensureClassificationsTable(),
       ensureArchiveQueue(),
+      ensureConvertQueue(),
     ]);
     // Seed AFTER the table is confirmed present — `PutCommand` would race
     // with `CreateTable` if run in parallel.
@@ -330,6 +352,19 @@ async function ensureArchiveQueue(): Promise<void> {
   // LocalStack-only: real AWS owns the queue out-of-band.
   try {
     await sqsClient.send(new CreateQueueCommand({ QueueName: ZIP_EXTRACTION_QUEUE_NAME }));
+  } catch (e: unknown) {
+    const name = (e as Error)?.name ?? "";
+    if (name !== "QueueAlreadyExists") throw e;
+  }
+}
+
+async function ensureConvertQueue(): Promise<void> {
+  // LocalStack-only: real AWS owns the queue out-of-band (CDK in feat/02).
+  // No redrive policy here — bootstrap-localstack.sh wires the DLQ when the
+  // operator brings up the compose stack; the cold-start path is a soft
+  // fallback for `npm run dev` workflows.
+  try {
+    await sqsClient.send(new CreateQueueCommand({ QueueName: CONVERT_QUEUE_NAME }));
   } catch (e: unknown) {
     const name = (e as Error)?.name ?? "";
     if (name !== "QueueAlreadyExists") throw e;
