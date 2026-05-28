@@ -1,0 +1,69 @@
+# Stuck-job watchdog for the auto-convert fan-out (feat/07).
+#
+# Curls the classification-ui's admin watchdog route every 5 minutes. Rows
+# stuck in `convertStatus=converting` past convertStartedAt + 35min are
+# force-flipped to convertStatus=failed with convertError=timeout_watchdog.
+# The UI's Conversion column picks up the new state on its next poll.
+#
+# Apply standalone (the chart in deploy/helm/convert-worker doesn't bundle
+# this — it lives next to the UI's admin endpoint, not the worker):
+#
+#   kubectl apply -n classification-service-sandbox \
+#     -f deploy/k8s/convert-watchdog-cronjob.yaml
+#
+# Optional: set WATCHDOG_SHARED_SECRET on the classification-ui pod AND
+# create a matching Secret here. Skip both for the dev05 sandbox — no
+# external attack surface, the admin endpoint is corp-CIDR-only.
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: convert-watchdog
+  namespace: classification-service-sandbox
+  labels:
+    app: convert-watchdog
+    app.kubernetes.io/part-of: classification-service
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 60
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: convert-watchdog
+        spec:
+          restartPolicy: Never
+          # In-cluster Service DNS — same-namespace classification-ui ClusterIP.
+          # No external image dependency; minimal cap on resources.
+          containers:
+            - name: curl
+              image: curlimages/curl:8.10.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  URL="http://classification-ui.classification-service-sandbox.svc.cluster.local/api/admin/convert-watchdog"
+                  echo "$(date -u +%FT%TZ) [watchdog] POST $URL"
+                  # -fS = fail on HTTP error + still show curl errors;
+                  # -m 30 = total time cap (the Scan can be slow on a cold table).
+                  resp="$(curl -fSsm 30 -X POST "$URL" -H 'content-type: application/json' -d '{}')"
+                  echo "$(date -u +%FT%TZ) [watchdog] response: $resp"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 65534
+                capabilities:
+                  drop: ["ALL"]

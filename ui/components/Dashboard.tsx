@@ -442,6 +442,7 @@ function ConvertCell({ row }: { row: RecentItem }) {
         <span className="opacity-70">{status === "queued" ? "⏳" : "⟳"}</span>
         <span>{status === "queued" ? "queued" : "converting"}</span>
         <span className="text-slate-500">· {elapsedSince(base)}</span>
+        {status === "converting" ? <ConvertProgress row={row} /> : null}
       </span>
     );
   }
@@ -501,6 +502,78 @@ function ConvertCell({ row }: { row: RecentItem }) {
           (failed)
         </span>
       ) : null}
+    </span>
+  );
+}
+
+/**
+ * Live progress badge for the converting state. Polls
+ * `/api/runs/[id]/progress` every 3s while the parent ConvertCell shows
+ * convertStatus=converting. The proxy reads office-convert's
+ * `/v1/jobs/{requestId}/progress` (current_chunk / total_chunks /
+ * pages_rendered / eta_seconds) — feat/07.
+ *
+ * Renders nothing when no progress is available yet (worker hasn't called
+ * office-convert, or office-convert returned non-200 — e.g. requestId
+ * expired from its 30-min in-memory heartbeat cache). The bare elapsed
+ * timer in the parent still ticks, so the operator always sees motion.
+ */
+function ConvertProgress({ row }: { row: RecentItem }) {
+  const [progress, setProgress] = useState<{
+    current_chunk?: number;
+    total_chunks?: number;
+    pages_rendered?: number;
+    eta_seconds?: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const params = new URLSearchParams({
+          workspaceId: row.workspaceId,
+          runId: `${row.ts}#${row.id}`,
+        });
+        const res = await fetch(
+          `/api/runs/${row.id}/progress?${params.toString()}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          progress: typeof progress;
+        };
+        if (!cancelled && body.progress) setProgress(body.progress);
+      } catch {
+        // swallow — the elapsed timer in the parent still ticks
+      }
+    };
+    tick();
+    const t = setInterval(tick, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [row.id, row.ts, row.workspaceId]);
+
+  if (!progress) return null;
+  const cur = progress.current_chunk;
+  const tot = progress.total_chunks;
+  const pages = progress.pages_rendered;
+  const eta = progress.eta_seconds;
+  const pct =
+    typeof cur === "number" && typeof tot === "number" && tot > 0
+      ? Math.round((cur / tot) * 100)
+      : null;
+
+  return (
+    <span
+      className="text-slate-400 text-[10.5px]"
+      data-testid="convert-progress"
+      title={`pages=${pages ?? "?"} eta=${eta ?? "?"}s`}
+    >
+      ·{" "}
+      {pct !== null ? `${pct}% ` : ""}
+      {typeof cur === "number" && typeof tot === "number" ? `chunk ${cur}/${tot}` : "starting…"}
     </span>
   );
 }

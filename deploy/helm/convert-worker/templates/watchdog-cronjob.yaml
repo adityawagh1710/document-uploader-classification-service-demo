@@ -1,0 +1,69 @@
+{{- if .Values.watchdog.enabled -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: convert-watchdog
+  namespace: {{ include "convert-worker.namespace" . }}
+  labels:
+    {{- include "convert-worker.labels" . | nindent 4 }}
+    app: convert-watchdog
+spec:
+  # Every 5 minutes — short enough that stuck jobs surface within one
+  # poll-cycle from the UI's perspective, but well within the rate-limit
+  # ceiling of the classifications-dev table (PAY_PER_REQUEST handles
+  # bursts gracefully).
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 60
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: convert-watchdog
+        spec:
+          serviceAccountName: {{ include "convert-worker.serviceAccountName" . }}
+          restartPolicy: Never
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: watchdog
+              # Reuse the worker image — it has the same Node/SDK deps the
+              # watchdog needs, and the same IRSA SA gives it the SQS+DDB
+              # grants (DescribeTable + UpdateItem) it requires here.
+              image: {{ include "convert-worker.image" . | quote }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - node
+                - dist/watchdog.js
+              env:
+                - name: CLASSIFICATIONS_TABLE_NAME
+                  value: {{ .Values.worker.classificationsTableName | quote }}
+                - name: AWS_REGION
+                  value: {{ .Values.worker.awsRegion | quote }}
+                {{- if .Values.worker.awsEndpointUrl }}
+                - name: AWS_ENDPOINT_URL
+                  value: {{ .Values.worker.awsEndpointUrl | quote }}
+                {{- end }}
+                # Anything older than this in convert*Status=converting AND
+                # convertStartedAt < now-STUCK_AFTER_MS is force-failed.
+                - name: STUCK_AFTER_MS
+                  value: {{ .Values.watchdog.stuckAfterMs | quote }}
+                # Cap the number of rows we touch per run — bounds blast
+                # radius if the query returns unexpectedly many rows.
+                - name: MAX_ROWS
+                  value: {{ .Values.watchdog.maxRows | quote }}
+                - name: LOG_LEVEL
+                  value: {{ .Values.worker.logLevel | quote }}
+              resources:
+                {{- toYaml .Values.watchdog.resources | nindent 16 }}
+              {{- with .Values.containerSecurityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+{{- end }}
