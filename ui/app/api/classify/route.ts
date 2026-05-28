@@ -9,9 +9,14 @@ import {
   BUCKET,
   archiveDispatcher,
   convertDispatcher,
+  EMAIL_EXTRACTION_URL,
 } from "@/lib/classifier";
 import { recordFailure, recordSuccess } from "@/lib/stats";
 import { recordRun } from "@/lib/runs";
+import {
+  recordEmailExtraction,
+  type EmailExtractionResponse,
+} from "@/lib/email-extractions";
 import type { TaskPayload } from "@svc/shared/types";
 
 export const runtime = "nodejs";
@@ -204,6 +209,57 @@ export async function POST(req: Request) {
     }
   }
 
+  // Email fan-out — parallel to archive/convert, but over HTTP (App Runner)
+  // instead of SQS. Fire-and-forget: failures are logged but never bubble up,
+  // since classification is the primary contract. The Blob from formData() is
+  // re-streamable, so re-using `file` here doesn't replay the S3 upload above.
+  let emailDispatch: "ok" | "skipped" | "failed" = "skipped";
+  if (
+    EMAIL_EXTRACTION_URL !== "" &&
+    category === "email"
+  ) {
+    const messageId = randomUUID();
+    const url =
+      `${EMAIL_EXTRACTION_URL.replace(/\/+$/, "")}/upload` +
+      `?tenant=${encodeURIComponent(workspaceId)}` +
+      `&document=${encodeURIComponent(documentId)}` +
+      `&message=${encodeURIComponent(messageId)}`;
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        body: file,
+        headers: { "content-type": "application/octet-stream" },
+      });
+      if (resp.ok) {
+        emailDispatch = "ok";
+        // Cache the parsed extraction payload so the ResultPanel popup can
+        // surface it later. JSON parse failures are non-fatal — dispatch
+        // stays "ok" because the App Runner side did accept the upload.
+        try {
+          const ext = (await resp.json()) as EmailExtractionResponse;
+          recordEmailExtraction(documentId, ext);
+        } catch {
+          // body wasn't JSON; skip caching but keep dispatch=ok
+        }
+      } else {
+        emailDispatch = "failed";
+        // eslint-disable-next-line no-console
+        console.error("[classify] email dispatch non-2xx", {
+          documentId,
+          status: resp.status,
+          body: (await resp.text()).slice(0, 500),
+        });
+      }
+    } catch (e: unknown) {
+      emailDispatch = "failed";
+      // eslint-disable-next-line no-console
+      console.error("[classify] email dispatch failed", {
+        documentId,
+        error: (e as Error)?.message,
+      });
+    }
+  }
+
   const rec = recordSuccess({
     id: documentId,
     ts: runTs,
@@ -226,5 +282,6 @@ export async function POST(req: Request) {
     inputName,
     archiveDispatch,
     convertDispatch,
+    emailDispatch,
   });
 }
