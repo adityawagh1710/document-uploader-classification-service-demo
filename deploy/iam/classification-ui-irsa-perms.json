@@ -24,6 +24,12 @@
       "Resource": "arn:aws:dynamodb:eu-west-1:537462380503:table/classifications-dev"
     },
     {
+      "Sid": "WorkspaceConfigScan",
+      "Effect": "Allow",
+      "Action": ["dynamodb:Scan"],
+      "Resource": "arn:aws:dynamodb:eu-west-1:537462380503:table/workspace-config-dev"
+    },
+    {
       "Sid": "HealthProbe",
       "Effect": "Allow",
       "Action": ["dynamodb:ListTables"],
