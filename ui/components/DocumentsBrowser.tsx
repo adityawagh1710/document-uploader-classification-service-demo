@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, Download, FileText, Inbox } from "lucide-react";
+import { Search, Download, FileText, Inbox, Info } from "lucide-react";
 import { Card, CardBody, Badge, Input, Select } from "@/components/ui/primitives";
 import {
   CategoryBadge,
   ConvertStatusCell,
   type ConvertStatus,
 } from "@/components/classification-bits";
+import { EmailExtractionModal } from "@/components/EmailExtractionModal";
 
 /**
  * Documents — browse everything that has been classified, from the live
@@ -49,6 +50,7 @@ export function DocumentsBrowser() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [sortBy, setSortBy] = useState<SortKey>("time");
+  const [emailModal, setEmailModal] = useState<{ documentId: string; fileName: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -194,8 +196,26 @@ export function DocumentsBrowser() {
                       {r.result ? <Badge tone="neutral">{r.result.classification.format}</Badge> : "—"}
                     </td>
                     <td className="px-3 py-2">
-                      {r.result ? <CategoryBadge category={r.result.classification.category} /> : (
-                        r.status === "failed" ? <Badge tone="danger">failed</Badge> : "—"
+                      {r.result ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <CategoryBadge category={r.result.classification.category} />
+                          {r.result.classification.category === "email" ? (
+                            <button
+                              type="button"
+                              onClick={() => setEmailModal({ documentId: r.id, fileName: r.inputName })}
+                              className="inline-flex items-center text-primary hover:text-primary/70"
+                              title="View email-extraction result"
+                              aria-label="View email-extraction result"
+                              data-testid={`email-info-${r.id}`}
+                            >
+                              <Info className="h-4 w-4" />
+                            </button>
+                          ) : null}
+                        </span>
+                      ) : r.status === "failed" ? (
+                        <Badge tone="danger">failed</Badge>
+                      ) : (
+                        "—"
                       )}
                     </td>
                     <td className="px-3 py-2 tabular-nums">
@@ -237,6 +257,14 @@ export function DocumentsBrowser() {
         Showing the most recent {items.length} classifications (server window). Older rows age out via the
         30-day TTL on the classifications table.
       </p>
+
+      {emailModal ? (
+        <EmailExtractionModal
+          documentId={emailModal.documentId}
+          fileName={emailModal.fileName}
+          onClose={() => setEmailModal(null)}
+        />
+      ) : null}
     </div>
   );
 }
