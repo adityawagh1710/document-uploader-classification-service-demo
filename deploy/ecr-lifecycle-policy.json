@@ -15,11 +15,11 @@
     },
     {
       "rulePriority": 2,
-      "description": "Keep only the 3 most recent images (sufficient rollback for dev05)",
+      "description": "Keep the 10 most recent images (rollback history for dev05)",
       "selection": {
         "tagStatus": "any",
         "countType": "imageCountMoreThan",
-        "countNumber": 3
+        "countNumber": 10
       },
       "action": {
         "type": "expire"
