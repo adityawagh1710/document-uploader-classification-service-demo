@@ -1,19 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────
+ * Opus2 design tokens (light theme)
+ * Ported from the Figma "Document Upload (No AI)" prototype's theme.css.
+ * Consumed via Tailwind semantic colors in tailwind.config.ts.
+ * ─────────────────────────────────────────────────────────────────────────
+ */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+
+  /* Typography scale */
+  --text-2xl: 32px;
+  --text-xl: 24px;
+  --text-base: 16px;
+  --text-sm: 14px;
+  --text-xs: 12px;
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-bold: 700;
+
+  /* Surfaces & text */
+  --background: rgb(247, 248, 250);
+  --foreground: rgb(18, 38, 53);
+  --card: rgb(255, 255, 255);
+  --card-foreground: rgb(18, 38, 53);
+  --popover: rgb(255, 255, 255);
+  --popover-foreground: rgb(18, 38, 53);
+
+  /* Brand */
+  --primary: rgb(2, 137, 165);            /* Opus2 teal */
+  --primary-foreground: rgb(255, 255, 255);
+  --secondary: rgb(11, 181, 196);
+  --secondary-foreground: rgb(255, 255, 255);
+  --accent: rgb(11, 181, 196);
+  --accent-foreground: rgb(255, 255, 255);
+
+  --muted: rgb(232, 234, 238);
+  --muted-foreground: rgb(108, 122, 134);
+
+  --destructive: rgb(196, 11, 11);
+  --destructive-foreground: rgb(255, 255, 255);
+
+  --border: rgb(220, 220, 220);
+  --input: rgb(255, 255, 255);
+  --ring: rgb(2, 137, 165);
+
+  /* Dark-navy header/banner */
+  --header: rgb(29, 26, 68);
+  --header-foreground: rgb(255, 255, 255);
+
+  /* Radii */
+  --radius: 4px;
+  --radius-button: 4px;
+  --radius-card: 4px;
+  --radius-pill: 100px;
+
+  /* Brand typeface (loaded via @import above) */
+  --font-lato: "Lato", ui-sans-serif, system-ui, sans-serif;
 }
 
-html,
-body {
+@layer base {
+  html {
+    font-size: 16px;
+  }
+  body {
+    @apply bg-background text-foreground;
+    min-height: 100vh;
+  }
+  /* Prototype typography rhythm for bare headings inside Opus2 pages. */
+  .caption {
+    font-size: var(--text-xs);
+    line-height: 1.5;
+  }
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────
+ * Legacy technical dashboard (Monitor page) — dark surface.
+ * Self-contained: explicit colors so it is unaffected by the light default.
+ * `.monitor-shell` restores the dark gradient background for that page only.
+ * ─────────────────────────────────────────────────────────────────────────
+ */
+.monitor-shell {
+  color-scheme: dark;
+  color: #e2e8f0;
+  min-height: 100vh;
   background:
     radial-gradient(1200px 600px at 100% 0%, rgba(56, 189, 248, 0.05), transparent 60%),
     radial-gradient(900px 500px at 0% 100%, rgba(168, 85, 247, 0.05), transparent 60%),
     linear-gradient(180deg, #0a0f1c 0%, #0f172a 100%);
-  color: #e2e8f0;
-  min-height: 100vh;
 }
 
 @layer components {
