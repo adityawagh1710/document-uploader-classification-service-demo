@@ -1,0 +1,9 @@
+# Monorepo ownership. libs/* is the only legal cross-unit import surface and is
+# gated tightly. Replace placeholder teams with real ones.
+
+/aidlc-docs/                      @architects
+/libs/                            @platform
+/libs/pipeline-contracts/         @platform-network-and-compute
+/units/wundergraph-router/        @ingestion
+/units/classification-service/    @classification
+/tools/ci/                        @platform

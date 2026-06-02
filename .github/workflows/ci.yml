@@ -5,6 +5,12 @@ on:
   push:
     branches: [main]
 
+# Classification now lives under units/classification-service (monorepo layout);
+# run every step there.
+defaults:
+  run:
+    working-directory: units/classification-service
+
 jobs:
   lint:
     name: Lint
@@ -17,7 +23,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-npm-${{ hashFiles('units/classification-service/package-lock.json') }}
       - run: npm ci
       - run: npm run lint
 
@@ -33,7 +39,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-npm-${{ hashFiles('units/classification-service/package-lock.json') }}
       - run: npm ci
       - run: npm run typecheck
       - run: npx tsc -p infra/tsconfig.json --noEmit
@@ -50,7 +56,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-npm-${{ hashFiles('units/classification-service/package-lock.json') }}
       - run: npm ci
       - run: npm run test:unit
 
@@ -66,7 +72,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-npm-${{ hashFiles('units/classification-service/package-lock.json') }}
       - run: npm ci
       - run: npm run test:pbt
 
@@ -82,7 +88,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-npm-${{ hashFiles('units/classification-service/package-lock.json') }}
       - run: npm ci
       - run: npm run test:integration
 
@@ -98,7 +104,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-npm-${{ hashFiles('units/classification-service/package-lock.json') }}
       - run: npm ci
       - run: npx cdk synth -c env=dev
       - uses: actions/upload-artifact@v4
@@ -118,7 +124,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-npm-${{ hashFiles('units/classification-service/package-lock.json') }}
       - run: npm ci
       - run: npx cdk synth -c env=dev   # cdk-nag aspect runs during synth
 
@@ -134,7 +140,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-npm-${{ hashFiles('units/classification-service/package-lock.json') }}
       - run: npm ci
       - run: npm run test:infra
 
@@ -169,7 +175,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-npm-${{ hashFiles('units/classification-service/package-lock.json') }}
       - run: npm ci
       - run: npm run build
       - run: npm run test:smoke
@@ -186,7 +192,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-npm-${{ hashFiles('units/classification-service/package-lock.json') }}
       - run: npm ci
       - run: npm run test:coverage
 

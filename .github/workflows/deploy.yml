@@ -41,6 +41,11 @@ permissions:
   id-token: write   # OIDC
   contents: read
 
+# Classification now lives under units/classification-service (monorepo layout).
+defaults:
+  run:
+    working-directory: units/classification-service
+
 jobs:
   deploy-prod:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.env == 'prod'

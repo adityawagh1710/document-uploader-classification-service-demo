@@ -1,0 +1,12 @@
+# pnpm workspace for the document-uploader monorepo (TS units).
+# Go units (units/wundergraph-router, libs/pipeline-contracts/go) are managed by
+# go.work, not pnpm.
+#
+# Migration note: the TS units still carry npm package-lock.json (verified
+# working). To complete the pnpm migration run, at repo root:
+#   corepack use pnpm@9 && pnpm install      # generates pnpm-lock.yaml
+# then delete the per-unit package-lock.json. Deferred from the layout move to
+# avoid destabilising the just-verified build.
+packages:
+  - "units/classification-service"
+  - "units/classification-service/ui"
