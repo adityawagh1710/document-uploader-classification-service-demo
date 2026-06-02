@@ -39,6 +39,20 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	ClassificationResult struct {
+		Category          func(childComplexity int) int
+		ConfidenceScore   func(childComplexity int) int
+		ContentHash       func(childComplexity int) int
+		DetectionTier     func(childComplexity int) int
+		DocumentID        func(childComplexity int) int
+		Format            func(childComplexity int) int
+		IsDuplicate       func(childComplexity int) int
+		IsForcedSlipsheet func(childComplexity int) int
+		PolicyVersion     func(childComplexity int) int
+		SubCategory       func(childComplexity int) int
+		WorkspaceID       func(childComplexity int) int
+	}
+
 	CreateDocumentResult struct {
 		Document  func(childComplexity int) int
 		UploadURL func(childComplexity int) int
@@ -54,6 +68,7 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		Classify         func(childComplexity int, documentID string) int
 		ClassifyDocument func(childComplexity int, documentID string) int
 		CreateDocument   func(childComplexity int, input model.CreateDocumentInput) int
 		CreateWorkspace  func(childComplexity int, input model.CreateWorkspaceInput) int
@@ -91,6 +106,7 @@ type MutationResolver interface {
 	CreateWorkspace(ctx context.Context, input model.CreateWorkspaceInput) (*model.Workspace, error)
 	CreateDocument(ctx context.Context, input model.CreateDocumentInput) (*model.CreateDocumentResult, error)
 	ClassifyDocument(ctx context.Context, documentID string) (*model.Document, error)
+	Classify(ctx context.Context, documentID string) (*model.ClassificationResult, error)
 }
 type QueryResolver interface {
 	Workspaces(ctx context.Context) ([]model.Workspace, error)
@@ -115,6 +131,73 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	ec := newExecutionContext(nil, e, nil)
 	_ = ec
 	switch typeName + "." + field {
+
+	case "ClassificationResult.category":
+		if e.ComplexityRoot.ClassificationResult.Category == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassificationResult.Category(childComplexity), true
+	case "ClassificationResult.confidenceScore":
+		if e.ComplexityRoot.ClassificationResult.ConfidenceScore == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassificationResult.ConfidenceScore(childComplexity), true
+	case "ClassificationResult.contentHash":
+		if e.ComplexityRoot.ClassificationResult.ContentHash == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassificationResult.ContentHash(childComplexity), true
+	case "ClassificationResult.detectionTier":
+		if e.ComplexityRoot.ClassificationResult.DetectionTier == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassificationResult.DetectionTier(childComplexity), true
+	case "ClassificationResult.documentId":
+		if e.ComplexityRoot.ClassificationResult.DocumentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassificationResult.DocumentID(childComplexity), true
+	case "ClassificationResult.format":
+		if e.ComplexityRoot.ClassificationResult.Format == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassificationResult.Format(childComplexity), true
+	case "ClassificationResult.isDuplicate":
+		if e.ComplexityRoot.ClassificationResult.IsDuplicate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassificationResult.IsDuplicate(childComplexity), true
+	case "ClassificationResult.isForcedSlipsheet":
+		if e.ComplexityRoot.ClassificationResult.IsForcedSlipsheet == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassificationResult.IsForcedSlipsheet(childComplexity), true
+	case "ClassificationResult.policyVersion":
+		if e.ComplexityRoot.ClassificationResult.PolicyVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassificationResult.PolicyVersion(childComplexity), true
+	case "ClassificationResult.subCategory":
+		if e.ComplexityRoot.ClassificationResult.SubCategory == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassificationResult.SubCategory(childComplexity), true
+	case "ClassificationResult.workspaceId":
+		if e.ComplexityRoot.ClassificationResult.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassificationResult.WorkspaceID(childComplexity), true
 
 	case "CreateDocumentResult.document":
 		if e.ComplexityRoot.CreateDocumentResult.Document == nil {
@@ -166,6 +249,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Document.WorkspaceID(childComplexity), true
 
+	case "Mutation.classify":
+		if e.ComplexityRoot.Mutation.Classify == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_classify_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.Classify(childComplexity, args["documentId"].(string)), true
 	case "Mutation.classifyDocument":
 		if e.ComplexityRoot.Mutation.ClassifyDocument == nil {
 			break
@@ -474,6 +568,34 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // Each function is generated once per unique object type, deduplicating the
 // switch statements that were previously inlined in every fieldContext_* function.
 
+func (ec *executionContext) childFields_ClassificationResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "documentId":
+		return ec.fieldContext_ClassificationResult_documentId(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_ClassificationResult_workspaceId(ctx, field)
+	case "format":
+		return ec.fieldContext_ClassificationResult_format(ctx, field)
+	case "category":
+		return ec.fieldContext_ClassificationResult_category(ctx, field)
+	case "subCategory":
+		return ec.fieldContext_ClassificationResult_subCategory(ctx, field)
+	case "confidenceScore":
+		return ec.fieldContext_ClassificationResult_confidenceScore(ctx, field)
+	case "detectionTier":
+		return ec.fieldContext_ClassificationResult_detectionTier(ctx, field)
+	case "isForcedSlipsheet":
+		return ec.fieldContext_ClassificationResult_isForcedSlipsheet(ctx, field)
+	case "contentHash":
+		return ec.fieldContext_ClassificationResult_contentHash(ctx, field)
+	case "isDuplicate":
+		return ec.fieldContext_ClassificationResult_isDuplicate(ctx, field)
+	case "policyVersion":
+		return ec.fieldContext_ClassificationResult_policyVersion(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ClassificationResult", field.Name)
+}
+
 func (ec *executionContext) childFields_CreateDocumentResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "document":
@@ -662,12 +784,26 @@ func (ec *executionContext) field_Mutation_classifyDocument_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_classify_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "documentId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["documentId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createDocument_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.CreateDocumentInput, error) {
-			return ec.unmarshalNCreateDocumentInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐCreateDocumentInput(ctx, v)
+			return ec.unmarshalNCreateDocumentInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐCreateDocumentInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -681,7 +817,7 @@ func (ec *executionContext) field_Mutation_createWorkspace_args(ctx context.Cont
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.CreateWorkspaceInput, error) {
-			return ec.unmarshalNCreateWorkspaceInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐCreateWorkspaceInput(ctx, v)
+			return ec.unmarshalNCreateWorkspaceInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐCreateWorkspaceInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -810,6 +946,259 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
+func (ec *executionContext) _ClassificationResult_documentId(ctx context.Context, field graphql.CollectedField, obj *model.ClassificationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassificationResult_documentId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DocumentID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassificationResult_documentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassificationResult", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _ClassificationResult_workspaceId(ctx context.Context, field graphql.CollectedField, obj *model.ClassificationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassificationResult_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassificationResult_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassificationResult", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _ClassificationResult_format(ctx context.Context, field graphql.CollectedField, obj *model.ClassificationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassificationResult_format(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Format, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassificationResult_format(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassificationResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ClassificationResult_category(ctx context.Context, field graphql.CollectedField, obj *model.ClassificationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassificationResult_category(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Category, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassificationResult_category(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassificationResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ClassificationResult_subCategory(ctx context.Context, field graphql.CollectedField, obj *model.ClassificationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassificationResult_subCategory(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SubCategory, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ClassificationResult_subCategory(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassificationResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ClassificationResult_confidenceScore(ctx context.Context, field graphql.CollectedField, obj *model.ClassificationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassificationResult_confidenceScore(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ConfidenceScore, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassificationResult_confidenceScore(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassificationResult", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ClassificationResult_detectionTier(ctx context.Context, field graphql.CollectedField, obj *model.ClassificationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassificationResult_detectionTier(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DetectionTier, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassificationResult_detectionTier(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassificationResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ClassificationResult_isForcedSlipsheet(ctx context.Context, field graphql.CollectedField, obj *model.ClassificationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassificationResult_isForcedSlipsheet(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsForcedSlipsheet, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassificationResult_isForcedSlipsheet(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassificationResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ClassificationResult_contentHash(ctx context.Context, field graphql.CollectedField, obj *model.ClassificationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassificationResult_contentHash(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ContentHash, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassificationResult_contentHash(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassificationResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ClassificationResult_isDuplicate(ctx context.Context, field graphql.CollectedField, obj *model.ClassificationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassificationResult_isDuplicate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsDuplicate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassificationResult_isDuplicate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassificationResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ClassificationResult_policyVersion(ctx context.Context, field graphql.CollectedField, obj *model.ClassificationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassificationResult_policyVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PolicyVersion, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassificationResult_policyVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassificationResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _CreateDocumentResult_document(ctx context.Context, field graphql.CollectedField, obj *model.CreateDocumentResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -823,7 +1212,7 @@ func (ec *executionContext) _CreateDocumentResult_document(ctx context.Context, 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Document) graphql.Marshaler {
-			return ec.marshalNDocument2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐDocument(ctx, selections, v)
+			return ec.marshalNDocument2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐDocument(ctx, selections, v)
 		},
 		true,
 		true,
@@ -1017,7 +1406,7 @@ func (ec *executionContext) _Mutation_createWorkspace(ctx context.Context, field
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Workspace) graphql.Marshaler {
-			return ec.marshalNWorkspace2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐWorkspace(ctx, selections, v)
+			return ec.marshalNWorkspace2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspace(ctx, selections, v)
 		},
 		true,
 		true,
@@ -1061,7 +1450,7 @@ func (ec *executionContext) _Mutation_createDocument(ctx context.Context, field 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CreateDocumentResult) graphql.Marshaler {
-			return ec.marshalNCreateDocumentResult2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐCreateDocumentResult(ctx, selections, v)
+			return ec.marshalNCreateDocumentResult2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐCreateDocumentResult(ctx, selections, v)
 		},
 		true,
 		true,
@@ -1105,7 +1494,7 @@ func (ec *executionContext) _Mutation_classifyDocument(ctx context.Context, fiel
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Document) graphql.Marshaler {
-			return ec.marshalNDocument2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐDocument(ctx, selections, v)
+			return ec.marshalNDocument2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐDocument(ctx, selections, v)
 		},
 		true,
 		true,
@@ -1135,6 +1524,50 @@ func (ec *executionContext) fieldContext_Mutation_classifyDocument(ctx context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_classify(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_classify(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().Classify(ctx, fc.Args["documentId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ClassificationResult) graphql.Marshaler {
+			return ec.marshalNClassificationResult2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐClassificationResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_classify(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ClassificationResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_classify_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_workspaces(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1148,7 +1581,7 @@ func (ec *executionContext) _Query_workspaces(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []model.Workspace) graphql.Marshaler {
-			return ec.marshalNWorkspace2ᚕgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐWorkspaceᚄ(ctx, selections, v)
+			return ec.marshalNWorkspace2ᚕgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspaceᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -1181,7 +1614,7 @@ func (ec *executionContext) _Query_documents(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []model.Document) graphql.Marshaler {
-			return ec.marshalNDocument2ᚕgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐDocumentᚄ(ctx, selections, v)
+			return ec.marshalNDocument2ᚕgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐDocumentᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -1225,7 +1658,7 @@ func (ec *executionContext) _Query_document(ctx context.Context, field graphql.C
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Document) graphql.Marshaler {
-			return ec.marshalODocument2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐDocument(ctx, selections, v)
+			return ec.marshalODocument2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐDocument(ctx, selections, v)
 		},
 		true,
 		false,
@@ -1268,7 +1701,7 @@ func (ec *executionContext) _Query_stats(ctx context.Context, field graphql.Coll
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Stats) graphql.Marshaler {
-			return ec.marshalNStats2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐStats(ctx, selections, v)
+			return ec.marshalNStats2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐStats(ctx, selections, v)
 		},
 		true,
 		true,
@@ -1455,7 +1888,7 @@ func (ec *executionContext) _Subscription_documentStatusChanged(ctx context.Cont
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Document) graphql.Marshaler {
-			return ec.marshalNDocument2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐDocument(ctx, selections, v)
+			return ec.marshalNDocument2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐDocument(ctx, selections, v)
 		},
 		true,
 		true,
@@ -2718,6 +3151,92 @@ func (ec *executionContext) unmarshalInputCreateWorkspaceInput(ctx context.Conte
 
 // region    **************************** object.gotpl ****************************
 
+var classificationResultImplementors = []string{"ClassificationResult"}
+
+func (ec *executionContext) _ClassificationResult(ctx context.Context, sel ast.SelectionSet, obj *model.ClassificationResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, classificationResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ClassificationResult")
+		case "documentId":
+			out.Values[i] = ec._ClassificationResult_documentId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._ClassificationResult_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "format":
+			out.Values[i] = ec._ClassificationResult_format(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "category":
+			out.Values[i] = ec._ClassificationResult_category(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "subCategory":
+			out.Values[i] = ec._ClassificationResult_subCategory(ctx, field, obj)
+		case "confidenceScore":
+			out.Values[i] = ec._ClassificationResult_confidenceScore(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "detectionTier":
+			out.Values[i] = ec._ClassificationResult_detectionTier(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isForcedSlipsheet":
+			out.Values[i] = ec._ClassificationResult_isForcedSlipsheet(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "contentHash":
+			out.Values[i] = ec._ClassificationResult_contentHash(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isDuplicate":
+			out.Values[i] = ec._ClassificationResult_isDuplicate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "policyVersion":
+			out.Values[i] = ec._ClassificationResult_policyVersion(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var createDocumentResultImplementors = []string{"CreateDocumentResult"}
 
 func (ec *executionContext) _CreateDocumentResult(ctx context.Context, sel ast.SelectionSet, obj *model.CreateDocumentResult) graphql.Marshaler {
@@ -2859,6 +3378,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "classifyDocument":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_classifyDocument(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "classify":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_classify(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -3540,16 +4066,30 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) unmarshalNCreateDocumentInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐCreateDocumentInput(ctx context.Context, v any) (model.CreateDocumentInput, error) {
+func (ec *executionContext) marshalNClassificationResult2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐClassificationResult(ctx context.Context, sel ast.SelectionSet, v model.ClassificationResult) graphql.Marshaler {
+	return ec._ClassificationResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNClassificationResult2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐClassificationResult(ctx context.Context, sel ast.SelectionSet, v *model.ClassificationResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ClassificationResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNCreateDocumentInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐCreateDocumentInput(ctx context.Context, v any) (model.CreateDocumentInput, error) {
 	res, err := ec.unmarshalInputCreateDocumentInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNCreateDocumentResult2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐCreateDocumentResult(ctx context.Context, sel ast.SelectionSet, v model.CreateDocumentResult) graphql.Marshaler {
+func (ec *executionContext) marshalNCreateDocumentResult2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐCreateDocumentResult(ctx context.Context, sel ast.SelectionSet, v model.CreateDocumentResult) graphql.Marshaler {
 	return ec._CreateDocumentResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCreateDocumentResult2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐCreateDocumentResult(ctx context.Context, sel ast.SelectionSet, v *model.CreateDocumentResult) graphql.Marshaler {
+func (ec *executionContext) marshalNCreateDocumentResult2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐCreateDocumentResult(ctx context.Context, sel ast.SelectionSet, v *model.CreateDocumentResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -3559,20 +4099,20 @@ func (ec *executionContext) marshalNCreateDocumentResult2ᚖgithubᚗcomᚋopus2
 	return ec._CreateDocumentResult(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNCreateWorkspaceInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐCreateWorkspaceInput(ctx context.Context, v any) (model.CreateWorkspaceInput, error) {
+func (ec *executionContext) unmarshalNCreateWorkspaceInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐCreateWorkspaceInput(ctx context.Context, v any) (model.CreateWorkspaceInput, error) {
 	res, err := ec.unmarshalInputCreateWorkspaceInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNDocument2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐDocument(ctx context.Context, sel ast.SelectionSet, v model.Document) graphql.Marshaler {
+func (ec *executionContext) marshalNDocument2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐDocument(ctx context.Context, sel ast.SelectionSet, v model.Document) graphql.Marshaler {
 	return ec._Document(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNDocument2ᚕgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐDocumentᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Document) graphql.Marshaler {
+func (ec *executionContext) marshalNDocument2ᚕgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐDocumentᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Document) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNDocument2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐDocument(ctx, sel, v[i])
+		return ec.marshalNDocument2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐDocument(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -3584,7 +4124,7 @@ func (ec *executionContext) marshalNDocument2ᚕgithubᚗcomᚋopus2ᚋdocupload
 	return ret
 }
 
-func (ec *executionContext) marshalNDocument2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐDocument(ctx context.Context, sel ast.SelectionSet, v *model.Document) graphql.Marshaler {
+func (ec *executionContext) marshalNDocument2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐDocument(ctx context.Context, sel ast.SelectionSet, v *model.Document) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -3608,6 +4148,22 @@ func (ec *executionContext) marshalNFieldSet2string(ctx context.Context, sel ast
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v any) (float64, error) {
+	res, err := graphql.UnmarshalFloatContext(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.SelectionSet, v float64) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalFloatContext(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return graphql.WrapContextMarshaler(ctx, res)
 }
 
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {
@@ -3642,11 +4198,11 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
-func (ec *executionContext) marshalNStats2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐStats(ctx context.Context, sel ast.SelectionSet, v model.Stats) graphql.Marshaler {
+func (ec *executionContext) marshalNStats2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐStats(ctx context.Context, sel ast.SelectionSet, v model.Stats) graphql.Marshaler {
 	return ec._Stats(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNStats2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐStats(ctx context.Context, sel ast.SelectionSet, v *model.Stats) graphql.Marshaler {
+func (ec *executionContext) marshalNStats2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐStats(ctx context.Context, sel ast.SelectionSet, v *model.Stats) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -3672,15 +4228,15 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
-func (ec *executionContext) marshalNWorkspace2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐWorkspace(ctx context.Context, sel ast.SelectionSet, v model.Workspace) graphql.Marshaler {
+func (ec *executionContext) marshalNWorkspace2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspace(ctx context.Context, sel ast.SelectionSet, v model.Workspace) graphql.Marshaler {
 	return ec._Workspace(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNWorkspace2ᚕgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐWorkspaceᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Workspace) graphql.Marshaler {
+func (ec *executionContext) marshalNWorkspace2ᚕgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspaceᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Workspace) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNWorkspace2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐWorkspace(ctx, sel, v[i])
+		return ec.marshalNWorkspace2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspace(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -3692,7 +4248,7 @@ func (ec *executionContext) marshalNWorkspace2ᚕgithubᚗcomᚋopus2ᚋdocuploa
 	return ret
 }
 
-func (ec *executionContext) marshalNWorkspace2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐWorkspace(ctx context.Context, sel ast.SelectionSet, v *model.Workspace) graphql.Marshaler {
+func (ec *executionContext) marshalNWorkspace2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspace(ctx context.Context, sel ast.SelectionSet, v *model.Workspace) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -4029,7 +4585,7 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) marshalODocument2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋwundergraphᚑrouterᚋgraphᚋmodelᚐDocument(ctx context.Context, sel ast.SelectionSet, v *model.Document) graphql.Marshaler {
+func (ec *executionContext) marshalODocument2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐDocument(ctx context.Context, sel ast.SelectionSet, v *model.Document) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

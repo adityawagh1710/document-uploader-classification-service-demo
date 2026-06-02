@@ -70,6 +70,30 @@ func (r *mutationResolver) ClassifyDocument(ctx context.Context, documentID stri
 	return &m, nil
 }
 
+// Classify is the resolver for the classify field. Synchronous: looks up the
+// uploaded document's claim-check and calls the classification service's
+// /classify endpoint, returning the result inline.
+func (r *mutationResolver) Classify(ctx context.Context, documentID string) (*model.ClassificationResult, error) {
+	dp, err := r.Store.Document(ctx, documentID)
+	if err != nil {
+		return nil, err
+	}
+	if dp == nil {
+		return nil, fmt.Errorf("document %s not found", documentID)
+	}
+	// Claim-check pointer (POC re-derives the key; real flow stores it at create).
+	_, source, err := r.Uploader.Presign(ctx, r.Tenant, dp.ID, dp.Filename)
+	if err != nil {
+		return nil, err
+	}
+	res, err := r.Classifier.Classify(ctx, dp.WorkspaceID, dp.ID, source, extensionOf(dp.Filename), dp.ContentType)
+	if err != nil {
+		return nil, err
+	}
+	m := toClassificationResult(res)
+	return &m, nil
+}
+
 // Workspaces is the resolver for the workspaces field.
 func (r *queryResolver) Workspaces(ctx context.Context) ([]model.Workspace, error) {
 	ws, err := r.Store.Workspaces(ctx)

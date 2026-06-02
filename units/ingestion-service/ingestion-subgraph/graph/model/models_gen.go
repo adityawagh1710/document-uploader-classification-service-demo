@@ -2,6 +2,21 @@
 
 package model
 
+// Synchronous classification result (from the classification service /classify).
+type ClassificationResult struct {
+	DocumentID        string  `json:"documentId"`
+	WorkspaceID       string  `json:"workspaceId"`
+	Format            string  `json:"format"`
+	Category          string  `json:"category"`
+	SubCategory       *string `json:"subCategory,omitempty"`
+	ConfidenceScore   float64 `json:"confidenceScore"`
+	DetectionTier     string  `json:"detectionTier"`
+	IsForcedSlipsheet bool    `json:"isForcedSlipsheet"`
+	ContentHash       string  `json:"contentHash"`
+	IsDuplicate       bool    `json:"isDuplicate"`
+	PolicyVersion     string  `json:"policyVersion"`
+}
+
 type CreateDocumentInput struct {
 	WorkspaceID string  `json:"workspaceId"`
 	Filename    string  `json:"filename"`

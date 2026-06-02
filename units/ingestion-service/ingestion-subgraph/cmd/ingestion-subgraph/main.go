@@ -25,6 +25,7 @@ import (
 	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/graph"
 	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/internal/app"
 	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/internal/awsadapters"
+	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/internal/classifierhttp"
 )
 
 func main() {
@@ -66,9 +67,19 @@ func main() {
 		logger.Info("backend=memory (stub presign + logging dispatcher)")
 	}
 
+	// Classifier: HTTP to the classification service's /classify when CLASSIFY_URL
+	// is set; otherwise a canned stub (so the router runs without it locally).
+	var classifier app.Classifier = app.StubClassifier{}
+	if u := os.Getenv("CLASSIFY_URL"); u != "" {
+		classifier = classifierhttp.New(u)
+		logger.Info("classifier=http", "url", u)
+	} else {
+		logger.Info("classifier=stub (set CLASSIFY_URL to call the classification service)")
+	}
+
 	resolver := &graph.Resolver{
 		Store: store, Uploader: uploader, Dispatcher: dispatcher,
-		Bus: bus, Log: logger, Tenant: tenant,
+		Bus: bus, Classifier: classifier, Log: logger, Tenant: tenant,
 	}
 
 	srv := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
