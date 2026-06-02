@@ -93,7 +93,7 @@ func main() {
 	logger.Info("wundergraph-router starting", "port", port, "stagingBucket", bucket, "tenant", tenant, "backend", backend)
 	server := &http.Server{
 		Addr:              ":" + port,
-		Handler:           requestLog(logger, mux),
+		Handler:           cors(getenv("CORS_ORIGIN", "*"), requestLog(logger, mux)),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -122,6 +122,21 @@ func stageQueues() map[contracts.StageName]string {
 func requestLog(l *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		l.Debug("http", "method", r.Method, "path", r.URL.Path)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// cors lets the browser-side UI call /graphql directly (Approach A). Origin is
+// "*" for the POC; tighten to the UI origin on dev05 via CORS_ORIGIN.
+func cors(origin string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, traceparent")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }
