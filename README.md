@@ -12,7 +12,8 @@ aidlc-docs/                         inception docs (vision, tech-environment, un
 libs/
   pipeline-contracts/go             shared wire contract (baked into Go units)
 units/
-  classification-service/           TS service: src + worker + ui + infra(CDK) + tests
+  classification-service/           TS service: src + worker + infra(CDK) + tests + sync /classify HTTP
+  document-uploader-ui/             Next.js UI (own unit); talks GraphQL to the router
   ingestion-service/                ingestion front door (sidecar-pair Pod):
     wundergraph-router/             pulled Cosmo gateway (federates the subgraph)
     ingestion-subgraph/             Go gqlgen Federation v2 server over the contract

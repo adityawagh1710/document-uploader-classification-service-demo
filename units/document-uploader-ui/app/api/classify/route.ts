@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 import { Upload } from "@aws-sdk/lib-storage";
 import {
-  getClassificationService,
   ensureResourcesProvisioned,
   s3Client,
   BUCKET,
@@ -17,9 +16,40 @@ import {
   recordEmailExtraction,
   type EmailExtractionResponse,
 } from "@/lib/email-extractions";
+// Type-only @svc imports are erased at compile time — they bundle nothing. The
+// classification ENGINE is no longer embedded; we call the classification
+// service's /classify endpoint over the wire instead (CLASSIFY_URL).
 import type { TaskPayload } from "@svc/shared/types";
+import type { ClassificationOutput, ClassificationFailure } from "@svc/application/index";
 
 export const runtime = "nodejs";
+
+// The classification service's synchronous classify endpoint (the wundergraph
+// -router fronts the same surface for the createDocument flow; this legacy
+// upload-then-classify route calls it directly). Default = local compose port.
+const CLASSIFY_URL = (process.env.CLASSIFY_URL ?? "http://localhost:8091").replace(/\/+$/, "");
+
+type ClassifyResult =
+  | { ok: true; value: ClassificationOutput }
+  | { ok: false; error: ClassificationFailure };
+
+// classifyViaService replaces the former in-process getClassificationService()
+// call — the engine now lives in the classification service, reached over HTTP.
+async function classifyViaService(payload: TaskPayload): Promise<ClassifyResult> {
+  const resp = await fetch(`${CLASSIFY_URL}/classify`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (resp.ok) {
+    return { ok: true, value: (await resp.json()) as ClassificationOutput };
+  }
+  const body = (await resp.json().catch(() => ({}))) as { error?: unknown };
+  return {
+    ok: false,
+    error: (body.error ?? { kind: "unknown", reason: "classify-service-error" }) as ClassificationFailure,
+  };
+}
 export const dynamic = "force-dynamic";
 
 // Upload size guard — defensive cap for the test harness. The deployed
@@ -109,9 +139,8 @@ export async function POST(req: Request) {
     },
   };
 
-  const service = getClassificationService();
   const start = Date.now();
-  const result = await service.classify(payload);
+  const result = await classifyViaService(payload);
   const elapsedMs = Date.now() - start;
 
   if (!result.ok) {

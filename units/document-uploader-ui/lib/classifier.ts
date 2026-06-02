@@ -9,25 +9,16 @@ import { SFNClient } from "@aws-sdk/client-sfn";
 import { SQSClient, CreateQueueCommand } from "@aws-sdk/client-sqs";
 import type { WorkspaceConfig } from "@svc/shared/types";
 
+// NOTE: the classification ENGINE no longer lives here. It runs in the
+// classification service (reached via /classify over HTTP — see api/classify).
+// What remains are the thin AWS clients + SQS fan-out dispatchers the other,
+// not-yet-migrated routes still use (a documented temporary @svc coupling to
+// retire as the router grows into a full BFF).
 import { silentLogger } from "@svc/ports/Logger";
-import { createS3Adapter } from "@svc/adapters/s3/index";
-import { createNodeCryptoHasher } from "@svc/adapters/crypto/index";
-import { createDDBContentHashAdapter } from "@svc/adapters/dynamo-content-hashes/index";
-import { createDDBWorkspaceConfigAdapter } from "@svc/adapters/dynamo-workspace-config/index";
 import { createSqsArchiveDispatcher } from "@svc/adapters/sqs-archive-dispatcher/index";
 import { createSqsConvertDispatcher } from "@svc/adapters/sqs-convert-dispatcher/index";
 import type { ArchiveDispatcher } from "@svc/ports/ArchiveDispatcher";
 import type { ConvertDispatcher } from "@svc/ports/ConvertDispatcher";
-
-import { createTier1FileTypeDetector } from "@svc/domain/tier1-filetype/index";
-import { createOLE2Parser, createTier2OLE2Detector } from "@svc/domain/tier2-ole2/index";
-import { createZIPMarkerParser, createTier2ZIPDetector } from "@svc/domain/tier2-zip/index";
-import { createTier3TextDetector } from "@svc/domain/tier3-text/index";
-import { createScorer } from "@svc/domain/scoring/index";
-import { createCategoryMapper } from "@svc/domain/categories/index";
-import { createSlipsheetDecider } from "@svc/domain/slipsheet/index";
-
-import { createClassificationService, type ClassificationService } from "@svc/application/index";
 
 const ENDPOINT = process.env.AWS_ENDPOINT_URL ?? "http://localhost:4566";
 const REGION = process.env.AWS_REGION ?? "us-east-1";
@@ -213,40 +204,7 @@ export const EMAIL_EXTRACTION_URL =
   process.env.EMAIL_EXTRACTION_URL ??
   "https://byzxx7ymun.eu-west-1.awsapprunner.com";
 
-const s3Adapter = createS3Adapter({ s3: s3Client, logger: silentLogger });
-
-let cachedService: ClassificationService | undefined;
 let provisioningPromise: Promise<void> | undefined;
-
-export function getClassificationService(): ClassificationService {
-  if (cachedService) return cachedService;
-  cachedService = createClassificationService({
-    tier1: createTier1FileTypeDetector(),
-    tier2OLE2: createTier2OLE2Detector({ parser: createOLE2Parser() }),
-    tier2ZIP: createTier2ZIPDetector({ parser: createZIPMarkerParser() }),
-    tier3Text: createTier3TextDetector(),
-    scorer: createScorer(),
-    categoryMapper: createCategoryMapper(),
-    slipsheetDecider: createSlipsheetDecider(),
-    s3Reader: s3Adapter,
-    s3Streamer: s3Adapter,
-    hasher: createNodeCryptoHasher(),
-    contentHashStore: createDDBContentHashAdapter({
-      ddb,
-      tableName: CONTENT_HASH_TABLE,
-      logger: silentLogger,
-    }),
-    workspaceConfigStore: createDDBWorkspaceConfigAdapter({
-      ddb,
-      tableName: WORKSPACE_CONFIG_TABLE,
-      logger: silentLogger,
-    }),
-    logger: silentLogger,
-    nowProvider: () => new Date().toISOString(),
-    policyVersionExtractor: (c) => c.policyVersion,
-  });
-  return cachedService;
-}
 
 /**
  * Idempotently provision the S3 bucket + DDB tables. Safe to call on every
