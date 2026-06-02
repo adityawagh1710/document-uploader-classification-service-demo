@@ -61,3 +61,24 @@ type Workspace struct {
 	Status        string `json:"status"`
 	RetentionDays *int   `json:"retentionDays,omitempty"`
 }
+
+// Per-workspace classification policy (the workspace-config the classifier reads).
+type WorkspaceConfig struct {
+	WorkspaceID      string         `json:"workspaceId"`
+	PolicyVersion    string         `json:"policyVersion"`
+	Threshold        float64        `json:"threshold"`
+	MaxZipDepth      int            `json:"maxZipDepth"`
+	QuarantineMacros bool           `json:"quarantineMacros"`
+	SlipsheetRules   map[string]any `json:"slipsheetRules"`
+	HashTTLDays      *int           `json:"hashTtlDays,omitempty"`
+}
+
+type WorkspaceConfigInput struct {
+	WorkspaceID      string         `json:"workspaceId"`
+	PolicyVersion    *string        `json:"policyVersion,omitempty"`
+	Threshold        *float64       `json:"threshold,omitempty"`
+	MaxZipDepth      *int           `json:"maxZipDepth,omitempty"`
+	QuarantineMacros *bool          `json:"quarantineMacros,omitempty"`
+	SlipsheetRules   map[string]any `json:"slipsheetRules,omitempty"`
+	HashTTLDays      *int           `json:"hashTtlDays,omitempty"`
+}

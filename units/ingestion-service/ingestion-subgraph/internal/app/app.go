@@ -76,3 +76,25 @@ type ClassificationResult struct {
 type Classifier interface {
 	Classify(ctx context.Context, workspaceID, documentID string, source contracts.ClaimCheck, extension, contentType string) (ClassificationResult, error)
 }
+
+// WorkspaceConfig is the per-workspace classification policy — the exact shape
+// the classification service reads from the workspace-config DDB table. A config
+// must exist for a workspace before classify can run against it.
+type WorkspaceConfig struct {
+	WorkspaceID      string
+	PolicyVersion    string
+	Threshold        float64
+	MaxZipDepth      int
+	QuarantineMacros bool
+	SlipsheetRules   map[string]string
+	HashTTLDays      *int
+}
+
+// WorkspaceConfigStore reads/writes the workspace-config table (P3: DynamoDB),
+// shared with the classification service. The router fronts it so the UI manages
+// configs over the wire instead of touching DynamoDB directly.
+type WorkspaceConfigStore interface {
+	GetConfig(ctx context.Context, workspaceID string) (*WorkspaceConfig, error)
+	ListConfigs(ctx context.Context) ([]WorkspaceConfig, error)
+	SaveConfig(ctx context.Context, cfg WorkspaceConfig) (WorkspaceConfig, error)
+}

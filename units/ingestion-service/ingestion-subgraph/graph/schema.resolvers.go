@@ -94,6 +94,16 @@ func (r *mutationResolver) Classify(ctx context.Context, documentID string) (*mo
 	return &m, nil
 }
 
+// SaveWorkspaceConfig is the resolver for the saveWorkspaceConfig field.
+func (r *mutationResolver) SaveWorkspaceConfig(ctx context.Context, input model.WorkspaceConfigInput) (*model.WorkspaceConfig, error) {
+	saved, err := r.WorkspaceConfigStore.SaveConfig(ctx, workspaceConfigFromInput(input))
+	if err != nil {
+		return nil, err
+	}
+	m := toWorkspaceConfigModel(saved)
+	return &m, nil
+}
+
 // Workspaces is the resolver for the workspaces field.
 func (r *queryResolver) Workspaces(ctx context.Context) ([]model.Workspace, error) {
 	ws, err := r.Store.Workspaces(ctx)
@@ -137,6 +147,29 @@ func (r *queryResolver) Stats(ctx context.Context) (*model.Stats, error) {
 		return nil, err
 	}
 	return &model.Stats{Workspaces: w, Documents: d}, nil
+}
+
+// WorkspaceConfig is the resolver for the workspaceConfig field.
+func (r *queryResolver) WorkspaceConfig(ctx context.Context, workspaceID string) (*model.WorkspaceConfig, error) {
+	c, err := r.WorkspaceConfigStore.GetConfig(ctx, workspaceID)
+	if err != nil || c == nil {
+		return nil, err
+	}
+	m := toWorkspaceConfigModel(*c)
+	return &m, nil
+}
+
+// WorkspaceConfigs is the resolver for the workspaceConfigs field.
+func (r *queryResolver) WorkspaceConfigs(ctx context.Context) ([]model.WorkspaceConfig, error) {
+	cs, err := r.WorkspaceConfigStore.ListConfigs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.WorkspaceConfig, 0, len(cs))
+	for _, c := range cs {
+		out = append(out, toWorkspaceConfigModel(c))
+	}
+	return out, nil
 }
 
 // DocumentStatusChanged is the resolver for the documentStatusChanged field.

@@ -164,6 +164,45 @@ func (StubClassifier) Classify(_ context.Context, workspaceID, documentID string
 	}, nil
 }
 
+// MemConfigStore is an in-memory WorkspaceConfigStore for BACKEND=memory.
+type MemConfigStore struct {
+	mu      sync.RWMutex
+	configs map[string]WorkspaceConfig
+}
+
+func NewMemConfigStore() *MemConfigStore {
+	return &MemConfigStore{configs: map[string]WorkspaceConfig{}}
+}
+
+func (s *MemConfigStore) GetConfig(_ context.Context, workspaceID string) (*WorkspaceConfig, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if c, ok := s.configs[workspaceID]; ok {
+		return &c, nil
+	}
+	return nil, nil
+}
+
+func (s *MemConfigStore) ListConfigs(context.Context) ([]WorkspaceConfig, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]WorkspaceConfig, 0, len(s.configs))
+	for _, c := range s.configs {
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+func (s *MemConfigStore) SaveConfig(_ context.Context, cfg WorkspaceConfig) (WorkspaceConfig, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if cfg.SlipsheetRules == nil {
+		cfg.SlipsheetRules = map[string]string{}
+	}
+	s.configs[cfg.WorkspaceID] = cfg
+	return cfg, nil
+}
+
 // LogDispatcher builds + validates a real StageRequest and logs it instead of
 // sending to SQS (P3 SQSDispatcher does the real send).
 type LogDispatcher struct{ Log *slog.Logger }
