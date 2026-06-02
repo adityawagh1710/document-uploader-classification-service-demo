@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opus2.com/docuploader/pipeline-contracts.schema.json",
+  "title": "PipelineContracts",
+  "description": "Single source of truth for the document-uploader wire contract. Go/TS/Py flavors are generated from this; only the wire envelope crosses a queue.",
+  "type": "object",
+  "$defs": {
+    "ClaimCheck": {
+      "title": "ClaimCheck",
+      "description": "S3 pointer that crosses the wire in place of heavy bytes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bucket", "key"],
+      "properties": {
+        "bucket": { "type": "string" },
+        "key": { "type": "string" }
+      }
+    },
+    "StageName": {
+      "title": "StageName",
+      "description": "Closed taxonomy of pipeline stages a StageRequest may target.",
+      "type": "string",
+      "enum": [
+        "classify", "zip-extraction", "email-extraction", "office-convert",
+        "html-convert", "tiff-cog", "image-tiff", "media-convert",
+        "slipsheet", "pdf-processing", "ocr", "output-assembly"
+      ]
+    },
+    "StatusValue": {
+      "title": "StatusValue",
+      "type": "string",
+      "enum": ["SUCCESS", "PARTIAL_FAILED", "FAILED"]
+    },
+    "ErrorEnvelope": {
+      "title": "ErrorEnvelope",
+      "description": "Uniform error shape on non-GraphQL surfaces.",
+      "type": "object",
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "detail": {},
+        "retryable": { "type": "boolean" },
+        "extensions": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "Envelope": {
+      "title": "Envelope",
+      "description": "Spine present on every message of every family.",
+      "type": "object",
+      "required": [
+        "schemaVersion", "kind", "messageId", "correlationId",
+        "pipelineExecutionId", "tenantId", "documentId", "source", "traceparent"
+      ],
+      "properties": {
+        "schemaVersion": { "type": "string" },
+        "kind": { "type": "string" },
+        "messageId": { "type": "string" },
+        "correlationId": { "type": "string" },
+        "pipelineExecutionId": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "documentId": { "type": "string" },
+        "source": { "$ref": "#/$defs/ClaimCheck" },
+        "taskToken": { "type": ["string", "null"] },
+        "traceparent": { "type": "string" }
+      }
+    },
+    "DocumentPipelineEvent": {
+      "title": "DocumentPipelineEvent",
+      "description": "Enters at ingestion and re-enters on zip/email fan-out.",
+      "allOf": [{ "$ref": "#/$defs/Envelope" }],
+      "type": "object",
+      "required": ["workspaceId", "filename", "idempotencyKey"],
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "filename": { "type": "string" },
+        "contentType": { "type": "string" },
+        "parentDocumentId": { "type": ["string", "null"] },
+        "idempotencyKey": { "type": "string" }
+      }
+    },
+    "StageRequest": {
+      "title": "StageRequest",
+      "description": "What orchestration sends to a stage's queue.",
+      "allOf": [{ "$ref": "#/$defs/Envelope" }],
+      "type": "object",
+      "required": ["stage", "idempotencyKey"],
+      "properties": {
+        "stage": { "$ref": "#/$defs/StageName" },
+        "options": { "type": "object", "additionalProperties": true },
+        "idempotencyKey": { "type": "string" }
+      }
+    },
+    "StageStatusUpdate": {
+      "title": "StageStatusUpdate",
+      "description": "What a stage emits to update-document-state.",
+      "allOf": [{ "$ref": "#/$defs/Envelope" }],
+      "type": "object",
+      "required": ["stage", "status"],
+      "properties": {
+        "stage": { "$ref": "#/$defs/StageName" },
+        "status": { "$ref": "#/$defs/StatusValue" },
+        "outputs": { "type": "array", "items": { "$ref": "#/$defs/ClaimCheck" } },
+        "error": { "$ref": "#/$defs/ErrorEnvelope" }
+      }
+    }
+  }
+}
