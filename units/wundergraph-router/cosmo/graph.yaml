@@ -1,0 +1,9 @@
+# Local Cosmo composition input for `wgc router compose`. One subgraph (our
+# gqlgen federation v2 server). The Cosmo Router (real WunderGraph) composes
+# this and fronts the subgraph at routing_url.
+version: 1
+subgraphs:
+  - name: ingestion
+    routing_url: http://localhost:8099/graphql
+    schema:
+      file: ../graph/schema.graphqls

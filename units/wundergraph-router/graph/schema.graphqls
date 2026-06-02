@@ -1,6 +1,9 @@
-# Public GraphQL surface of the wundergraph-router POC.
+# Public GraphQL surface of the wundergraph-router POC — a Federation v2
+# subgraph fronted by the WunderGraph Cosmo router.
 # Covers what the document-uploader UI needs: workspaces, documents, presigned
 # upload, dispatch into the pipeline, and live per-document status.
+
+extend schema @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key"])
 
 type Workspace {
   id: ID!

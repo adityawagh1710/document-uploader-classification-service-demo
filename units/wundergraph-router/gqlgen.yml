@@ -17,3 +17,10 @@ resolver:
 
 omit_slice_element_pointers: true
 struct_tag: json
+
+# Federation v2 — makes this server an Apollo-Federation subgraph (exposes
+# _service{sdl} + _entities) so the WunderGraph Cosmo router can compose + front it.
+federation:
+  filename: graph/federation.go
+  package: graph
+  version: 2
