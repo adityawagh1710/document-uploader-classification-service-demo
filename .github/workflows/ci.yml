@@ -110,7 +110,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: cdk-out
-          path: cdk.out
+          path: units/classification-service/cdk.out
 
   cdk-nag:
     name: CDK Nag
@@ -156,7 +156,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: cdk-out
-          path: cdk.out
+          path: units/classification-service/cdk.out
       - run: bash scripts/verify-bundle.sh cdk.out
 
   test-smoke:
