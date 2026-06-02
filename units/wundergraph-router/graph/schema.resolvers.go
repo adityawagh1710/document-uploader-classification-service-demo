@@ -63,6 +63,7 @@ func (r *mutationResolver) ClassifyDocument(ctx context.Context, documentID stri
 	if err != nil {
 		return nil, err
 	}
+	r.Bus.Publish(d) // notify any documentStatusChanged subscribers
 	m := toDocument(d)
 	return &m, nil
 }

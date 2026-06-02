@@ -11,21 +11,17 @@ import (
 	contracts "github.com/opus2/docuploader/libs/pipeline-contracts/go"
 )
 
-// MemStore is an in-memory Store + StatusBus for local/POC use. P3 replaces it
-// with a DynamoDB-backed Store; the subscription bus stays in-process for the POC.
+// MemStore is an in-memory Store for local/POC use (P3 provides a DynamoDB-backed
+// Store behind the same interface). Status pub/sub lives in MemBus, separate so
+// both backends share one in-process subscription bus.
 type MemStore struct {
 	mu         sync.RWMutex
 	workspaces map[string]Workspace
 	documents  map[string]Document
-	subs       map[string][]chan Document
 }
 
 func NewMemStore() *MemStore {
-	return &MemStore{
-		workspaces: map[string]Workspace{},
-		documents:  map[string]Document{},
-		subs:       map[string][]chan Document{},
-	}
+	return &MemStore{workspaces: map[string]Workspace{}, documents: map[string]Document{}}
 }
 
 func (s *MemStore) CreateWorkspace(_ context.Context, retentionDays *int) (Workspace, error) {
@@ -80,22 +76,14 @@ func (s *MemStore) Document(_ context.Context, id string) (*Document, error) {
 
 func (s *MemStore) SetStatus(_ context.Context, id, status string, stage *string) (Document, error) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	d, ok := s.documents[id]
 	if !ok {
-		s.mu.Unlock()
 		return Document{}, fmt.Errorf("document %s not found", id)
 	}
 	d.Status = status
 	d.PipelineStage = stage
 	s.documents[id] = d
-	subs := append([]chan Document(nil), s.subs[id]...)
-	s.mu.Unlock()
-	for _, ch := range subs {
-		select {
-		case ch <- d:
-		default: // non-blocking: drop if the subscriber is slow
-		}
-	}
 	return d, nil
 }
 
@@ -105,21 +93,29 @@ func (s *MemStore) Stats(context.Context) (int, int, error) {
 	return len(s.workspaces), len(s.documents), nil
 }
 
-// --- StatusBus ---
+// MemBus is the in-process status pub/sub feeding the GraphQL subscription. The
+// router publishes on its own status changes; cross-process status (from a stage
+// via update-document-state) is a documented POC limitation.
+type MemBus struct {
+	mu   sync.RWMutex
+	subs map[string][]chan Document
+}
 
-func (s *MemStore) Subscribe(ctx context.Context, documentID string) <-chan Document {
+func NewMemBus() *MemBus { return &MemBus{subs: map[string][]chan Document{}} }
+
+func (b *MemBus) Subscribe(ctx context.Context, documentID string) <-chan Document {
 	ch := make(chan Document, 1)
-	s.mu.Lock()
-	s.subs[documentID] = append(s.subs[documentID], ch)
-	s.mu.Unlock()
+	b.mu.Lock()
+	b.subs[documentID] = append(b.subs[documentID], ch)
+	b.mu.Unlock()
 	go func() {
 		<-ctx.Done()
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		cur := s.subs[documentID]
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		cur := b.subs[documentID]
 		for i, c := range cur {
 			if c == ch {
-				s.subs[documentID] = append(cur[:i], cur[i+1:]...)
+				b.subs[documentID] = append(cur[:i], cur[i+1:]...)
 				close(ch)
 				break
 			}
@@ -128,12 +124,20 @@ func (s *MemStore) Subscribe(ctx context.Context, documentID string) <-chan Docu
 	return ch
 }
 
-func (s *MemStore) Publish(doc Document) {
-	_, _ = s.SetStatus(context.Background(), doc.ID, doc.Status, doc.PipelineStage)
+func (b *MemBus) Publish(doc Document) {
+	b.mu.RLock()
+	subs := append([]chan Document(nil), b.subs[doc.ID]...)
+	b.mu.RUnlock()
+	for _, ch := range subs {
+		select {
+		case ch <- doc:
+		default: // non-blocking: drop if the subscriber is slow
+		}
+	}
 }
 
 // StubUploader returns a fake presigned URL + a real claim-check pointer for
-// local/POC use (P3: real S3 presign).
+// the in-memory/no-AWS path (P3 S3Uploader does the real presign).
 type StubUploader struct{ Bucket string }
 
 func (u StubUploader) Presign(_ context.Context, tenantID, documentID, filename string) (string, contracts.ClaimCheck, error) {
@@ -142,13 +146,25 @@ func (u StubUploader) Presign(_ context.Context, tenantID, documentID, filename 
 	return url, contracts.ClaimCheck{Bucket: u.Bucket, Key: key}, nil
 }
 
-// LogDispatcher builds a real StageRequest envelope and logs it instead of
-// sending to SQS (P3: real SQS send). Validating here proves the contract holds.
+// LogDispatcher builds + validates a real StageRequest and logs it instead of
+// sending to SQS (P3 SQSDispatcher does the real send).
 type LogDispatcher struct{ Log *slog.Logger }
 
 func (d LogDispatcher) Dispatch(_ context.Context, stage contracts.StageName, tenantID string, doc Document, source contracts.ClaimCheck, traceparent string) error {
+	req := BuildStageRequest(stage, tenantID, doc, source, traceparent)
+	if err := req.Validate(); err != nil {
+		return fmt.Errorf("invalid StageRequest: %w", err)
+	}
+	d.Log.Info("dispatch StageRequest (stub; P3 sends to SQS)",
+		"stage", stage, "documentId", doc.ID, "bucket", source.Bucket, "key", source.Key)
+	return nil
+}
+
+// BuildStageRequest assembles a contract-valid StageRequest envelope. Shared by
+// the stub and the real SQS dispatcher so the wire shape is identical.
+func BuildStageRequest(stage contracts.StageName, tenantID string, doc Document, source contracts.ClaimCheck, traceparent string) contracts.StageRequest {
 	execID := uuid.NewString()
-	req := contracts.StageRequest{
+	return contracts.StageRequest{
 		Envelope: contracts.Envelope{
 			SchemaVersion:       contracts.SchemaVersion,
 			Kind:                contracts.KindStageRequest,
@@ -164,12 +180,6 @@ func (d LogDispatcher) Dispatch(_ context.Context, stage contracts.StageName, te
 		Options:        map[string]any{},
 		IdempotencyKey: fmt.Sprintf("%s:%s:%s", execID, stage, doc.ID),
 	}
-	if err := req.Validate(); err != nil {
-		return fmt.Errorf("invalid StageRequest: %w", err)
-	}
-	d.Log.Info("dispatch StageRequest (stub; P3 sends to SQS)",
-		"stage", stage, "documentId", doc.ID, "bucket", source.Bucket, "key", source.Key)
-	return nil
 }
 
 // NewTraceparent mints a W3C Trace Context header (POC; real flow propagates inbound).
