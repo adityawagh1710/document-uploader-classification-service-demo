@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1.7
+# ----------------------------------------------------------------------------
+# Synchronous classify HTTP endpoint (src/handler/http-server.ts). Same engine
+# as Dockerfile.lambda (shared composition), but a long-running Node server
+# instead of the Lambda runtime. The wundergraph-router calls POST /classify.
+# Build context = units/classification-service (package-lock.json must be here).
+# ----------------------------------------------------------------------------
+
+FROM node:20-alpine AS builder
+WORKDIR /build
+COPY package.json package-lock.json tsconfig.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
+COPY src ./src
+RUN npx tsc -p tsconfig.json
+RUN npm prune --omit=dev
+
+FROM node:20-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+# tsc preserves the src/ tree under dist/, so the entry is dist/handler/http-server.js.
+COPY --from=builder /build/dist ./dist
+COPY --from=builder /build/node_modules ./node_modules
+COPY --from=builder /build/package.json ./package.json
+EXPOSE 8091
+USER node
+CMD ["node", "dist/handler/http-server.js"]

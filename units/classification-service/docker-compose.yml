@@ -81,6 +81,28 @@ services:
       # Map host 9000 → RIE 8080 inside the AWS Lambda image.
       - "9000:8080"
 
+  # ── Synchronous classify endpoint ──────────────────────────────────────
+  # The wire surface the wundergraph-router's classify resolver calls. Same
+  # engine as the Lambda (shared composition), but request/response over HTTP.
+  classification-http:
+    image: classification-service-http:dev
+    build:
+      context: .
+      dockerfile: Dockerfile.http
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    environment:
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_REGION: eu-west-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      CONTENT_HASH_TABLE_NAME: content-hashes-ui
+      WORKSPACE_CONFIG_TABLE_NAME: workspace-config-ui
+      PORT: "8091"
+    ports:
+      - "8091:8091"
+
   ui:
     image: classification-service-ui:dev
     build:
