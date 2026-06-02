@@ -4,33 +4,14 @@ import { SFNClient } from "@aws-sdk/client-sfn";
 import { SQSClient } from "@aws-sdk/client-sqs";
 
 import { createDDBDocumentClient } from "../adapters/shared/dynamo-client.js";
-import { createDDBContentHashAdapter } from "../adapters/dynamo-content-hashes/index.js";
-import { createDDBWorkspaceConfigAdapter } from "../adapters/dynamo-workspace-config/index.js";
-import { createS3Adapter } from "../adapters/s3/index.js";
-import { createNodeCryptoHasher } from "../adapters/crypto/index.js";
 import { createStepFunctionAdapter } from "../adapters/step-functions/index.js";
 import { createSqsArchiveDispatcher } from "../adapters/sqs-archive-dispatcher/index.js";
 import { createPowertoolsLogger } from "../adapters/powertools/index.js";
 import type { ArchiveDispatcher } from "../ports/ArchiveDispatcher.js";
 
-import {
-  createTier1FileTypeDetector,
-} from "../domain/tier1-filetype/index.js";
-import {
-  createOLE2Parser,
-  createTier2OLE2Detector,
-} from "../domain/tier2-ole2/index.js";
-import {
-  createZIPMarkerParser,
-  createTier2ZIPDetector,
-} from "../domain/tier2-zip/index.js";
-import { createTier3TextDetector } from "../domain/tier3-text/index.js";
-import { createScorer } from "../domain/scoring/index.js";
-import { createCategoryMapper } from "../domain/categories/index.js";
-import { createSlipsheetDecider } from "../domain/slipsheet/index.js";
+import { composeClassificationService } from "./classification-service-factory.js";
 
 import {
-  createClassificationService,
   createInputValidator,
   mapFailureToErrorCode,
   isTransientOrThrottled,
@@ -74,7 +55,6 @@ const sfn = new SFNClient({ retryMode: "standard", maxAttempts: 3 });
 const logger = createPowertoolsLogger("classification-service", "documentId");
 
 const inputValidator = createInputValidator();
-const s3Adapter = createS3Adapter({ s3, logger });
 const taskSignaler = createStepFunctionAdapter({ sfn, logger });
 
 // Archive dispatch is optional: only wired when ZIP_EXTRACTION_QUEUE_URL is set.
@@ -89,30 +69,12 @@ const archiveDispatcher: ArchiveDispatcher | undefined =
       })
     : undefined;
 
-const classificationService = createClassificationService({
-  tier1: createTier1FileTypeDetector(),
-  tier2OLE2: createTier2OLE2Detector({ parser: createOLE2Parser() }),
-  tier2ZIP: createTier2ZIPDetector({ parser: createZIPMarkerParser() }),
-  tier3Text: createTier3TextDetector(),
-  scorer: createScorer(),
-  categoryMapper: createCategoryMapper(),
-  slipsheetDecider: createSlipsheetDecider(),
-  s3Reader: s3Adapter,
-  s3Streamer: s3Adapter,
-  hasher: createNodeCryptoHasher(),
-  contentHashStore: createDDBContentHashAdapter({
-    ddb,
-    tableName: requireEnv("CONTENT_HASH_TABLE_NAME"),
-    logger,
-  }),
-  workspaceConfigStore: createDDBWorkspaceConfigAdapter({
-    ddb,
-    tableName: requireEnv("WORKSPACE_CONFIG_TABLE_NAME"),
-    logger,
-  }),
+const classificationService = composeClassificationService({
+  s3,
+  ddb,
   logger,
-  nowProvider: () => new Date().toISOString(),
-  policyVersionExtractor: (config) => config.policyVersion,
+  contentHashTableName: requireEnv("CONTENT_HASH_TABLE_NAME"),
+  workspaceConfigTableName: requireEnv("WORKSPACE_CONFIG_TABLE_NAME"),
 });
 
 // --- Lambda handler (Pattern P-3-7) ------------------------------------
