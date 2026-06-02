@@ -298,11 +298,49 @@ flowchart TB
     class CI sys;
 ```
 
+## View 5 · Request vs status — the UI only talks to ingestion
+
+A common mix-up: it's **not** "all services → ingestion → UI". The **UI is the entry
+point** and **ingestion (Go/GraphQL) is the gateway that dispatches *out* to the stage
+services**. Services never call ingestion; their status returns via the
+`update-document-state` Lambda → DynamoDB, which ingestion reads and the UI subscribes to.
+
+```mermaid
+flowchart LR
+    UI["React UI"]
+    ING["ingestion router<br/>(Go · gqlgen GraphQL)"]
+    SVC["stage services<br/>classification · zip · office · ocr · …"]
+    SU["update-document-state<br/>(Lambda)"]
+    DDB[("Document Status<br/>(DynamoDB)")]
+    S3[("S3 · claim-check")]
+
+    UI ==>|"1 · GraphQL: upload / classify"| ING
+    ING ==>|"2 · SQS StageRequest"| SVC
+    SVC -. "heavy bytes" .- S3
+    SVC -->|"3 · StageStatusUpdate"| SU
+    SU --> DDB
+    DDB -->|"4 · read status"| ING
+    ING -.->|"5 · statusChanged (subscription)"| UI
+
+    classDef ui fill:#d7f5dd,color:#0b3d1f,stroke:#1a7f37;
+    classDef gw fill:#1f6feb,color:#fff,stroke:#0b3d91;
+    classDef svc fill:#2bb3e0,color:#fff,stroke:#127a9e;
+    classDef store fill:#0a4d68,color:#fff,stroke:#063;
+    class UI ui;
+    class ING gw;
+    class SVC,SU svc;
+    class DDB,S3 store;
+```
+
+**Solid `==>` (1–2)** = request/dispatch, downstream: `UI → ingestion → services`.
+**`-->`/`-.->` (3–5)** = status/result, upstream via Lambda+DynamoDB back through ingestion to the UI.
+The UI never talks to a stage service directly.
+
 ## How to read it
 
 | Element | Meaning |
 |---|---|
-| **View 1 · 2 · 2b · 3 · 4** | Build time (repo → library → vendored into images → ECR); runtime (Pods exchanging the wire envelope); **(2b) a real document's journey from upload to final searchable PDF**; execution flow (where each contract is touched); contract family + the path into AI-DLC bootstrap. |
+| **View 1 · 2 · 2b · 3 · 4 · 5** | Build time (repo → library → vendored into images → ECR); runtime (Pods exchanging the wire envelope); **(2b) a real document's journey from upload to final searchable PDF**; execution flow (where each contract is touched); contract family + the path into AI-DLC bootstrap; **(5) request vs status — UI ↔ ingestion ↔ services**. |
 | Amber `WIRE` block | The contract is **embedded in every image**, not a lane you call into. It governs message shape only. |
 | `==>` build edges | `codegen → compile into image` — the contract is folded into the artifact, not linked at runtime. |
 | Per-image **ECR** | Each containerized unit → its own image → its own ECR repo, tagged & rolled independently. |
