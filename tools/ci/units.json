@@ -1,0 +1,22 @@
+{
+  "_comment": "Path->unit->artifact map for path-filtered CI. Change a unit path -> build only that unit; change libs/** -> rebuild all consumers.",
+  "units": [
+    {
+      "id": "classification-service",
+      "path": "units/classification-service",
+      "lang": "ts",
+      "build": "npm ci && npm run build",
+      "images": ["classification-service-ui", "classification-lambda"]
+    },
+    {
+      "id": "wundergraph-router",
+      "path": "units/wundergraph-router",
+      "lang": "go",
+      "build": "go build ./...",
+      "images": ["wundergraph-router"]
+    }
+  ],
+  "libs": [
+    { "id": "pipeline-contracts", "path": "libs/pipeline-contracts", "rebuildAllConsumersOnChange": true }
+  ]
+}
