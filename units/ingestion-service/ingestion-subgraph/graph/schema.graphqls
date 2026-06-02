@@ -5,6 +5,9 @@
 
 extend schema @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key"])
 
+"Arbitrary string->string map (slipsheet rules). gqlgen binds to map[string]any."
+scalar Map
+
 type Workspace {
   id: ID!
   status: String!
@@ -29,6 +32,17 @@ type CreateDocumentResult {
 type Stats {
   workspaces: Int!
   documents: Int!
+}
+
+"Per-workspace classification policy (the workspace-config the classifier reads)."
+type WorkspaceConfig {
+  workspaceId: ID!
+  policyVersion: String!
+  threshold: Float!
+  maxZipDepth: Int!
+  quarantineMacros: Boolean!
+  slipsheetRules: Map!
+  hashTtlDays: Int
 }
 
 "Synchronous classification result (from the classification service /classify)."
@@ -56,11 +70,25 @@ input CreateDocumentInput {
   contentType: String
 }
 
+input WorkspaceConfigInput {
+  workspaceId: ID!
+  policyVersion: String
+  threshold: Float
+  maxZipDepth: Int
+  quarantineMacros: Boolean
+  slipsheetRules: Map
+  hashTtlDays: Int
+}
+
 type Query {
   workspaces: [Workspace!]!
   documents(workspaceId: ID!): [Document!]!
   document(id: ID!): Document
   stats: Stats!
+  "The classification policy for a workspace (null if none saved yet)."
+  workspaceConfig(workspaceId: ID!): WorkspaceConfig
+  "All saved workspace configs."
+  workspaceConfigs: [WorkspaceConfig!]!
 }
 
 type Mutation {
@@ -70,6 +98,8 @@ type Mutation {
   classifyDocument(documentId: ID!): Document!
   "Synchronously classify an uploaded document via the classification service."
   classify(documentId: ID!): ClassificationResult!
+  "Create or update a workspace's classification policy."
+  saveWorkspaceConfig(input: WorkspaceConfigInput!): WorkspaceConfig!
 }
 
 type Subscription {

@@ -68,16 +68,19 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		Classify         func(childComplexity int, documentID string) int
-		ClassifyDocument func(childComplexity int, documentID string) int
-		CreateDocument   func(childComplexity int, input model.CreateDocumentInput) int
-		CreateWorkspace  func(childComplexity int, input model.CreateWorkspaceInput) int
+		Classify            func(childComplexity int, documentID string) int
+		ClassifyDocument    func(childComplexity int, documentID string) int
+		CreateDocument      func(childComplexity int, input model.CreateDocumentInput) int
+		CreateWorkspace     func(childComplexity int, input model.CreateWorkspaceInput) int
+		SaveWorkspaceConfig func(childComplexity int, input model.WorkspaceConfigInput) int
 	}
 
 	Query struct {
 		Document           func(childComplexity int, id string) int
 		Documents          func(childComplexity int, workspaceID string) int
 		Stats              func(childComplexity int) int
+		WorkspaceConfig    func(childComplexity int, workspaceID string) int
+		WorkspaceConfigs   func(childComplexity int) int
 		Workspaces         func(childComplexity int) int
 		__resolve__service func(childComplexity int) int
 	}
@@ -97,6 +100,16 @@ type ComplexityRoot struct {
 		Status        func(childComplexity int) int
 	}
 
+	WorkspaceConfig struct {
+		HashTTLDays      func(childComplexity int) int
+		MaxZipDepth      func(childComplexity int) int
+		PolicyVersion    func(childComplexity int) int
+		QuarantineMacros func(childComplexity int) int
+		SlipsheetRules   func(childComplexity int) int
+		Threshold        func(childComplexity int) int
+		WorkspaceID      func(childComplexity int) int
+	}
+
 	_Service struct {
 		SDL func(childComplexity int) int
 	}
@@ -107,12 +120,15 @@ type MutationResolver interface {
 	CreateDocument(ctx context.Context, input model.CreateDocumentInput) (*model.CreateDocumentResult, error)
 	ClassifyDocument(ctx context.Context, documentID string) (*model.Document, error)
 	Classify(ctx context.Context, documentID string) (*model.ClassificationResult, error)
+	SaveWorkspaceConfig(ctx context.Context, input model.WorkspaceConfigInput) (*model.WorkspaceConfig, error)
 }
 type QueryResolver interface {
 	Workspaces(ctx context.Context) ([]model.Workspace, error)
 	Documents(ctx context.Context, workspaceID string) ([]model.Document, error)
 	Document(ctx context.Context, id string) (*model.Document, error)
 	Stats(ctx context.Context) (*model.Stats, error)
+	WorkspaceConfig(ctx context.Context, workspaceID string) (*model.WorkspaceConfig, error)
+	WorkspaceConfigs(ctx context.Context) ([]model.WorkspaceConfig, error)
 }
 type SubscriptionResolver interface {
 	DocumentStatusChanged(ctx context.Context, documentID string) (<-chan *model.Document, error)
@@ -293,6 +309,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateWorkspace(childComplexity, args["input"].(model.CreateWorkspaceInput)), true
+	case "Mutation.saveWorkspaceConfig":
+		if e.ComplexityRoot.Mutation.SaveWorkspaceConfig == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_saveWorkspaceConfig_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SaveWorkspaceConfig(childComplexity, args["input"].(model.WorkspaceConfigInput)), true
 
 	case "Query.document":
 		if e.ComplexityRoot.Query.Document == nil {
@@ -323,6 +350,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Stats(childComplexity), true
+	case "Query.workspaceConfig":
+		if e.ComplexityRoot.Query.WorkspaceConfig == nil {
+			break
+		}
+
+		args, err := ec.field_Query_workspaceConfig_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.WorkspaceConfig(childComplexity, args["workspaceId"].(string)), true
+	case "Query.workspaceConfigs":
+		if e.ComplexityRoot.Query.WorkspaceConfigs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.WorkspaceConfigs(childComplexity), true
 	case "Query.workspaces":
 		if e.ComplexityRoot.Query.Workspaces == nil {
 			break
@@ -380,6 +424,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Workspace.Status(childComplexity), true
 
+	case "WorkspaceConfig.hashTtlDays":
+		if e.ComplexityRoot.WorkspaceConfig.HashTTLDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkspaceConfig.HashTTLDays(childComplexity), true
+	case "WorkspaceConfig.maxZipDepth":
+		if e.ComplexityRoot.WorkspaceConfig.MaxZipDepth == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkspaceConfig.MaxZipDepth(childComplexity), true
+	case "WorkspaceConfig.policyVersion":
+		if e.ComplexityRoot.WorkspaceConfig.PolicyVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkspaceConfig.PolicyVersion(childComplexity), true
+	case "WorkspaceConfig.quarantineMacros":
+		if e.ComplexityRoot.WorkspaceConfig.QuarantineMacros == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkspaceConfig.QuarantineMacros(childComplexity), true
+	case "WorkspaceConfig.slipsheetRules":
+		if e.ComplexityRoot.WorkspaceConfig.SlipsheetRules == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkspaceConfig.SlipsheetRules(childComplexity), true
+	case "WorkspaceConfig.threshold":
+		if e.ComplexityRoot.WorkspaceConfig.Threshold == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkspaceConfig.Threshold(childComplexity), true
+	case "WorkspaceConfig.workspaceId":
+		if e.ComplexityRoot.WorkspaceConfig.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkspaceConfig.WorkspaceID(childComplexity), true
+
 	case "_Service.sdl":
 		if e.ComplexityRoot._Service.SDL == nil {
 			break
@@ -397,6 +484,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputCreateDocumentInput,
 		ec.unmarshalInputCreateWorkspaceInput,
+		ec.unmarshalInputWorkspaceConfigInput,
 	)
 	first := true
 
@@ -646,6 +734,26 @@ func (ec *executionContext) childFields_Workspace(ctx context.Context, field gra
 	return nil, fmt.Errorf("no field named %q was found under type Workspace", field.Name)
 }
 
+func (ec *executionContext) childFields_WorkspaceConfig(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "workspaceId":
+		return ec.fieldContext_WorkspaceConfig_workspaceId(ctx, field)
+	case "policyVersion":
+		return ec.fieldContext_WorkspaceConfig_policyVersion(ctx, field)
+	case "threshold":
+		return ec.fieldContext_WorkspaceConfig_threshold(ctx, field)
+	case "maxZipDepth":
+		return ec.fieldContext_WorkspaceConfig_maxZipDepth(ctx, field)
+	case "quarantineMacros":
+		return ec.fieldContext_WorkspaceConfig_quarantineMacros(ctx, field)
+	case "slipsheetRules":
+		return ec.fieldContext_WorkspaceConfig_slipsheetRules(ctx, field)
+	case "hashTtlDays":
+		return ec.fieldContext_WorkspaceConfig_hashTtlDays(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type WorkspaceConfig", field.Name)
+}
+
 func (ec *executionContext) childFields__Service(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "sdl":
@@ -826,6 +934,20 @@ func (ec *executionContext) field_Mutation_createWorkspace_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_saveWorkspaceConfig_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.WorkspaceConfigInput, error) {
+			return ec.unmarshalNWorkspaceConfigInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspaceConfigInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -855,6 +977,20 @@ func (ec *executionContext) field_Query_document_args(ctx context.Context, rawAr
 }
 
 func (ec *executionContext) field_Query_documents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "workspaceId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["workspaceId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_workspaceConfig_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "workspaceId",
@@ -1568,6 +1704,50 @@ func (ec *executionContext) fieldContext_Mutation_classify(ctx context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_saveWorkspaceConfig(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_saveWorkspaceConfig(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SaveWorkspaceConfig(ctx, fc.Args["input"].(model.WorkspaceConfigInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.WorkspaceConfig) graphql.Marshaler {
+			return ec.marshalNWorkspaceConfig2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspaceConfig(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_saveWorkspaceConfig(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WorkspaceConfig(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_saveWorkspaceConfig_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_workspaces(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1715,6 +1895,82 @@ func (ec *executionContext) fieldContext_Query_stats(_ context.Context, field gr
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Stats(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_workspaceConfig(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_workspaceConfig(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().WorkspaceConfig(ctx, fc.Args["workspaceId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.WorkspaceConfig) graphql.Marshaler {
+			return ec.marshalOWorkspaceConfig2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspaceConfig(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_workspaceConfig(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WorkspaceConfig(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_workspaceConfig_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_workspaceConfigs(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_workspaceConfigs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().WorkspaceConfigs(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []model.WorkspaceConfig) graphql.Marshaler {
+			return ec.marshalNWorkspaceConfig2ᚕgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspaceConfigᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_workspaceConfigs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WorkspaceConfig(ctx, field)
 		},
 	}
 	return fc, nil
@@ -1985,6 +2241,167 @@ func (ec *executionContext) _Workspace_retentionDays(ctx context.Context, field 
 }
 func (ec *executionContext) fieldContext_Workspace_retentionDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Workspace", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _WorkspaceConfig_workspaceId(ctx context.Context, field graphql.CollectedField, obj *model.WorkspaceConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WorkspaceConfig_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WorkspaceConfig_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WorkspaceConfig", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _WorkspaceConfig_policyVersion(ctx context.Context, field graphql.CollectedField, obj *model.WorkspaceConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WorkspaceConfig_policyVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PolicyVersion, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WorkspaceConfig_policyVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WorkspaceConfig", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WorkspaceConfig_threshold(ctx context.Context, field graphql.CollectedField, obj *model.WorkspaceConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WorkspaceConfig_threshold(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Threshold, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WorkspaceConfig_threshold(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WorkspaceConfig", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _WorkspaceConfig_maxZipDepth(ctx context.Context, field graphql.CollectedField, obj *model.WorkspaceConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WorkspaceConfig_maxZipDepth(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MaxZipDepth, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WorkspaceConfig_maxZipDepth(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WorkspaceConfig", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _WorkspaceConfig_quarantineMacros(ctx context.Context, field graphql.CollectedField, obj *model.WorkspaceConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WorkspaceConfig_quarantineMacros(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.QuarantineMacros, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WorkspaceConfig_quarantineMacros(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WorkspaceConfig", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _WorkspaceConfig_slipsheetRules(ctx context.Context, field graphql.CollectedField, obj *model.WorkspaceConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WorkspaceConfig_slipsheetRules(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SlipsheetRules, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v map[string]any) graphql.Marshaler {
+			return ec.marshalNMap2map(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WorkspaceConfig_slipsheetRules(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WorkspaceConfig", field, false, false, errors.New("field of type Map does not have child fields"))
+}
+
+func (ec *executionContext) _WorkspaceConfig_hashTtlDays(ctx context.Context, field graphql.CollectedField, obj *model.WorkspaceConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WorkspaceConfig_hashTtlDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HashTTLDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_WorkspaceConfig_hashTtlDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WorkspaceConfig", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) __Service_sdl(ctx context.Context, field graphql.CollectedField, obj *fedruntime.Service) (ret graphql.Marshaler) {
@@ -3143,6 +3560,78 @@ func (ec *executionContext) unmarshalInputCreateWorkspaceInput(ctx context.Conte
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputWorkspaceConfigInput(ctx context.Context, obj any) (model.WorkspaceConfigInput, error) {
+	var it model.WorkspaceConfigInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"workspaceId", "policyVersion", "threshold", "maxZipDepth", "quarantineMacros", "slipsheetRules", "hashTtlDays"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "workspaceId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workspaceId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WorkspaceID = data
+		case "policyVersion":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("policyVersion"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PolicyVersion = data
+		case "threshold":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("threshold"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Threshold = data
+		case "maxZipDepth":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxZipDepth"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxZipDepth = data
+		case "quarantineMacros":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quarantineMacros"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.QuarantineMacros = data
+		case "slipsheetRules":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("slipsheetRules"))
+			data, err := ec.unmarshalOMap2map(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SlipsheetRules = data
+		case "hashTtlDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hashTtlDays"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HashTTLDays = data
+		}
+	}
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -3389,6 +3878,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "saveWorkspaceConfig":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_saveWorkspaceConfig(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3504,6 +4000,47 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_stats(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "workspaceConfig":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_workspaceConfig(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "workspaceConfigs":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_workspaceConfigs(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -3656,6 +4193,72 @@ func (ec *executionContext) _Workspace(ctx context.Context, sel ast.SelectionSet
 			}
 		case "retentionDays":
 			out.Values[i] = ec._Workspace_retentionDays(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var workspaceConfigImplementors = []string{"WorkspaceConfig"}
+
+func (ec *executionContext) _WorkspaceConfig(ctx context.Context, sel ast.SelectionSet, obj *model.WorkspaceConfig) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, workspaceConfigImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WorkspaceConfig")
+		case "workspaceId":
+			out.Values[i] = ec._WorkspaceConfig_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "policyVersion":
+			out.Values[i] = ec._WorkspaceConfig_policyVersion(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "threshold":
+			out.Values[i] = ec._WorkspaceConfig_threshold(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "maxZipDepth":
+			out.Values[i] = ec._WorkspaceConfig_maxZipDepth(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "quarantineMacros":
+			out.Values[i] = ec._WorkspaceConfig_quarantineMacros(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "slipsheetRules":
+			out.Values[i] = ec._WorkspaceConfig_slipsheetRules(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hashTtlDays":
+			out.Values[i] = ec._WorkspaceConfig_hashTtlDays(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4198,6 +4801,28 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
+func (ec *executionContext) unmarshalNMap2map(ctx context.Context, v any) (map[string]any, error) {
+	res, err := graphql.UnmarshalMap(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMap2map(ctx context.Context, sel ast.SelectionSet, v map[string]any) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	_ = sel
+	res := graphql.MarshalMap(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
 func (ec *executionContext) marshalNStats2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐStats(ctx context.Context, sel ast.SelectionSet, v model.Stats) graphql.Marshaler {
 	return ec._Stats(ctx, sel, &v)
 }
@@ -4256,6 +4881,41 @@ func (ec *executionContext) marshalNWorkspace2ᚖgithubᚗcomᚋopus2ᚋdocuploa
 		return graphql.Null
 	}
 	return ec._Workspace(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWorkspaceConfig2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspaceConfig(ctx context.Context, sel ast.SelectionSet, v model.WorkspaceConfig) graphql.Marshaler {
+	return ec._WorkspaceConfig(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNWorkspaceConfig2ᚕgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspaceConfigᚄ(ctx context.Context, sel ast.SelectionSet, v []model.WorkspaceConfig) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNWorkspaceConfig2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspaceConfig(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWorkspaceConfig2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspaceConfig(ctx context.Context, sel ast.SelectionSet, v *model.WorkspaceConfig) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WorkspaceConfig(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNWorkspaceConfigInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspaceConfigInput(ctx context.Context, v any) (model.WorkspaceConfigInput, error) {
+	res, err := ec.unmarshalInputWorkspaceConfigInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalN_Service2githubᚗcomᚋ99designsᚋgqlgenᚋpluginᚋfederationᚋfedruntimeᚐService(ctx context.Context, sel ast.SelectionSet, v fedruntime.Service) graphql.Marshaler {
@@ -4592,6 +5252,23 @@ func (ec *executionContext) marshalODocument2ᚖgithubᚗcomᚋopus2ᚋdocupload
 	return ec._Document(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalOFloat2ᚖfloat64(ctx context.Context, v any) (*float64, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalFloatContext(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOFloat2ᚖfloat64(ctx context.Context, sel ast.SelectionSet, v *float64) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	res := graphql.MarshalFloatContext(*v)
+	return graphql.WrapContextMarshaler(ctx, res)
+}
+
 func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v any) (*int, error) {
 	if v == nil {
 		return nil, nil
@@ -4607,6 +5284,24 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalInt(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOMap2map(ctx context.Context, v any) (map[string]any, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalMap(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOMap2map(ctx context.Context, sel ast.SelectionSet, v map[string]any) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalMap(v)
 	return res
 }
 
@@ -4674,6 +5369,13 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	_ = ctx
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOWorkspaceConfig2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐWorkspaceConfig(ctx context.Context, sel ast.SelectionSet, v *model.WorkspaceConfig) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._WorkspaceConfig(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {

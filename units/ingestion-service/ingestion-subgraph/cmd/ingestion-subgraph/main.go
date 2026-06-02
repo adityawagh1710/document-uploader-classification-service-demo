@@ -37,9 +37,10 @@ func main() {
 	backend := strings.ToLower(getenv("BACKEND", "memory"))
 
 	var (
-		store      app.Store
-		uploader   app.Uploader
-		dispatcher app.Dispatcher
+		store       app.Store
+		uploader    app.Uploader
+		dispatcher  app.Dispatcher
+		configStore app.WorkspaceConfigStore
 	)
 	bus := app.NewMemBus()
 
@@ -59,11 +60,13 @@ func main() {
 			getenv("DOCUMENTS_TABLE_NAME", "documents-ui"))
 		uploader = awsadapters.NewS3Uploader(cfg, opts, bucket)
 		dispatcher = awsadapters.NewSQSDispatcher(cfg, opts, stageQueues())
+		configStore = awsadapters.NewDynamoConfigStore(cfg, opts, getenv("WORKSPACE_CONFIG_TABLE_NAME", "workspace-config-ui"))
 		logger.Info("backend=aws", "endpoint", opts.Endpoint, "region", opts.Region, "localstack", opts.LocalStackMode())
 	default:
 		store = app.NewMemStore()
 		uploader = app.StubUploader{Bucket: bucket}
 		dispatcher = app.LogDispatcher{Log: logger}
+		configStore = app.NewMemConfigStore()
 		logger.Info("backend=memory (stub presign + logging dispatcher)")
 	}
 
@@ -79,7 +82,8 @@ func main() {
 
 	resolver := &graph.Resolver{
 		Store: store, Uploader: uploader, Dispatcher: dispatcher,
-		Bus: bus, Classifier: classifier, Log: logger, Tenant: tenant,
+		Bus: bus, Classifier: classifier, WorkspaceConfigStore: configStore,
+		Log: logger, Tenant: tenant,
 	}
 
 	srv := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
