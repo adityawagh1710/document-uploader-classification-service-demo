@@ -146,6 +146,24 @@ func (u StubUploader) Presign(_ context.Context, tenantID, documentID, filename 
 	return url, contracts.ClaimCheck{Bucket: u.Bucket, Key: key}, nil
 }
 
+// StubClassifier returns a canned result for the no-classification-service path
+// (BACKEND=memory without CLASSIFY_URL). The real classifierhttp.Client POSTs to
+// the classification /classify endpoint.
+type StubClassifier struct{}
+
+func (StubClassifier) Classify(_ context.Context, workspaceID, documentID string, _ contracts.ClaimCheck, _ string, _ string) (ClassificationResult, error) {
+	return ClassificationResult{
+		DocumentID:      documentID,
+		WorkspaceID:     workspaceID,
+		Format:          "txt",
+		Category:        "convert",
+		ConfidenceScore: 0.75,
+		DetectionTier:   "stub",
+		ContentHash:     "stub-no-classification-service",
+		PolicyVersion:   "v1",
+	}, nil
+}
+
 // LogDispatcher builds + validates a real StageRequest and logs it instead of
 // sending to SQS (P3 SQSDispatcher does the real send).
 type LogDispatcher struct{ Log *slog.Logger }

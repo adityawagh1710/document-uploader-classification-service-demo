@@ -53,3 +53,26 @@ type StatusBus interface {
 	Subscribe(ctx context.Context, documentID string) <-chan Document
 	Publish(doc Document)
 }
+
+// ClassificationResult mirrors the classification service's ClassificationOutput
+// (the response from its sync /classify endpoint), flattened for the GraphQL model.
+type ClassificationResult struct {
+	DocumentID        string
+	WorkspaceID       string
+	Format            string
+	Category          string
+	SubCategory       *string
+	ConfidenceScore   float64
+	DetectionTier     string
+	IsForcedSlipsheet bool
+	ContentHash       string
+	IsDuplicate       bool
+	PolicyVersion     string
+}
+
+// Classifier runs a synchronous classification for an already-uploaded document.
+// The real implementation (internal/classifierhttp) POSTs to the classification
+// service's /classify endpoint; the stub returns a canned result for BACKEND=memory.
+type Classifier interface {
+	Classify(ctx context.Context, workspaceID, documentID string, source contracts.ClaimCheck, extension, contentType string) (ClassificationResult, error)
+}

@@ -31,6 +31,21 @@ type Stats {
   documents: Int!
 }
 
+"Synchronous classification result (from the classification service /classify)."
+type ClassificationResult {
+  documentId: ID!
+  workspaceId: ID!
+  format: String!
+  category: String!
+  subCategory: String
+  confidenceScore: Float!
+  detectionTier: String!
+  isForcedSlipsheet: Boolean!
+  contentHash: String!
+  isDuplicate: Boolean!
+  policyVersion: String!
+}
+
 input CreateWorkspaceInput {
   retentionDays: Int
 }
@@ -53,6 +68,8 @@ type Mutation {
   createDocument(input: CreateDocumentInput!): CreateDocumentResult!
   "Dispatch a document into the pipeline (claim-check + StageRequest to classify)."
   classifyDocument(documentId: ID!): Document!
+  "Synchronously classify an uploaded document via the classification service."
+  classify(documentId: ID!): ClassificationResult!
 }
 
 type Subscription {
