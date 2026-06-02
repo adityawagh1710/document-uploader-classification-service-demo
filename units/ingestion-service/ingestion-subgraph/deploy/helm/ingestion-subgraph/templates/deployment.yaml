@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingestion-subgraph
+  namespace: {{ include "ingestion-subgraph.namespace" . }}
+  labels:
+    {{- include "ingestion-subgraph.labels" . | nindent 4 }}
+    {{- include "ingestion-subgraph.selector" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  # Stateless request/response → RollingUpdate (unlike the convert-worker poller's Recreate).
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "ingestion-subgraph.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ingestion-subgraph.selector" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ingestion-subgraph.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: router
+          image: {{ include "ingestion-subgraph.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          envFrom:
+            - configMapRef:
+                name: ingestion-subgraph-config
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

@@ -1,0 +1,64 @@
+# Defaults for ingestion-subgraph. Required at install (no defaults):
+#   --set image.repository=537462380503.dkr.ecr.eu-west-1.amazonaws.com/classification-service-sandbox/ingestion-subgraph
+#   --set image.tag=<git-sha>
+#   --set serviceAccount.roleArn=arn:aws:iam::537462380503:role/ingestion-subgraph-irsa
+#   --set router.queueClassify=https://sqs.eu-west-1.amazonaws.com/537462380503/classification-classify-queue-dev
+
+namespace:
+  create: false
+  name: classification-service-sandbox
+
+image:
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Stateless request/response → multiple replicas + RollingUpdate.
+replicaCount: 2
+
+serviceAccount:
+  create: true
+  # MUST match the IRSA trust policy's system:serviceaccount:<ns>:<name>.
+  name: ingestion-subgraph
+  # IRSA role ARN. REQUIRED in aws mode on dev05; empty in LocalStack-mode dev loop.
+  roleArn: ""
+
+service:
+  port: 8080
+
+router:
+  backend: "aws"                 # memory | aws
+  awsRegion: "eu-west-1"
+  awsEndpointUrl: ""             # empty on dev05 (regional); http://localstack:4566 locally
+  stagingBucket: "classification-ui-dev05"
+  workspacesTableName: "workspaces-dev"
+  documentsTableName: "documents-dev"
+  queueClassify: ""              # SQS URL of the classify queue (required in aws mode)
+  defaultTenantId: "tenant-dev"
+  corsOrigin: "*"                # tighten to the UI origin on dev05
+  logLevel: "info"
+
+# Guaranteed-QoS pod (requests == limits), per the platform standard.
+resources:
+  requests: { cpu: "100m", memory: "128Mi" }
+  limits: { cpu: "100m", memory: "128Mi" }
+
+# HTTP service → httpGet probes on /healthz (unlike the convert-worker poller's exec probe).
+readinessProbe:
+  httpGet: { path: /healthz, port: 8080 }
+  initialDelaySeconds: 3
+  periodSeconds: 10
+livenessProbe:
+  httpGet: { path: /healthz, port: 8080 }
+  initialDelaySeconds: 5
+  periodSeconds: 15
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]

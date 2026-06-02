@@ -13,7 +13,9 @@ libs/
   pipeline-contracts/go             shared wire contract (baked into Go units)
 units/
   classification-service/           TS service: src + worker + ui + infra(CDK) + tests
-  wundergraph-router/               Go ingestion front door (gqlgen GraphQL over the contract)
+  ingestion-service/                ingestion front door (sidecar-pair Pod):
+    wundergraph-router/             pulled Cosmo gateway (federates the subgraph)
+    ingestion-subgraph/             Go gqlgen Federation v2 server over the contract
 tools/ci/units.json                 path -> unit -> image map (path-filtered CI)
 pnpm-workspace.yaml                 TS workspace (classification-service + ui)
                                     (Go units are standalone modules; each resolves libs/* via a replace directive — go.work omitted due to a machine GOFLAGS=-mod=mod conflict)
@@ -27,7 +29,7 @@ another unit.
 
 | Unit | Commands |
 |---|---|
-| `units/wundergraph-router` (Go) | `go build ./... && go test ./...`; local: `deploy/local/docker-compose.yml` (see its README) |
+| `units/ingestion-service` (Go) | `cd ingestion-subgraph && go build ./... && go test ./...`; local: `ingestion-subgraph/deploy/local/docker-compose.yml`; gateway: `wundergraph-router/docker-compose.yml` (see its README) |
 | `units/classification-service` (TS) | `npm ci && npm run build && npm run cdk:synth`; UI: `cd ui && npm run build` |
 
 ## Plans / status
