@@ -1,0 +1,58 @@
+# Public GraphQL surface of the wundergraph-router POC.
+# Covers what the document-uploader UI needs: workspaces, documents, presigned
+# upload, dispatch into the pipeline, and live per-document status.
+
+type Workspace {
+  id: ID!
+  status: String!
+  retentionDays: Int
+}
+
+type Document {
+  id: ID!
+  workspaceId: ID!
+  filename: String!
+  contentType: String!
+  status: String!
+  pipelineStage: String
+}
+
+type CreateDocumentResult {
+  document: Document!
+  "Presigned PUT URL — client uploads bytes directly to S3 (claim-check)."
+  uploadUrl: String!
+}
+
+type Stats {
+  workspaces: Int!
+  documents: Int!
+}
+
+input CreateWorkspaceInput {
+  retentionDays: Int
+}
+
+input CreateDocumentInput {
+  workspaceId: ID!
+  filename: String!
+  contentType: String
+}
+
+type Query {
+  workspaces: [Workspace!]!
+  documents(workspaceId: ID!): [Document!]!
+  document(id: ID!): Document
+  stats: Stats!
+}
+
+type Mutation {
+  createWorkspace(input: CreateWorkspaceInput!): Workspace!
+  createDocument(input: CreateDocumentInput!): CreateDocumentResult!
+  "Dispatch a document into the pipeline (claim-check + StageRequest to classify)."
+  classifyDocument(documentId: ID!): Document!
+}
+
+type Subscription {
+  "Live status transitions for a document (graphql-transport-ws)."
+  documentStatusChanged(documentId: ID!): Document!
+}
