@@ -9,11 +9,12 @@
       "images": ["classification-service-ui", "classification-lambda"]
     },
     {
-      "id": "wundergraph-router",
-      "path": "units/wundergraph-router",
+      "id": "ingestion-service",
+      "path": "units/ingestion-service",
       "lang": "go",
-      "build": "go build ./...",
-      "images": ["wundergraph-router"]
+      "build": "cd ingestion-subgraph && go build ./...",
+      "images": ["ingestion-subgraph"],
+      "_note": "Sidecar-pair Pod: ingestion-subgraph is built here; wundergraph-router is the pulled Cosmo gateway (no source build)."
     }
   ],
   "libs": [

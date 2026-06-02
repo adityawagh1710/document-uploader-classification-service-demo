@@ -4,6 +4,6 @@
 /aidlc-docs/                      @architects
 /libs/                            @platform
 /libs/pipeline-contracts/         @platform-network-and-compute
-/units/wundergraph-router/        @ingestion
+/units/ingestion-service/         @ingestion
 /units/classification-service/    @classification
 /tools/ci/                        @platform

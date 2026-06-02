@@ -1,6 +1,6 @@
 # pnpm workspace for the document-uploader monorepo (TS units).
-# Go units (units/wundergraph-router, libs/pipeline-contracts/go) are managed by
-# go.work, not pnpm.
+# Go units (units/ingestion-service/ingestion-subgraph, libs/pipeline-contracts/go)
+# are managed by per-unit go.mod, not pnpm.
 #
 # Migration note: the TS units still carry npm package-lock.json (verified
 # working). To complete the pnpm migration run, at repo root:
