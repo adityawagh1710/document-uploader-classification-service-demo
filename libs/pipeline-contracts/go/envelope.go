@@ -125,8 +125,8 @@ type StageStatusUpdate struct {
 	Envelope
 	Stage   StageName      `json:"stage"`
 	Status  StatusValue    `json:"status"`
-	Outputs []ClaimCheck   `json:"outputs"`
-	Error   *ErrorEnvelope `json:"error"`
+	Outputs []ClaimCheck   `json:"outputs,omitempty"`
+	Error   *ErrorEnvelope `json:"error,omitempty"`
 }
 
 // ---- validation + version compatibility ------------------------------------
