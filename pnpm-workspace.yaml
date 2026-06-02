@@ -9,4 +9,4 @@
 # avoid destabilising the just-verified build.
 packages:
   - "units/classification-service"
-  - "units/classification-service/ui"
+  - "units/document-uploader-ui"

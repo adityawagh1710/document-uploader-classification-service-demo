@@ -6,7 +6,15 @@
       "path": "units/classification-service",
       "lang": "ts",
       "build": "npm ci && npm run build",
-      "images": ["classification-service-ui", "classification-lambda"]
+      "images": ["classification-lambda", "classification-service-http"]
+    },
+    {
+      "id": "document-uploader-ui",
+      "path": "units/document-uploader-ui",
+      "lang": "ts",
+      "build": "npm ci && npm run build",
+      "images": ["document-uploader-ui"],
+      "_note": "Talks to the wundergraph-router (GraphQL). Retains a documented temporary @svc type/dispatcher dep on classification-service/src until the router is a full BFF."
     },
     {
       "id": "ingestion-service",

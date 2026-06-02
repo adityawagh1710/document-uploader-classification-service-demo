@@ -6,4 +6,5 @@
 /libs/pipeline-contracts/         @platform-network-and-compute
 /units/ingestion-service/         @ingestion
 /units/classification-service/    @classification
+/units/document-uploader-ui/      @frontend
 /tools/ci/                        @platform

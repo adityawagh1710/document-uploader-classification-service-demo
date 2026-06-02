@@ -104,10 +104,12 @@ services:
       - "8091:8091"
 
   ui:
-    image: classification-service-ui:dev
+    image: document-uploader-ui:dev
     build:
-      context: .
-      dockerfile: ui/Dockerfile
+      # UI now lives in its own unit; build from the repo root so the Dockerfile
+      # can reach both units/document-uploader-ui and the @svc sibling src.
+      context: ../..
+      dockerfile: units/document-uploader-ui/Dockerfile
     depends_on:
       bootstrap:
         condition: service_completed_successfully
