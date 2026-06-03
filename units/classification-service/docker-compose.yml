@@ -59,8 +59,9 @@ services:
   lambda:
     image: classification-service-lambda:dev
     build:
-      context: .
-      dockerfile: Dockerfile.lambda
+      # Repo-root context: the pnpm workspace lockfile lives there.
+      context: ../..
+      dockerfile: units/classification-service/Dockerfile.lambda
     depends_on:
       bootstrap:
         condition: service_completed_successfully
@@ -88,8 +89,9 @@ services:
   classification-http:
     image: classification-service-http:dev
     build:
-      context: .
-      dockerfile: Dockerfile.http
+      # Repo-root context: the pnpm workspace lockfile lives there.
+      context: ../..
+      dockerfile: units/classification-service/Dockerfile.http
     depends_on:
       bootstrap:
         condition: service_completed_successfully
@@ -174,8 +176,9 @@ services:
   worker:
     image: classification-service-convert-worker:dev
     build:
-      context: .
-      dockerfile: worker/Dockerfile
+      # Repo-root context: the pnpm workspace lockfile lives there.
+      context: ../..
+      dockerfile: units/classification-service/worker/Dockerfile
     profiles: ["worker"]
     depends_on:
       bootstrap:

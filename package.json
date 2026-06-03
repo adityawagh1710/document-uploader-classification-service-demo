@@ -1,0 +1,11 @@
+{
+  "name": "document-uploader-monorepo",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "description": "pnpm workspace root for the TS units (Go units use per-unit go.mod). Holds workspace-wide pnpm overrides.",
+  "pnpm": {
+    "overrides": {
+      "tmp": "^0.2.6"
+    }
+  }
+}

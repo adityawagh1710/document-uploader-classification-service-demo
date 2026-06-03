@@ -820,7 +820,11 @@ worker-ecr-ensure: check-aws ## [worker] Create the worker ECR repo if missing (
 .PHONY: worker-image-build
 worker-image-build: check-docker ## [worker] Build the worker image for linux/amd64
 	$(call banner,Building worker image $(WORKER_IMAGE_FULL))
-	@docker build --platform linux/amd64 -f worker/Dockerfile -t $(WORKER_IMAGE_FULL) .
+	# Repo-root context (../..): the worker is a pnpm workspace member whose
+	# lockfile lives at the monorepo root.
+	@docker build --platform linux/amd64 \
+		-f ../../units/classification-service/worker/Dockerfile \
+		-t $(WORKER_IMAGE_FULL) ../..
 	$(call ok,Built $(WORKER_IMAGE_FULL))
 
 .PHONY: worker-image-push

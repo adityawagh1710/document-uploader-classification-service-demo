@@ -1,0 +1,13 @@
+# Keep the Docker build context lean + reproducible for the pnpm-workspace
+# image builds (which use the repo root as context). Dependencies are installed
+# inside the build from the committed pnpm-lock.yaml — never copy host
+# node_modules or build output in.
+**/node_modules
+**/.next
+**/dist
+**/cdk.out
+.git
+**/*.log
+**/.DS_Store
+# Go build caches / binaries (the router builds in its own stage)
+**/*.test
