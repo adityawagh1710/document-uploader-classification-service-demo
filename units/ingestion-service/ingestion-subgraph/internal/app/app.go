@@ -147,6 +147,22 @@ type PipelineDispatcher interface {
 	DispatchConvert(ctx context.Context, claim ConvertClaim) error
 }
 
+// ErrPipelineNotConfigured signals no convert state machine is wired — the
+// resolver maps it to dispatch state "skipped".
+var ErrPipelineNotConfigured = errors.New("convert state machine not configured")
+
+// PipelineStarter starts the convert Step Functions execution (P1): instead of
+// dispatching to the convert queue directly, the state machine owns the
+// sqs:sendMessage.waitForTaskToken dispatch + retries/timeout. The execution
+// input is the ConvertClaim JSON; the worker signals SendTaskSuccess/Failure.
+type PipelineStarter interface {
+	StartConvert(ctx context.Context, claim ConvertClaim) error
+	// StartArchive starts the archive (zip-extraction) state-machine execution
+	// (SFN P2). Input is the ArchiveClaim JSON; the zip-extraction service signals
+	// SendTaskSuccess/Failure after extraction.
+	StartArchive(ctx context.Context, claim ArchiveClaim) error
+}
+
 // EmailExtractor fans an uploaded email file out to the email-extraction service
 // (HTTP) and returns the parsed extraction payload. A nil EmailExtractor means
 // the fan-out is disabled (→ "skipped"), matching the UI's empty-URL guard.

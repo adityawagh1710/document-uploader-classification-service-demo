@@ -51,6 +51,7 @@ func main() {
 		target          app.BackendTarget
 		pipeline        app.PipelineDispatcher // nil in memory mode (→ dispatch "skipped")
 		emailExtractor  app.EmailExtractor     // nil when email fan-out disabled
+		pipelineStarter app.PipelineStarter    // nil unless STATE_MACHINE_ARN set (convert via SFN)
 	)
 	bus := app.NewMemBus()
 
@@ -84,6 +85,16 @@ func main() {
 		health = awsadapters.NewDynamoHealthChecker(cfg, opts)
 		pipeline = awsadapters.NewSQSPipelineDispatcher(cfg, opts,
 			os.Getenv("ZIP_EXTRACTION_QUEUE_URL"), os.Getenv("CONVERT_QUEUE_URL"))
+		// Convert (P1) + archive (P2) go through Step Functions when their state
+		// machine ARNs are set; otherwise the resolver reports dispatch "skipped".
+		convertARN := os.Getenv("STATE_MACHINE_ARN")
+		archiveARN := os.Getenv("ARCHIVE_STATE_MACHINE_ARN")
+		if convertARN != "" || archiveARN != "" {
+			pipelineStarter = awsadapters.NewSFNStarter(cfg, opts, convertARN, archiveARN)
+			logger.Info("pipeline=sfn", "convertArn", convertARN, "archiveArn", archiveARN)
+		} else {
+			logger.Info("pipeline-sfn=disabled (set STATE_MACHINE_ARN / ARCHIVE_STATE_MACHINE_ARN)")
+		}
 		// Backend-target labels match the UI's old /api/target view.
 		if opts.LocalStackMode() {
 			target = app.BackendTarget{Endpoint: opts.Endpoint, Backend: "localstack"}
@@ -146,7 +157,7 @@ func main() {
 		Bus: bus, Classifier: classifier, WorkspaceConfigStore: configStore,
 		RunStore: runStore, ObjectStore: objectStore, EmailStore: emailStore,
 		ConvertProgress: convertProgress, Health: health, Target: target,
-		Pipeline: pipeline, EmailExtractor: emailExtractor,
+		Pipeline: pipeline, EmailExtractor: emailExtractor, PipelineStarter: pipelineStarter,
 		Log: logger, Tenant: tenant,
 	}
 
