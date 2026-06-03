@@ -27,9 +27,20 @@ SQS poller that drives [office-convert](https://github.com/adityawagh1710/docume
 | 3. DWG short-circuit | `*.dwg` filenames → `markFailed(format_unsupported:dwg)` + delete. Saves a guaranteed 5xx from office-convert (no Aspose.CAD in the vendor path) |
 | 4. Mark converting | `UpdateItem` on classifications-dev → `convertStatus=converting`, `convertStartedAt` (preserved on retries via `if_not_exists`), `convertAttempts` (= SQS `ApproximateReceiveCount`) |
 | 5. POST office-convert | Multipart form: `s3_input=s3://<sourceBucket>/<sourceKey>` + `s3_output=s3://<sourceBucket>/converted/<documentId>.pdf` |
-| 6a. 200 | `markDone` (s3Bucket, s3Key, X-Request-ID) + delete |
-| 6b. 4xx | `markFailed(office_convert_<status>:<failure_class>)` + delete (no retry) |
-| 6c. 5xx / network / timeout | Don't delete → SQS visibility-timeout fires → redelivered. After `maxReceiveCount=3` → DLQ + alarm |
+| 6a. 200 | `markDone` (s3Bucket, s3Key, X-Request-ID) + **`SendTaskSuccess`** (if `taskToken` present) + delete |
+| 6b. 4xx | `markFailed(office_convert_<status>:<failure_class>)` + **`SendTaskFailure`** (if `taskToken`) + delete (no retry) |
+| 6c. 5xx / network / timeout | Don't delete + **no signal** → SQS visibility-timeout fires → redelivered. After `maxReceiveCount=3` → DLQ + alarm. (When orchestrated by SFN, `TimeoutSeconds` is the backstop.) |
+
+### Step Functions task token (SFN P1)
+
+When this convert stage is driven by the `classification-convert-pipeline` state
+machine (`sqs:sendMessage.waitForTaskToken`), each message body carries an
+optional `taskToken`. `src/task-signaler.ts` calls `SendTaskSuccess`/`SendTaskFailure`
+at the terminal branches above so the execution resumes; it is a **no-op when
+`taskToken` is absent** (plain-SQS mode is unchanged). Transient failures
+deliberately *don't* signal — SQS redrive + the SFN `TimeoutSeconds` are the
+backstop. Uses the LocalStack endpoint via `AWS_ENDPOINT_URL`. See
+`../../../StepFunctions_Pipeline_Design.md`.
 
 ## Configuration (env vars)
 
@@ -51,7 +62,7 @@ SQS poller that drives [office-convert](https://github.com/adityawagh1710/docume
 
 ```bash
 cd worker
-npm install
+pnpm install
 # Point at the LocalStack stack the UI's docker-compose brings up
 export CONVERT_QUEUE_URL="http://localhost:4566/000000000000/classification-convert-queue"
 export OFFICE_CONVERT_BASE_URL="http://localhost:8080"

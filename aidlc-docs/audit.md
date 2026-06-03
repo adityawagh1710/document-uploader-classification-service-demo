@@ -1036,3 +1036,14 @@ Then fixed the ns papercut on branch `fix/helm-ns-adoption`: `helm-deploy` now s
 **Context**: OPERATIONS — clean rebuild proving the toolkit end-to-end, plus a durable fix so a fresh redeploy no longer needs the manual `kubectl delete ns` workaround.
 
 ---
+
+## OPERATIONS — Step Functions orchestration (P1 convert + P2 archive) + docs/cleanup
+**Timestamp**: 2026-06-03T18:45:00Z
+**User Input**: "build P2 zip on SFN and give list of comman resources (like S3, DynamoDB, etc) used by local stack for integration testing ?" → "Now change those SFN flow charts and step functions pipeline design right ?" → "Update all aidlc docs + readme + removed unwanted files / commit logically set up the branch and PR against integration"
+**AI Response**: Built **P2** (archive/zip-extraction on Step Functions) on top of the already-merged P1 (convert). Added the `classification-zip-pipeline` Standard state machine to `bootstrap-localstack.sh` (`Extract` task = `sqs:sendMessage.waitForTaskToken` → `zip-extraction-queue`, ArchiveClaim + `$$.Task.Token`, `TimeoutSeconds:1800`+Catch→Failed). Router: `app.PipelineStarter` gained `StartArchive`; `awsadapters/sfn_starter.go` now holds both convert+archive ARNs (one `start()` helper); `classifyUploaded` archive branch routes through `StartArchive`; `main.go` reads `ARCHIVE_STATE_MACHINE_ARN` + logs `pipeline=sfn …`. The external `zip-extraction-service-demo` opted into the token protocol (taskToken field + an SFN signaler) **without copying its code into this repo**. Verified end-to-end on LocalStack: `solar-bundle.zip` → `archiveDispatch=ok` → execution (named documentId) **SUCCEEDED**, `output={"entryCount":2,"status":"SUCCESS"}`. Gotcha resolved: a transient corp-DNS timeout to `proxy.golang.org` had failed the router Docker build, so `compose up` silently kept the stale P1 image (archive still direct-dispatch → zero zip executions); rebuilding with DNS restored fixed it.
+
+Then updated docs: `StepFunctions_Pipeline_Design.md` (+§10 as-built P2 flow, status/ownership/phasing), new combined `SFN_Pipeline_Flows.pdf` (P1+P2 flowcharts; deleted the superseded P1-only PDF), `README.md` (npm→pnpm, the `pipeline` compose profile, LocalStack integration-test resource list, SFN design-doc links), `aidlc-docs/aidlc-state.md` (new "Architecture Evolution (2026-06-03)" section: monorepo + BFF sever + AIDLC conformance + SFN P1/P2), and the ingestion-subgraph + worker unit READMEs (SFN dispatch / task-token signaling). Removed the generated `bundle-report.json` build artifact and added it to root `.gitignore`. Committed the SFN changeset logically onto a fresh branch off `integration` and opened a PR against `integration`.
+
+**Context**: OPERATIONS / CONSTRUCTION — extends the SFN orchestration from convert-only (P1) to convert+archive (P2), all local-first on LocalStack; dev05 CDK/IRSA still deferred. The sibling `zip-extraction-service-demo` edits live in a separate repo (separate PR).
+
+---
