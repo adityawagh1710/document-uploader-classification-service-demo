@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface RouteContext {
-  params: { documentId: string };
+  params: Promise<{ documentId: string }>;
 }
 
 // Live conversion progress. The router resolves the office-convert requestId off
