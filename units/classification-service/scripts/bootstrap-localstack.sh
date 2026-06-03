@@ -84,72 +84,61 @@ aws --endpoint-url="$ENDPOINT" dynamodb put-item \
     \"hashTtlDays\":     {\"NULL\": true}
   }" 2>/dev/null || true
 
-# SQS queue for archive fan-out to the zip-extraction service. Classifier
-# Lambda publishes a claim-check here when category=archive.
-aws --endpoint-url="$ENDPOINT" sqs create-queue \
-  --queue-name "$ZIP_EXTRACTION_QUEUE_NAME" 2>/dev/null || true
+# Stage queues + Step Functions state machines are generated from the single
+# source of truth, stages.registry.json, by scripts/gen-stages.mjs. Each stage
+# (whether a monorepo `unit` or an `external` own-repo service — see the
+# registry's `source.type`) becomes a queue + a Standard state machine whose
+# single task is sqs:sendMessage.waitForTaskToken; the stage worker signals the
+# task token back. To add a stage: edit stages.registry.json, then run
+#   node scripts/gen-stages.mjs
+# >>> BEGIN generated: stage queues + state machines (scripts/gen-stages.mjs from stages.registry.json) >>>
+# AUTO-GENERATED — do not edit by hand. Edit stages.registry.json then run:
+#   node scripts/gen-stages.mjs
 
-# SQS queues for the auto-convert fan-out (category=convert). DLQ first so
-# the main queue's redrive policy points at a real ARN. Mirrors the dev05
-# CDK shape (visibility 30 min, redrive maxReceiveCount=3).
-aws --endpoint-url="$ENDPOINT" sqs create-queue \
-  --queue-name "$CONVERT_DLQ_NAME" 2>/dev/null || true
-
-DLQ_ARN="arn:aws:sqs:us-east-1:000000000000:$CONVERT_DLQ_NAME"
-aws --endpoint-url="$ENDPOINT" sqs create-queue \
-  --queue-name "$CONVERT_QUEUE_NAME" \
-  --attributes "{
-    \"VisibilityTimeout\":\"1800\",
-    \"MessageRetentionPeriod\":\"1209600\",
-    \"RedrivePolicy\":\"{\\\"deadLetterTargetArn\\\":\\\"$DLQ_ARN\\\",\\\"maxReceiveCount\\\":\\\"3\\\"}\"
-  }" 2>/dev/null || true
-
-# Step Functions: the convert state machine (SFN P1). It dispatches to the
-# convert queue via sqs:sendMessage.waitForTaskToken (embedding the task token);
-# the convert worker calls SendTaskSuccess/Failure. TimeoutSeconds replaces the
-# convert-watchdog. The router (STATE_MACHINE_ARN) starts one execution per
-# convert document. ARN is deterministic on LocalStack:
-#   arn:aws:states:<region>:000000000000:stateMachine:$CONVERT_STATE_MACHINE_NAME
-CONVERT_STATE_MACHINE_NAME="${CONVERT_STATE_MACHINE_NAME:-classification-convert-pipeline}"
-CONVERT_QUEUE_URL_ASL="$ENDPOINT/000000000000/$CONVERT_QUEUE_NAME"
-cat > /tmp/convert.asl.json <<JSON
-{ "Comment":"convert stage via sqs waitForTaskToken (SFN P1)", "StartAt":"Convert",
+# ---- stage: convert (category=convert, source=unit) ----
+aws --endpoint-url="$ENDPOINT" sqs create-queue --queue-name "classification-convert-queue-dlq" 2>/dev/null || true
+__DLQ_ARN_convert="arn:aws:sqs:eu-west-1:000000000000:classification-convert-queue-dlq"
+aws --endpoint-url="$ENDPOINT" sqs create-queue --queue-name "classification-convert-queue" --attributes "{\"VisibilityTimeout\":\"1800\",\"MessageRetentionPeriod\":\"1209600\",\"RedrivePolicy\":\"{\\\"deadLetterTargetArn\\\":\\\"$__DLQ_ARN_convert\\\",\\\"maxReceiveCount\\\":\\\"3\\\"}\"}" 2>/dev/null || true
+cat > /tmp/stage-convert.asl.json <<JSON
+{ "Comment":"convert stage via sqs waitForTaskToken (generated from stages.registry.json)", "StartAt":"Convert",
   "States":{
     "Convert":{ "Type":"Task",
       "Resource":"arn:aws:states:::sqs:sendMessage.waitForTaskToken",
-      "Parameters":{ "QueueUrl":"$CONVERT_QUEUE_URL_ASL",
+      "Parameters":{ "QueueUrl":"$ENDPOINT/000000000000/classification-convert-queue",
         "MessageBody":{
           "pipelineExecutionId.\$":"\$.pipelineExecutionId",
-          "tenantId.\$":"\$.tenantId", "documentId.\$":"\$.documentId",
-          "runId.\$":"\$.runId", "sourceBucket.\$":"\$.sourceBucket",
-          "sourceKey.\$":"\$.sourceKey", "filename.\$":"\$.filename",
-          "subCategory.\$":"\$.subCategory", "correlationId.\$":"\$.correlationId",
+          "tenantId.\$":"\$.tenantId",
+          "documentId.\$":"\$.documentId",
+          "runId.\$":"\$.runId",
+          "sourceBucket.\$":"\$.sourceBucket",
+          "sourceKey.\$":"\$.sourceKey",
+          "filename.\$":"\$.filename",
+          "subCategory.\$":"\$.subCategory",
+          "correlationId.\$":"\$.correlationId",
           "taskToken.\$":"\$\$.Task.Token" } },
       "TimeoutSeconds":1800,
       "Catch":[{ "ErrorEquals":["States.ALL"], "Next":"Failed" }], "End":true },
     "Failed":{ "Type":"Fail", "Error":"ConvertFailed" } } }
 JSON
 aws --endpoint-url="$ENDPOINT" stepfunctions create-state-machine \
-  --name "$CONVERT_STATE_MACHINE_NAME" \
+  --name "classification-convert-pipeline" \
   --role-arn "arn:aws:iam::000000000000:role/sfn-exec" \
-  --definition file:///tmp/convert.asl.json 2>/dev/null || true
+  --definition file:///tmp/stage-convert.asl.json 2>/dev/null || true
 
-# Step Functions: the archive (zip-extraction) state machine (SFN P2). It
-# dispatches the ArchiveClaim to the zip-extraction queue via
-# sqs:sendMessage.waitForTaskToken; the zip-extraction service calls
-# SendTaskSuccess/Failure after extraction. Router starts it for category=archive.
-ZIP_STATE_MACHINE_NAME="${ZIP_STATE_MACHINE_NAME:-classification-zip-pipeline}"
-ZIP_QUEUE_URL_ASL="$ENDPOINT/000000000000/$ZIP_EXTRACTION_QUEUE_NAME"
-cat > /tmp/zip.asl.json <<JSON
-{ "Comment":"archive stage via sqs waitForTaskToken (SFN P2)", "StartAt":"Extract",
+# ---- stage: archive (category=archive, source=external) ----
+aws --endpoint-url="$ENDPOINT" sqs create-queue --queue-name "zip-extraction-queue" 2>/dev/null || true
+cat > /tmp/stage-archive.asl.json <<JSON
+{ "Comment":"archive stage via sqs waitForTaskToken (generated from stages.registry.json)", "StartAt":"Extract",
   "States":{
     "Extract":{ "Type":"Task",
       "Resource":"arn:aws:states:::sqs:sendMessage.waitForTaskToken",
-      "Parameters":{ "QueueUrl":"$ZIP_QUEUE_URL_ASL",
+      "Parameters":{ "QueueUrl":"$ENDPOINT/000000000000/zip-extraction-queue",
         "MessageBody":{
           "pipelineExecutionId.\$":"\$.pipelineExecutionId",
-          "tenantId.\$":"\$.tenantId", "documentId.\$":"\$.documentId",
-          "sourceBucket.\$":"\$.sourceBucket", "sourceKey.\$":"\$.sourceKey",
+          "tenantId.\$":"\$.tenantId",
+          "documentId.\$":"\$.documentId",
+          "sourceBucket.\$":"\$.sourceBucket",
+          "sourceKey.\$":"\$.sourceKey",
           "correlationId.\$":"\$.correlationId",
           "taskToken.\$":"\$\$.Task.Token" } },
       "TimeoutSeconds":1800,
@@ -157,8 +146,9 @@ cat > /tmp/zip.asl.json <<JSON
     "Failed":{ "Type":"Fail", "Error":"ZipExtractionFailed" } } }
 JSON
 aws --endpoint-url="$ENDPOINT" stepfunctions create-state-machine \
-  --name "$ZIP_STATE_MACHINE_NAME" \
+  --name "classification-zip-pipeline" \
   --role-arn "arn:aws:iam::000000000000:role/sfn-exec" \
-  --definition file:///tmp/zip.asl.json 2>/dev/null || true
+  --definition file:///tmp/stage-archive.asl.json 2>/dev/null || true
+# <<< END generated <<<
 
-echo "Bootstrap complete: bucket=$BUCKET tables=$CH_TABLE,$WC_TABLE,$CL_TABLE,$EE_TABLE,$PF_TABLE workspace=$DEFAULT_WORKSPACE_ID queues=$ZIP_EXTRACTION_QUEUE_NAME,$CONVERT_QUEUE_NAME(+dlq) stateMachines=$CONVERT_STATE_MACHINE_NAME,$ZIP_STATE_MACHINE_NAME"
+echo "Bootstrap complete: bucket=$BUCKET tables=$CH_TABLE,$WC_TABLE,$CL_TABLE,$EE_TABLE,$PF_TABLE workspace=$DEFAULT_WORKSPACE_ID (stage queues + state machines generated from stages.registry.json)"
