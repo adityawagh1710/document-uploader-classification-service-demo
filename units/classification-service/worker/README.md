@@ -40,7 +40,7 @@ at the terminal branches above so the execution resumes; it is a **no-op when
 `taskToken` is absent** (plain-SQS mode is unchanged). Transient failures
 deliberately *don't* signal — SQS redrive + the SFN `TimeoutSeconds` are the
 backstop. Uses the LocalStack endpoint via `AWS_ENDPOINT_URL`. See
-`../../../StepFunctions_Pipeline_Design.md`.
+`../../../aidlc-docs/operations/sfn/StepFunctions_Pipeline_Design.md`.
 
 ## Configuration (env vars)
 

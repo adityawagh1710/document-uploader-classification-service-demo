@@ -34,7 +34,7 @@ instead of a raw SQS dispatch: `internal/awsadapters/sfn_starter.go` does
 convert / zip-extraction queue via `sqs:sendMessage.waitForTaskToken` and owns
 retry/timeout/catch (replacing the convert-watchdog). Unset ARN → that branch is
 reported `skipped` (`app.ErrPipelineNotConfigured`). Startup logs
-`pipeline=sfn convertArn=… archiveArn=…`. See `../../../StepFunctions_Pipeline_Design.md`.
+`pipeline=sfn convertArn=… archiveArn=…`. See `../../../aidlc-docs/operations/sfn/StepFunctions_Pipeline_Design.md`.
 
 ## Local run (LocalStack + classification↔ingestion link)
 

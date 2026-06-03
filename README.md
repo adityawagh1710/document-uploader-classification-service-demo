@@ -57,6 +57,6 @@ Step Functions state machines `classification-convert-pipeline` (P1) +
 - `WunderGraph_Router_POC_Plan.md` — Go router POC (P0–P6 done; P7 dev05 deploy pending rebuild).
 - `MONOREPO_LAYOUT_REFACTOR_PLAN.md` — this layout refactor.
 - `Contracts_Baked_POC_Design.md` / `Approach_Pipeline_flowchart.md` — the contracts-baked design (on the `docs/contracts-baked-poc` branch).
-- `StepFunctions_Pipeline_Design.md` — SFN orchestration design + recommendation, with the **as-built P1 (convert) + P2 (archive/zip)** flows (§9/§10). Flowchart: `SFN_Pipeline_Flows.pdf`.
-- `SFN_Stage_Service_Shared_Contract.md` — the contract a stage service must honour to participate in the SFN task-token protocol.
-- `Dev05_SFN_Enablement_Plan.md` — scoping for taking the SFN pipelines to EKS dev05 (the "7th workstream" on top of the BFF deploy): CDK `ClassificationPipelineStack`, router/worker/zip IRSA grants, Helm env. Code-on-branch; execution operator-gated.
+- `aidlc-docs/operations/sfn/StepFunctions_Pipeline_Design.md` — SFN orchestration design + recommendation, with the **as-built P1 (convert) + P2 (archive/zip)** flows (§9/§10). Flowchart: `aidlc-docs/operations/sfn/SFN_Pipeline_Flows.pdf`.
+- `aidlc-docs/operations/sfn/SFN_Stage_Service_Shared_Contract.md` — the contract a stage service must honour to participate in the SFN task-token protocol.
+- `aidlc-docs/operations/sfn/Dev05_SFN_Enablement_Plan.md` — scoping for taking the SFN pipelines to EKS dev05 (the "7th workstream" on top of the BFF deploy): CDK `ClassificationPipelineStack`, router/worker/zip IRSA grants, Helm env. Code-on-branch; execution operator-gated.
