@@ -1,12 +1,14 @@
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { SFNClient } from "@aws-sdk/client-sfn";
 
 import { loadConfig } from "./config.js";
 import { createLogger } from "./logger.js";
 import { createOfficeConvertClient } from "./office-convert-client.js";
 import { createDdbUpdater } from "./ddb-update.js";
 import { createHandler } from "./handler.js";
+import { createTaskSignaler } from "./task-signaler.js";
 import { runPoller } from "./poller.js";
 
 /**
@@ -47,6 +49,12 @@ async function main(): Promise<void> {
   const ddb = DynamoDBDocumentClient.from(ddbRaw, {
     marshallOptions: { removeUndefinedValues: true },
   });
+  // Step Functions client for the convert state machine's task-token callback
+  // (no-op per-message when the claim carries no token).
+  const sfn = new SFNClient({
+    region: config.awsRegion,
+    ...(config.awsEndpointUrl ? { endpoint: config.awsEndpointUrl } : {}),
+  });
 
   // --- Application clients ------------------------------------------------
   const officeConvert = createOfficeConvertClient({
@@ -66,6 +74,7 @@ async function main(): Promise<void> {
     excludeDwg: config.excludeDwg,
     outputBucket: (claim) => claim.sourceBucket,
     outputKey: (claim) => `converted/${claim.documentId}.pdf`,
+    taskSignaler: createTaskSignaler(sfn, baseLogger.with({ subsystem: "sfn" })),
   });
 
   // --- Graceful shutdown wiring ------------------------------------------

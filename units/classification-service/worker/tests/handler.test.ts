@@ -4,6 +4,7 @@ import { createLogger } from "../src/logger.js";
 import type { OfficeConvertClient, ConvertOutcome } from "../src/office-convert-client.js";
 import type { DdbUpdater } from "../src/ddb-update.js";
 import type { ConvertClaim } from "../src/message.js";
+import { noopTaskSignaler } from "../src/task-signaler.js";
 
 const CLAIM: ConvertClaim = {
   pipelineExecutionId: "doc-abc",
@@ -46,6 +47,7 @@ function build(outcome: ConvertOutcome, opts: { excludeDwg?: boolean } = {}) {
     excludeDwg: opts.excludeDwg ?? true,
     outputBucket: (c) => c.sourceBucket,
     outputKey: (c) => `converted/${c.documentId}.pdf`,
+    taskSignaler: noopTaskSignaler,
   });
   return { handler, officeConvert, ddb };
 }
@@ -198,6 +200,7 @@ describe("handler", () => {
         excludeDwg: true,
         outputBucket: (c) => c.sourceBucket,
         outputKey: (c) => `converted/${c.documentId}.pdf`,
+    taskSignaler: noopTaskSignaler,
       });
 
       const disposition = await handler({ claim: CLAIM, attempts: 1 });
@@ -218,6 +221,7 @@ describe("handler", () => {
         excludeDwg: true,
         outputBucket: (c) => c.sourceBucket,
         outputKey: (c) => `converted/${c.documentId}.pdf`,
+    taskSignaler: noopTaskSignaler,
       });
 
       const disposition = await handler({ claim: CLAIM, attempts: 1 });
