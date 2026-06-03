@@ -8,6 +8,8 @@ package graph
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	contracts "github.com/opus2/docuploader/libs/pipeline-contracts/go"
 	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/graph/model"
@@ -104,6 +106,33 @@ func (r *mutationResolver) SaveWorkspaceConfig(ctx context.Context, input model.
 	return &m, nil
 }
 
+// ReapStuckConverts is the resolver for the reapStuckConverts field. Force-fails
+// convert rows stuck in `converting` past the watchdog cutoff (the UI's old
+// /api/admin/convert-watchdog; the shared-secret gate stays on the UI route).
+func (r *mutationResolver) ReapStuckConverts(ctx context.Context) (*model.ReapResult, error) {
+	res, err := r.RunStore.ReapStuckConverts(ctx, watchdogStuckAfter(), watchdogMaxRows())
+	if err != nil {
+		return nil, err
+	}
+	reaped := make([]model.ReapedRun, 0, len(res.Reaped))
+	for _, x := range res.Reaped {
+		reaped = append(reaped, model.ReapedRun{
+			WorkspaceID:      x.WorkspaceID,
+			RunID:            x.RunID,
+			ConvertStartedAt: x.ConvertStartedAt,
+		})
+	}
+	return &model.ReapResult{
+		Ok:           true,
+		ScannedCount: res.ScannedCount,
+		ReapedCount:  res.ReapedCount,
+		CutoffIso:    res.CutoffISO,
+		StuckAfterMs: int(res.StuckAfterMs),
+		DurationMs:   int(res.DurationMs),
+		Reaped:       reaped,
+	}, nil
+}
+
 // Workspaces is the resolver for the workspaces field.
 func (r *queryResolver) Workspaces(ctx context.Context) ([]model.Workspace, error) {
 	ws, err := r.Store.Workspaces(ctx)
@@ -170,6 +199,150 @@ func (r *queryResolver) WorkspaceConfigs(ctx context.Context) ([]model.Workspace
 		out = append(out, toWorkspaceConfigModel(c))
 	}
 	return out, nil
+}
+
+// DocumentRun is the resolver for the documentRun field. Mirrors the UI's old
+// runs/[documentId] route: the content-hash DDB row + S3 object metadata +
+// short-lived browser-reachable presigned downloads. Lookup failures degrade to
+// nil fields (the UI swallowed them with .catch(()=>null)).
+func (r *queryResolver) DocumentRun(ctx context.Context, workspaceID string, documentID string, contentHash *string, objectKey *string, runID *string) (*model.DocumentRun, error) {
+	out := &model.DocumentRun{
+		DocumentID:  documentID,
+		WorkspaceID: workspaceID,
+		Bucket:      r.Target.Bucket,
+		Table:       r.Target.ContentHashTable,
+	}
+
+	if contentHash != nil && *contentHash != "" {
+		if row, err := r.RunStore.ContentHashRow(ctx, workspaceID, *contentHash); err == nil {
+			out.DdbRow = row
+		}
+	}
+
+	var convertRow map[string]any
+	if runID != nil && *runID != "" {
+		if row, err := r.RunStore.ConvertRow(ctx, workspaceID, *runID); err == nil {
+			convertRow = row
+			out.Convert = row
+		}
+	}
+
+	if objectKey != nil && *objectKey != "" {
+		if meta, err := r.ObjectStore.Head(ctx, r.Target.Bucket, *objectKey); err == nil {
+			out.S3Object = toS3ObjectModel(meta)
+		}
+		// Defence-in-depth: only sign keys under the UI's own `ui/` prefix.
+		if strings.HasPrefix(*objectKey, "ui/") {
+			filename := lastSegment(*objectKey, "download")
+			if url, err := r.ObjectStore.PresignDownload(ctx, r.Target.Bucket, *objectKey,
+				fmt.Sprintf(`attachment; filename="%s"`, filename), ""); err == nil {
+				out.DownloadURL = &url
+			}
+		}
+	}
+
+	// Presigned GET for the CONVERTED PDF once the worker has finished — only
+	// keys under our own `converted/` prefix, same bucket.
+	if convertRow != nil {
+		if status, _ := convertRow["convertStatus"].(string); status == "done" {
+			convertedKey, _ := convertRow["convertS3Key"].(string)
+			convertedBucket, _ := convertRow["convertS3Bucket"].(string)
+			if convertedKey != "" && strings.HasPrefix(convertedKey, "converted/") && convertedBucket == r.Target.Bucket {
+				pdf := lastSegment(convertedKey, "document.pdf")
+				if url, err := r.ObjectStore.PresignDownload(ctx, convertedBucket, convertedKey,
+					fmt.Sprintf(`attachment; filename="%s"`, pdf), "application/pdf"); err == nil {
+					out.ConvertedDownloadURL = &url
+				}
+			}
+		}
+	}
+
+	return out, nil
+}
+
+// ClassificationStats is the resolver for the classificationStats field — the
+// dashboard KPI tiles + recent feed, aggregated from the classifications table
+// (the UI's old /api/stats, now durable instead of in-process counters).
+func (r *queryResolver) ClassificationStats(ctx context.Context, workspaceID string) (*model.ClassificationStats, error) {
+	s, err := r.RunStore.Stats(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return toClassificationStatsModel(s), nil
+}
+
+// ConvertProgress is the resolver for the convertProgress field. Resolves the
+// office-convert requestId off the classifications row, then forwards to the
+// office-convert progress endpoint (the UI's old runs/[documentId]/progress).
+func (r *queryResolver) ConvertProgress(ctx context.Context, workspaceID string, runID string) (*model.ConvertProgress, error) {
+	var status, requestID *string
+	if row, err := r.RunStore.ConvertRow(ctx, workspaceID, runID); err == nil && row != nil {
+		if v, ok := row["convertStatus"].(string); ok {
+			status = &v
+		}
+		if v, ok := row["convertRequestId"].(string); ok {
+			requestID = &v
+		}
+	}
+
+	// No live progress to fetch when the worker hasn't started (queued) or the
+	// row is already terminal — return what we know.
+	if requestID == nil || status == nil || *status != "converting" {
+		reason := "no_request_id_yet"
+		if requestID != nil {
+			reason = "non_converting_status"
+		}
+		return &model.ConvertProgress{ConvertStatus: status, RequestID: requestID, Reason: &reason}, nil
+	}
+
+	progress, err := r.Resolver.ConvertProgress.Progress(ctx, *requestID)
+	if err != nil {
+		reason := err.Error()
+		return &model.ConvertProgress{ConvertStatus: status, RequestID: requestID, Reason: &reason}, nil
+	}
+	return &model.ConvertProgress{ConvertStatus: status, RequestID: requestID, Progress: progress}, nil
+}
+
+// EmailExtraction is the resolver for the emailExtraction field — the parsed
+// email-extraction payload persisted during classify (null if none). Replaces
+// the UI's process-local in-memory cache with a durable DDB read.
+func (r *queryResolver) EmailExtraction(ctx context.Context, documentID string) (*model.EmailExtraction, error) {
+	payload, err := r.EmailStore.Get(ctx, documentID)
+	if err != nil {
+		return nil, err
+	}
+	if payload == nil {
+		return nil, nil
+	}
+	return &model.EmailExtraction{DocumentID: documentID, Extraction: payload}, nil
+}
+
+// BackendTarget is the resolver for the backendTarget field — the operator-
+// facing "what AWS surface is the router pointed at?" view (config resolved at
+// wiring time).
+func (r *queryResolver) BackendTarget(ctx context.Context) (*model.BackendTarget, error) {
+	t := r.Target
+	return &model.BackendTarget{
+		Endpoint:             t.Endpoint,
+		Region:               t.Region,
+		Bucket:               t.Bucket,
+		ContentHashTable:     t.ContentHashTable,
+		WorkspaceConfigTable: t.WorkspaceConfigTable,
+		Backend:              t.Backend,
+	}, nil
+}
+
+// RouterHealth is the resolver for the routerHealth field — DynamoDB
+// connectivity probe (the UI's old /api/health; the UI route maps ready:false
+// onto an HTTP 503).
+func (r *queryResolver) RouterHealth(ctx context.Context) (*model.RouterHealth, error) {
+	start := time.Now()
+	tables, err := r.Health.ListTables(ctx)
+	latency := int(time.Since(start).Milliseconds())
+	if err != nil {
+		return &model.RouterHealth{Ready: false, Endpoint: r.Target.Endpoint, Tables: []string{}, LatencyMs: latency}, nil
+	}
+	return &model.RouterHealth{Ready: true, Endpoint: r.Target.Endpoint, Tables: tables, LatencyMs: latency}, nil
 }
 
 // DocumentStatusChanged is the resolver for the documentStatusChanged field.

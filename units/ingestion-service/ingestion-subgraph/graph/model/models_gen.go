@@ -2,6 +2,16 @@
 
 package model
 
+// Operator-facing view of which AWS surface the router is pointed at.
+type BackendTarget struct {
+	Endpoint             string `json:"endpoint"`
+	Region               string `json:"region"`
+	Bucket               string `json:"bucket"`
+	ContentHashTable     string `json:"contentHashTable"`
+	WorkspaceConfigTable string `json:"workspaceConfigTable"`
+	Backend              string `json:"backend"`
+}
+
 // Synchronous classification result (from the classification service /classify).
 type ClassificationResult struct {
 	DocumentID        string  `json:"documentId"`
@@ -15,6 +25,24 @@ type ClassificationResult struct {
 	ContentHash       string  `json:"contentHash"`
 	IsDuplicate       bool    `json:"isDuplicate"`
 	PolicyVersion     string  `json:"policyVersion"`
+}
+
+// KPI tiles + recent feed, aggregated from the classifications table.
+type ClassificationStats struct {
+	Total      int            `json:"total"`
+	ByTier     map[string]any `json:"byTier"`
+	ByCategory map[string]any `json:"byCategory"`
+	ByFormat   map[string]any `json:"byFormat"`
+	Errors     int            `json:"errors"`
+	Recent     []RecentRun    `json:"recent"`
+}
+
+// Live office-convert progress for a converting run.
+type ConvertProgress struct {
+	ConvertStatus *string        `json:"convertStatus,omitempty"`
+	RequestID     *string        `json:"requestId,omitempty"`
+	Progress      map[string]any `json:"progress,omitempty"`
+	Reason        *string        `json:"reason,omitempty"`
 }
 
 type CreateDocumentInput struct {
@@ -42,10 +70,84 @@ type Document struct {
 	PipelineStage *string `json:"pipelineStage,omitempty"`
 }
 
+// What got persisted for a single classification run (content-hash row + S3 object + presigned downloads).
+type DocumentRun struct {
+	DocumentID  string `json:"documentId"`
+	WorkspaceID string `json:"workspaceId"`
+	// Full content-hash DDB row (opaque).
+	DdbRow      map[string]any `json:"ddbRow,omitempty"`
+	S3Object    *S3Object      `json:"s3Object,omitempty"`
+	Bucket      string         `json:"bucket"`
+	Table       string         `json:"table"`
+	DownloadURL *string        `json:"downloadUrl,omitempty"`
+	// Worker-mutated convert progress columns on the classifications row (opaque).
+	Convert              map[string]any `json:"convert,omitempty"`
+	ConvertedDownloadURL *string        `json:"convertedDownloadUrl,omitempty"`
+}
+
+// Parsed email-extraction payload, persisted during classify.
+type EmailExtraction struct {
+	DocumentID string         `json:"documentId"`
+	Extraction map[string]any `json:"extraction,omitempty"`
+}
+
 type Mutation struct {
 }
 
 type Query struct {
+}
+
+// Result of the stuck-convert watchdog sweep.
+type ReapResult struct {
+	Ok           bool        `json:"ok"`
+	ScannedCount int         `json:"scannedCount"`
+	ReapedCount  int         `json:"reapedCount"`
+	CutoffIso    string      `json:"cutoffIso"`
+	StuckAfterMs int         `json:"stuckAfterMs"`
+	DurationMs   int         `json:"durationMs"`
+	Reaped       []ReapedRun `json:"reaped"`
+}
+
+// One row force-failed by the stuck-convert watchdog.
+type ReapedRun struct {
+	WorkspaceID      string `json:"workspaceId"`
+	RunID            string `json:"runId"`
+	ConvertStartedAt string `json:"convertStartedAt"`
+}
+
+// One row of the durable classification activity log (the Recent feed).
+type RecentRun struct {
+	ID              string         `json:"id"`
+	Ts              string         `json:"ts"`
+	InputName       string         `json:"inputName"`
+	WorkspaceID     string         `json:"workspaceId"`
+	ElapsedMs       int            `json:"elapsedMs"`
+	Status          string         `json:"status"`
+	Result          map[string]any `json:"result,omitempty"`
+	FailureReason   *string        `json:"failureReason,omitempty"`
+	FailureKind     *string        `json:"failureKind,omitempty"`
+	ObjectKey       *string        `json:"objectKey,omitempty"`
+	ArchiveDispatch string         `json:"archiveDispatch"`
+	ConvertStatus   *string        `json:"convertStatus,omitempty"`
+	ConvertQueuedAt *string        `json:"convertQueuedAt,omitempty"`
+	ConvertDispatch string         `json:"convertDispatch"`
+}
+
+// Router readiness probe (DynamoDB connectivity).
+type RouterHealth struct {
+	Ready     bool     `json:"ready"`
+	Endpoint  string   `json:"endpoint"`
+	Tables    []string `json:"tables"`
+	LatencyMs int      `json:"latencyMs"`
+}
+
+// S3 object metadata for a stored upload (HeadObject).
+type S3Object struct {
+	Key          string  `json:"key"`
+	Size         *int    `json:"size,omitempty"`
+	ContentType  *string `json:"contentType,omitempty"`
+	Etag         *string `json:"etag,omitempty"`
+	LastModified *string `json:"lastModified,omitempty"`
 }
 
 type Stats struct {

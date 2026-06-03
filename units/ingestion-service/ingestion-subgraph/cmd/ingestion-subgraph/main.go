@@ -26,6 +26,7 @@ import (
 	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/internal/app"
 	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/internal/awsadapters"
 	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/internal/classifierhttp"
+	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/internal/officeconvert"
 )
 
 func main() {
@@ -37,18 +38,30 @@ func main() {
 	backend := strings.ToLower(getenv("BACKEND", "memory"))
 
 	var (
-		store       app.Store
-		uploader    app.Uploader
-		dispatcher  app.Dispatcher
-		configStore app.WorkspaceConfigStore
+		store           app.Store
+		uploader        app.Uploader
+		dispatcher      app.Dispatcher
+		configStore     app.WorkspaceConfigStore
+		runStore        app.RunStore
+		objectStore     app.ObjectStore
+		emailStore      app.EmailExtractionStore
+		convertProgress app.ConvertProgressClient
+		health          app.HealthChecker
+		target          app.BackendTarget
 	)
 	bus := app.NewMemBus()
+
+	contentHashTable := getenv("CONTENT_HASH_TABLE_NAME", "content-hashes-ui")
+	classificationsTable := getenv("CLASSIFICATIONS_TABLE_NAME", "classifications-ui")
+	emailExtractionsTable := getenv("EMAIL_EXTRACTIONS_TABLE_NAME", "email-extractions-ui")
+	workspaceConfigTable := getenv("WORKSPACE_CONFIG_TABLE_NAME", "workspace-config-ui")
 
 	switch backend {
 	case "aws":
 		opts := awsadapters.Options{
-			Region:   getenv("AWS_REGION", "eu-west-1"),
-			Endpoint: os.Getenv("AWS_ENDPOINT_URL"), // empty on dev05; set on LocalStack
+			Region:         getenv("AWS_REGION", "eu-west-1"),
+			Endpoint:       os.Getenv("AWS_ENDPOINT_URL"), // empty on dev05; set on LocalStack
+			PublicEndpoint: os.Getenv("S3_PUBLIC_ENDPOINT"),
 		}
 		cfg, err := awsadapters.LoadConfig(context.Background(), opts)
 		if err != nil {
@@ -58,16 +71,49 @@ func main() {
 		store = awsadapters.NewDynamoStore(cfg, opts,
 			getenv("WORKSPACES_TABLE_NAME", "workspaces-ui"),
 			getenv("DOCUMENTS_TABLE_NAME", "documents-ui"))
-		uploader = awsadapters.NewS3Uploader(cfg, opts, bucket)
+		s3up := awsadapters.NewS3Uploader(cfg, opts, bucket)
+		uploader = s3up
+		objectStore = s3up
 		dispatcher = awsadapters.NewSQSDispatcher(cfg, opts, stageQueues())
-		configStore = awsadapters.NewDynamoConfigStore(cfg, opts, getenv("WORKSPACE_CONFIG_TABLE_NAME", "workspace-config-ui"))
+		configStore = awsadapters.NewDynamoConfigStore(cfg, opts, workspaceConfigTable)
+		runStore = awsadapters.NewDynamoRunStore(cfg, opts, classificationsTable, contentHashTable)
+		emailStore = awsadapters.NewDynamoEmailExtractionStore(cfg, opts, emailExtractionsTable)
+		health = awsadapters.NewDynamoHealthChecker(cfg, opts)
+		// Backend-target labels match the UI's old /api/target view.
+		if opts.LocalStackMode() {
+			target = app.BackendTarget{Endpoint: opts.Endpoint, Backend: "localstack"}
+		} else {
+			target = app.BackendTarget{Endpoint: "aws:" + opts.Region, Backend: "real-aws"}
+		}
+		target.Region = opts.Region
+		target.Bucket = bucket
+		target.ContentHashTable = contentHashTable
+		target.WorkspaceConfigTable = workspaceConfigTable
 		logger.Info("backend=aws", "endpoint", opts.Endpoint, "region", opts.Region, "localstack", opts.LocalStackMode())
 	default:
 		store = app.NewMemStore()
 		uploader = app.StubUploader{Bucket: bucket}
+		objectStore = app.StubObjectStore{Bucket: bucket}
 		dispatcher = app.LogDispatcher{Log: logger}
 		configStore = app.NewMemConfigStore()
+		runStore = app.NewMemRunStore()
+		emailStore = app.NewMemEmailExtractionStore()
+		health = app.StubHealthChecker{}
+		target = app.BackendTarget{
+			Endpoint: "memory", Region: getenv("AWS_REGION", "eu-west-1"), Bucket: bucket,
+			ContentHashTable: contentHashTable, WorkspaceConfigTable: workspaceConfigTable, Backend: "memory",
+		}
 		logger.Info("backend=memory (stub presign + logging dispatcher)")
+	}
+
+	// Office-convert progress client: real HTTP when OFFICE_CONVERT_API_URL is
+	// set; otherwise a stub that reports no live progress (local/no-convert).
+	if u := os.Getenv("OFFICE_CONVERT_API_URL"); u != "" {
+		convertProgress = officeconvert.New(u)
+		logger.Info("convertProgress=http", "url", u)
+	} else {
+		convertProgress = app.StubConvertProgressClient{}
+		logger.Info("convertProgress=stub (set OFFICE_CONVERT_API_URL to poll office-convert)")
 	}
 
 	// Classifier: HTTP to the classification service's /classify when CLASSIFY_URL
@@ -83,6 +129,8 @@ func main() {
 	resolver := &graph.Resolver{
 		Store: store, Uploader: uploader, Dispatcher: dispatcher,
 		Bus: bus, Classifier: classifier, WorkspaceConfigStore: configStore,
+		RunStore: runStore, ObjectStore: objectStore, EmailStore: emailStore,
+		ConvertProgress: convertProgress, Health: health, Target: target,
 		Log: logger, Tenant: tenant,
 	}
 

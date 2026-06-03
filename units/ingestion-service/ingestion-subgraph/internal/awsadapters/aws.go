@@ -16,6 +16,10 @@ import (
 type Options struct {
 	Region   string
 	Endpoint string // LocalStack endpoint (e.g. http://localstack:4566); empty = real AWS
+	// PublicEndpoint is the BROWSER-reachable S3 host used to sign download URLs
+	// in LocalStack mode (e.g. http://localhost:4566). Empty falls back to
+	// Endpoint. Ignored in real-AWS mode (the regional endpoint is public).
+	PublicEndpoint string
 }
 
 // LocalStackMode reports whether an endpoint override is set.

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	contracts "github.com/opus2/docuploader/libs/pipeline-contracts/go"
@@ -202,6 +203,131 @@ func (s *MemConfigStore) SaveConfig(_ context.Context, cfg WorkspaceConfig) (Wor
 	s.configs[cfg.WorkspaceID] = cfg
 	return cfg, nil
 }
+
+// --- BFF-surface stubs (BACKEND=memory) -------------------------------------
+
+// MemRunStore is an in-memory RunStore for the no-AWS path. It keeps a per-
+// workspace slice of runs (newest first) so the dashboard renders locally.
+type MemRunStore struct {
+	mu   sync.RWMutex
+	runs map[string][]RecentRun // workspaceID -> runs (newest first)
+}
+
+func NewMemRunStore() *MemRunStore { return &MemRunStore{runs: map[string][]RecentRun{}} }
+
+func (s *MemRunStore) ContentHashRow(context.Context, string, string) (map[string]any, error) {
+	return nil, nil
+}
+
+func (s *MemRunStore) ConvertRow(context.Context, string, string) (map[string]any, error) {
+	return nil, nil
+}
+
+func (s *MemRunStore) RecentRuns(_ context.Context, workspaceID string, limit int) ([]RecentRun, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rows := s.runs[workspaceID]
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
+	out := make([]RecentRun, len(rows))
+	copy(out, rows)
+	return out, nil
+}
+
+func (s *MemRunStore) Stats(ctx context.Context, workspaceID string) (ClassificationStats, error) {
+	rows, _ := s.RecentRuns(ctx, workspaceID, 1000)
+	stats := ClassificationStats{ByTier: map[string]int{}, ByCategory: map[string]int{}, ByFormat: map[string]int{}}
+	for _, r := range rows {
+		if r.Status == "failed" {
+			stats.Errors++
+			continue
+		}
+		stats.Total++
+		if cls, ok := r.Result["classification"].(map[string]any); ok {
+			if v, ok := cls["detectionTier"].(string); ok && v != "" {
+				stats.ByTier[v]++
+			}
+			if v, ok := cls["category"].(string); ok && v != "" {
+				stats.ByCategory[v]++
+			}
+			if v, ok := cls["format"].(string); ok && v != "" {
+				stats.ByFormat[v]++
+			}
+		}
+	}
+	if len(rows) > 100 {
+		rows = rows[:100]
+	}
+	stats.Recent = rows
+	return stats, nil
+}
+
+func (s *MemRunStore) ReapStuckConverts(_ context.Context, stuckAfter time.Duration, _ int) (ReapResult, error) {
+	return ReapResult{
+		CutoffISO:    time.Now().Add(-stuckAfter).UTC().Format(time.RFC3339),
+		StuckAfterMs: stuckAfter.Milliseconds(),
+		Reaped:       []ReapedRun{},
+	}, nil
+}
+
+func (s *MemRunStore) RecordRun(_ context.Context, run RecentRun, _ string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.runs[run.WorkspaceID] = append([]RecentRun{run}, s.runs[run.WorkspaceID]...)
+	return nil
+}
+
+// StubObjectStore returns canned metadata + a fake presigned URL for the no-AWS
+// path (the real S3Uploader does HeadObject + presign).
+type StubObjectStore struct{ Bucket string }
+
+func (StubObjectStore) Head(_ context.Context, _ string, key string) (*S3ObjectMeta, error) {
+	return &S3ObjectMeta{Key: key}, nil
+}
+
+func (s StubObjectStore) PresignDownload(_ context.Context, bucket, key, _, _ string) (string, error) {
+	return fmt.Sprintf("http://localstack:4566/%s/%s?stub-presigned=1", bucket, key), nil
+}
+
+// MemEmailExtractionStore is an in-memory EmailExtractionStore for BACKEND=memory.
+type MemEmailExtractionStore struct {
+	mu   sync.RWMutex
+	data map[string]map[string]any
+}
+
+func NewMemEmailExtractionStore() *MemEmailExtractionStore {
+	return &MemEmailExtractionStore{data: map[string]map[string]any{}}
+}
+
+func (s *MemEmailExtractionStore) Get(_ context.Context, documentID string) (map[string]any, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if v, ok := s.data[documentID]; ok {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (s *MemEmailExtractionStore) Save(_ context.Context, documentID string, payload map[string]any) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data[documentID] = payload
+	return nil
+}
+
+// StubConvertProgressClient always reports no live progress (no office-convert
+// in the no-AWS path).
+type StubConvertProgressClient struct{}
+
+func (StubConvertProgressClient) Progress(context.Context, string) (map[string]any, error) {
+	return nil, fmt.Errorf("office-convert not configured")
+}
+
+// StubHealthChecker reports an empty table list (no DynamoDB in the no-AWS path).
+type StubHealthChecker struct{}
+
+func (StubHealthChecker) ListTables(context.Context) ([]string, error) { return []string{}, nil }
 
 // LogDispatcher builds + validates a real StageRequest and logs it instead of
 // sending to SQS (P3 SQSDispatcher does the real send).

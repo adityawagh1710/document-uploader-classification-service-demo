@@ -6,6 +6,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	contracts "github.com/opus2/docuploader/libs/pipeline-contracts/go"
 )
@@ -97,4 +98,117 @@ type WorkspaceConfigStore interface {
 	GetConfig(ctx context.Context, workspaceID string) (*WorkspaceConfig, error)
 	ListConfigs(ctx context.Context) ([]WorkspaceConfig, error)
 	SaveConfig(ctx context.Context, cfg WorkspaceConfig) (WorkspaceConfig, error)
+}
+
+// --- BFF read/admin surface (the UI's former direct-AWS routes) -------------
+
+// RecentRun is one row of the durable classification activity log (the
+// classifications table) — mirrors the UI's lib/stats.ts RecentRecord. Result
+// stays an opaque map (the full ClassificationOutput JSON) for Map passthrough.
+type RecentRun struct {
+	ID              string
+	Ts              string
+	InputName       string
+	WorkspaceID     string
+	ElapsedMs       int
+	Status          string // "ok" | "failed"
+	Result          map[string]any
+	FailureReason   *string
+	FailureKind     *string
+	ObjectKey       *string
+	ArchiveDispatch string
+	ConvertStatus   *string
+	ConvertQueuedAt *string
+	ConvertDispatch string
+}
+
+// S3ObjectMeta is the HeadObject metadata for a stored upload.
+type S3ObjectMeta struct {
+	Key          string
+	Size         *int64
+	ContentType  *string
+	ETag         *string
+	LastModified *string
+}
+
+// ClassificationStats is the dashboard KPI snapshot, aggregated from the
+// classifications table (durable) instead of the UI's old in-process counters.
+type ClassificationStats struct {
+	Total      int
+	ByTier     map[string]int
+	ByCategory map[string]int
+	ByFormat   map[string]int
+	Errors     int
+	Recent     []RecentRun
+}
+
+// ReapedRun is one row force-failed by the stuck-convert watchdog.
+type ReapedRun struct {
+	WorkspaceID      string
+	RunID            string
+	ConvertStartedAt string
+}
+
+// ReapResult is the outcome of one watchdog sweep.
+type ReapResult struct {
+	ScannedCount int
+	ReapedCount  int
+	CutoffISO    string
+	StuckAfterMs int64
+	DurationMs   int64
+	Reaped       []ReapedRun
+}
+
+// RunStore reads/writes the classifications activity-log table + reads the
+// content-hash table. The UI used lib/runs.ts + the runs/stats/watchdog routes;
+// the router fronts all of it so the UI holds no AWS SDK.
+type RunStore interface {
+	// ContentHashRow returns the raw content-hash DDB row (opaque) or nil.
+	ContentHashRow(ctx context.Context, workspaceID, contentHash string) (map[string]any, error)
+	// ConvertRow returns the worker-mutated convert columns on the classifications
+	// row (opaque projection) or nil.
+	ConvertRow(ctx context.Context, workspaceID, runID string) (map[string]any, error)
+	// RecentRuns returns the workspace's runs newest-first (strongly consistent).
+	RecentRuns(ctx context.Context, workspaceID string, limit int) ([]RecentRun, error)
+	// Stats aggregates KPI counters + the recent feed from the table.
+	Stats(ctx context.Context, workspaceID string) (ClassificationStats, error)
+	// ReapStuckConverts force-fails rows stuck in converting past the cutoff.
+	ReapStuckConverts(ctx context.Context, stuckAfter time.Duration, maxRows int) (ReapResult, error)
+	// RecordRun persists one classification run (used by the classify write-path).
+	RecordRun(ctx context.Context, run RecentRun, bucket string) error
+}
+
+// ObjectStore reads S3 object metadata + mints browser-reachable presigned GET
+// URLs (the UI's old presignS3Client). Implemented alongside the S3 uploader.
+type ObjectStore interface {
+	Head(ctx context.Context, bucket, key string) (*S3ObjectMeta, error)
+	PresignDownload(ctx context.Context, bucket, key, contentDisposition, contentType string) (string, error)
+}
+
+// EmailExtractionStore persists/reads parsed email-extraction payloads (P3:
+// DynamoDB), replacing the UI's process-local in-memory cache.
+type EmailExtractionStore interface {
+	Get(ctx context.Context, documentID string) (map[string]any, error)
+	Save(ctx context.Context, documentID string, payload map[string]any) error
+}
+
+// ConvertProgressClient queries the office-convert service for live progress.
+type ConvertProgressClient interface {
+	Progress(ctx context.Context, requestID string) (map[string]any, error)
+}
+
+// HealthChecker probes DynamoDB connectivity for the readiness endpoint.
+type HealthChecker interface {
+	ListTables(ctx context.Context) ([]string, error)
+}
+
+// BackendTarget is the operator-facing "what AWS surface is this pointed at?"
+// view — pure config resolved at wiring time (no port needed).
+type BackendTarget struct {
+	Endpoint             string
+	Region               string
+	Bucket               string
+	ContentHashTable     string
+	WorkspaceConfigTable string
+	Backend              string // "real-aws" | "localstack"
 }
