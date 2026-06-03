@@ -135,6 +135,13 @@ services:
       CLASSIFY_URL: http://classification-http:8091
       ZIP_EXTRACTION_QUEUE_URL: http://localstack:4566/000000000000/zip-extraction-queue
       CONVERT_QUEUE_URL: http://localstack:4566/000000000000/classification-convert-queue
+      # SFN P1: convert goes through this state machine (bootstrap creates it).
+      # The router StartExecution's it; the state machine dispatches to the
+      # convert queue via waitForTaskToken. ARN is deterministic on LocalStack.
+      STATE_MACHINE_ARN: arn:aws:states:eu-west-1:000000000000:stateMachine:classification-convert-pipeline
+      # SFN P2: archive (zip) goes through this state machine; the zip-extraction
+      # service signals SendTaskSuccess/Failure after extraction.
+      ARCHIVE_STATE_MACHINE_ARN: arn:aws:states:eu-west-1:000000000000:stateMachine:classification-zip-pipeline
       # Presigned download URLs must be signed for a host the browser can reach.
       # The router talks to localstack:4566 internally; the browser is on the
       # host where LocalStack is published on localhost:4566.
@@ -179,19 +186,91 @@ services:
       # Repo-root context: the pnpm workspace lockfile lives there.
       context: ../..
       dockerfile: units/classification-service/worker/Dockerfile
-    profiles: ["worker"]
+    profiles: ["worker", "pipeline"]
     depends_on:
       bootstrap:
         condition: service_completed_successfully
     environment:
       AWS_ENDPOINT_URL: http://localstack:4566
-      AWS_REGION: us-east-1
+      # eu-west-1 to match the rest of the stack (bootstrap/router) — the SQS
+      # queue + DDB table are created there; us-east-1 → QueueDoesNotExist.
+      AWS_REGION: eu-west-1
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       CONVERT_QUEUE_URL: http://localstack:4566/000000000000/classification-convert-queue
-      OFFICE_CONVERT_BASE_URL: ${OFFICE_CONVERT_BASE_URL:-http://host.docker.internal:8080}
+      # Default to the in-compose office-convert service (the `pipeline` profile).
+      # Override to host.docker.internal:8080 to use an out-of-compose instance.
+      OFFICE_CONVERT_BASE_URL: ${OFFICE_CONVERT_BASE_URL:-http://office-convert:8080}
       OFFICE_CONVERT_TIMEOUT_MS: "1800000"
       CLASSIFICATIONS_TABLE_NAME: classifications-ui
       LOG_LEVEL: debug
       WORKER_VERSION: compose-dev
       EXCLUDE_DWG: "true"
+
+  # ── office-convert (downstream converter) ──────────────────────────────────
+  # Runs the EXISTING office-convert image (built in ../office-conversion-service
+  # -demo — NOT copied here), S3-aligned to OUR localstack + bucket so the convert
+  # worker's claim-checks resolve. Aspose license + image come from that repo.
+  # Profile-gated: `docker compose --profile pipeline up`.
+  office-convert:
+    image: office-convert:go
+    pull_policy: never        # local-only tag from the sibling repo; never pull
+    profiles: ["pipeline"]
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    environment:
+      AWS_REGION: eu-west-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_ENDPOINT_URL_S3: http://localstack:4566
+      OFFICE_CONVERT_MAX_JOBS: "2"
+      OFFICE_CONVERT_PARALLEL: "4"
+      OFFICE_CONVERT_LOG_LEVEL: info
+      OFFICE_CONVERT_CHUNK_TIMEOUT_SECONDS: "1800"
+      OFFICE_CONVERT_MAX_INPUT_BYTES: "1073741824"
+      OFFICE_CONVERT_WORKER_RAM_BYTES: "6442450944"
+      OFFICE_CONVERT_S3_ENABLED: "true"
+      OFFICE_CONVERT_S3_INPUT_BUCKETS_ALLOWLIST: classification-ui-bucket
+      OFFICE_CONVERT_S3_OUTPUT_BUCKETS_ALLOWLIST: classification-ui-bucket
+      OFFICE_CONVERT_S3_DEFAULT_OUTPUT_BUCKET: classification-ui-bucket
+      OFFICE_CONVERT_S3_PUBLIC_ENDPOINT: http://localhost:4566
+      OFFICE_CONVERT_CACHE_DIR: /tmp/cache
+      HOME: /tmp
+    volumes:
+      # Aspose license from the sibling repo (read-only) — required, else 503
+      # license_expired. Override the host path with ASPOSE_LICENSE if needed.
+      - ${ASPOSE_LICENSE:-../../../office-conversion-service-demo/Aspose.TotalforC++.lic}:/aspose/license.lic:ro
+    ports:
+      - "8092:8080"   # health/API: http://localhost:8092/health
+
+  # ── zip-extraction (downstream fan-out) ────────────────────────────────────
+  # Runs the EXISTING zip-extraction image (built in ../zip-extraction-service
+  # -demo) S3-aligned to OUR stack. Consumes zip-extraction-queue, classifies
+  # each extracted child back through the UI (/api/classify). Profile: pipeline.
+  zip-extraction:
+    image: zip-extraction:dev
+    pull_policy: never
+    profiles: ["pipeline"]
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    environment:
+      AWS_REGION: eu-west-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      QUEUE_URL: http://localstack:4566/000000000000/zip-extraction-queue
+      STAGING_BUCKET: classification-ui-bucket
+      DYNAMO_TABLE: pipeline_files
+      SSE_MODE: SSE-S3
+      LOG_FORMAT: console
+      LOG_LEVEL: debug
+      HTTP_PORT: "8080"
+      CLASSIFICATION_URL: http://ui:3000
+      CLASSIFICATION_DEFAULT_WORKSPACE: wks-ui-001
+      CONFIG_PATH: /etc/zip-extraction/config.yaml
+    volumes:
+      - ${ZIP_EXTRACTION_CONFIG:-../../../zip-extraction-service-demo/services/zip-extraction/deploy/config-local.yaml}:/etc/zip-extraction/config.yaml:ro
+    ports:
+      - "8093:8080"   # health/metrics: http://localhost:8093/healthz/ready
