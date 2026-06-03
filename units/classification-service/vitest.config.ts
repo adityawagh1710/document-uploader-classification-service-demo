@@ -29,7 +29,7 @@ export default defineConfig({
       // Adapters with real AWS SDK calls (s3, dynamo-*, step-functions) and
       // the Lambda handler entry are covered by the integration suite, which
       // runs separately and isn't part of `npm run test:coverage`.
-      include: ["src/domain/**", "src/application/**", "src/shared/**", "src/adapters/crypto/**", "src/adapters/powertools/**"],
+      include: ["src/domain/**", "src/application/**", "src/shared/**", "src/adapters/crypto/**", "src/adapters/pino/**"],
       reporter: ["text", "json", "html"],
       // Realistic per-subtree thresholds, calibrated against actual unit+PBT
       // coverage as of 2026-05-25. Tighten as coverage improves; loosening
@@ -53,7 +53,7 @@ export default defineConfig({
           lines: 90,
           statements: 90,
         },
-        "src/adapters/powertools/**": {
+        "src/adapters/pino/**": {
           branches: 70,
           functions: 75,
           lines: 75,
