@@ -6,7 +6,7 @@ claim-check) and dispatches `StageRequest`s into the pipeline. In deployment it
 sits behind the sibling **`../wundergraph-router/`** (the real WunderGraph Cosmo
 router), which federates and fronts it; the UI talks GraphQL to that gateway.
 
-> POC scope per `../../../WunderGraph_Router_POC_Plan.md`. Resolvers are
+> POC scope per `../../../aidlc-docs/operations/wundergraph/WunderGraph_Router_POC_Plan.md`. Resolvers are
 > hand-written; this is one subgraph (no `@key` entities yet). The full Go
 > ingestion tier is 6 units (router + 3 resolvers + 2 lambdas) — out of scope here.
 
