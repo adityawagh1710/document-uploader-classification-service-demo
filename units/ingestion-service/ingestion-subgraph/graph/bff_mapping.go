@@ -4,6 +4,7 @@ package graph
 // back the document-uploader UI's former direct-AWS routes).
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -99,4 +100,50 @@ func watchdogMaxRows() int {
 		}
 	}
 	return 50
+}
+
+// failureReason mirrors lib/stats.ts formatFailureReason: a human-readable
+// summary of a ClassificationFailure (the opaque error map from /classify).
+func failureReason(f map[string]any) string {
+	kind, _ := f["kind"].(string)
+	switch kind {
+	case "input-validation":
+		return fmt.Sprintf("validation: %v — %v", f["field"], f["message"])
+	case "s3":
+		return fmt.Sprintf("s3: %v", f["reason"])
+	case "store":
+		return fmt.Sprintf("store: %v", f["reason"])
+	case "signal":
+		return fmt.Sprintf("signal: %v", f["reason"])
+	case "unexpected":
+		return fmt.Sprintf("unexpected: %v", f["message"])
+	default:
+		return kind
+	}
+}
+
+// ptr returns a pointer to s, or nil when s is empty.
+func ptr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func strDeref(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+func boolDeref(p *bool) bool {
+	return p != nil && *p
+}
+
+func intDeref(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
 }

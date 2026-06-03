@@ -6,10 +6,15 @@ package app
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	contracts "github.com/opus2/docuploader/libs/pipeline-contracts/go"
 )
+
+// ErrQueueNotConfigured signals a fan-out queue isn't wired — the resolver maps
+// it to dispatch state "skipped" (mirrors the UI's undefined-dispatcher guard).
+var ErrQueueNotConfigured = errors.New("queue not configured")
 
 // Workspace / Document are the router's domain shapes (mapped to GraphQL models
 // in the resolver layer).
@@ -42,6 +47,11 @@ type Store interface {
 // Uploader mints a presigned PUT URL + the claim-check pointer (P3: real S3).
 type Uploader interface {
 	Presign(ctx context.Context, tenantID, documentID, filename string) (url string, source contracts.ClaimCheck, err error)
+	// PresignUpload mints a presigned PUT under the UI's own `ui/{documentId}/
+	// {filename}` prefix (the key shape the classify write-path + download guards
+	// expect). Content-type is intentionally NOT signed so the streaming PUT
+	// isn't rejected for a header mismatch.
+	PresignUpload(ctx context.Context, documentID, filename, contentType string) (url string, source contracts.ClaimCheck, err error)
 }
 
 // Dispatcher sends a StageRequest into the pipeline (P3: real SQS).
@@ -76,6 +86,72 @@ type ClassificationResult struct {
 // service's /classify endpoint; the stub returns a canned result for BACKEND=memory.
 type Classifier interface {
 	Classify(ctx context.Context, workspaceID, documentID string, source contracts.ClaimCheck, extension, contentType string) (ClassificationResult, error)
+	// ClassifyRaw returns the FULL classification envelope (the nested
+	// ClassificationOutput on success, or the ClassificationFailure on a 422),
+	// for the classify write-path which persists/returns the whole JSON.
+	ClassifyRaw(ctx context.Context, req ClassifyRequest) (ClassifyAttempt, error)
+}
+
+// ClassifyRequest carries everything the /classify endpoint needs, including the
+// dedup/archive context the UI passed through.
+type ClassifyRequest struct {
+	WorkspaceID            string
+	DocumentID             string
+	Source                 contracts.ClaimCheck
+	Extension              string
+	ContentType            string
+	OverrideDuplicateCheck bool
+	ParentArchiveDepth     int
+}
+
+// ClassifyAttempt is the raw outcome of one /classify call: OK + the full
+// ClassificationOutput map, or !OK + the ClassificationFailure map.
+type ClassifyAttempt struct {
+	OK      bool
+	Result  map[string]any // full ClassificationOutput on success
+	Failure map[string]any // ClassificationFailure on a domain failure (422)
+}
+
+// --- Classify write-path fan-out (the UI's old archive/convert/email dispatch) ---
+
+// ArchiveClaim is the exact SQS message body the UI enqueued for category=archive
+// (mirrors ports/ArchiveDispatcher.ts ArchiveClaimCheck — JSON keys are load-bearing).
+type ArchiveClaim struct {
+	PipelineExecutionID string `json:"pipelineExecutionId"`
+	TenantID            string `json:"tenantId"`
+	DocumentID          string `json:"documentId"`
+	SourceBucket        string `json:"sourceBucket"`
+	SourceKey           string `json:"sourceKey"`
+	CorrelationID       string `json:"correlationId"`
+}
+
+// ConvertClaim is the exact SQS message body the UI enqueued for category=convert
+// (mirrors ports/ConvertDispatcher.ts ConvertClaimCheck). SubCategory is emitted
+// as null when absent (no omitempty) to match JSON.stringify.
+type ConvertClaim struct {
+	PipelineExecutionID string  `json:"pipelineExecutionId"`
+	TenantID            string  `json:"tenantId"`
+	DocumentID          string  `json:"documentId"`
+	RunID               string  `json:"runId"`
+	SourceBucket        string  `json:"sourceBucket"`
+	SourceKey           string  `json:"sourceKey"`
+	Filename            string  `json:"filename"`
+	SubCategory         *string `json:"subCategory"`
+	CorrelationID       string  `json:"correlationId"`
+}
+
+// PipelineDispatcher emits the UI-compatible archive/convert SQS bodies. Returns
+// ErrQueueNotConfigured when the relevant queue URL is unset (→ "skipped").
+type PipelineDispatcher interface {
+	DispatchArchive(ctx context.Context, claim ArchiveClaim) error
+	DispatchConvert(ctx context.Context, claim ConvertClaim) error
+}
+
+// EmailExtractor fans an uploaded email file out to the email-extraction service
+// (HTTP) and returns the parsed extraction payload. A nil EmailExtractor means
+// the fan-out is disabled (→ "skipped"), matching the UI's empty-URL guard.
+type EmailExtractor interface {
+	Extract(ctx context.Context, workspaceID, documentID string, body []byte) (map[string]any, error)
 }
 
 // WorkspaceConfig is the per-workspace classification policy — the exact shape
@@ -183,6 +259,9 @@ type RunStore interface {
 type ObjectStore interface {
 	Head(ctx context.Context, bucket, key string) (*S3ObjectMeta, error)
 	PresignDownload(ctx context.Context, bucket, key, contentDisposition, contentType string) (string, error)
+	// GetObject reads the full object body (used by the email fan-out to re-read
+	// the uploaded bytes from the claim-check).
+	GetObject(ctx context.Context, bucket, key string) ([]byte, error)
 }
 
 // EmailExtractionStore persists/reads parsed email-extraction payloads (P3:

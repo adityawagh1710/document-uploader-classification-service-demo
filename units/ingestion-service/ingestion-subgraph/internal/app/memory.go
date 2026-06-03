@@ -147,6 +147,12 @@ func (u StubUploader) Presign(_ context.Context, tenantID, documentID, filename 
 	return url, contracts.ClaimCheck{Bucket: u.Bucket, Key: key}, nil
 }
 
+func (u StubUploader) PresignUpload(_ context.Context, documentID, filename, _ string) (string, contracts.ClaimCheck, error) {
+	key := fmt.Sprintf("ui/%s/%s", documentID, filename)
+	url := fmt.Sprintf("http://localstack:4566/%s/%s?stub-presigned=1", u.Bucket, key)
+	return url, contracts.ClaimCheck{Bucket: u.Bucket, Key: key}, nil
+}
+
 // StubClassifier returns a canned result for the no-classification-service path
 // (BACKEND=memory without CLASSIFY_URL). The real classifierhttp.Client POSTs to
 // the classification /classify endpoint.
@@ -162,6 +168,26 @@ func (StubClassifier) Classify(_ context.Context, workspaceID, documentID string
 		DetectionTier:   "stub",
 		ContentHash:     "stub-no-classification-service",
 		PolicyVersion:   "v1",
+	}, nil
+}
+
+func (StubClassifier) ClassifyRaw(_ context.Context, req ClassifyRequest) (ClassifyAttempt, error) {
+	return ClassifyAttempt{
+		OK: true,
+		Result: map[string]any{
+			"documentId":  req.DocumentID,
+			"workspaceId": req.WorkspaceID,
+			"classification": map[string]any{
+				"format":            "txt",
+				"category":          "convert",
+				"subCategory":       nil,
+				"confidenceScore":   0.75,
+				"detectionTier":     "stub",
+				"isForcedSlipsheet": false,
+			},
+			"dedup":         map[string]any{"contentHash": "stub-no-classification-service", "isDuplicate": false},
+			"policyVersion": "v1",
+		},
 	}, nil
 }
 
@@ -288,6 +314,10 @@ func (StubObjectStore) Head(_ context.Context, _ string, key string) (*S3ObjectM
 
 func (s StubObjectStore) PresignDownload(_ context.Context, bucket, key, _, _ string) (string, error) {
 	return fmt.Sprintf("http://localstack:4566/%s/%s?stub-presigned=1", bucket, key), nil
+}
+
+func (StubObjectStore) GetObject(context.Context, string, string) ([]byte, error) {
+	return []byte{}, nil
 }
 
 // MemEmailExtractionStore is an in-memory EmailExtractionStore for BACKEND=memory.

@@ -235,3 +235,60 @@ extend type Mutation {
   "Force-fail convert rows stuck in `converting` past the watchdog cutoff."
   reapStuckConverts: ReapResult!
 }
+
+# ---------------------------------------------------------------------------
+# Classify write-path — the router owns the full upload→classify→fan-out flow so
+# the UI holds no AWS SDK. The UI mints a presigned PUT, streams the bytes to S3
+# directly, then calls classifyUploaded (which classifies, dispatches archive/
+# convert, fans out email, and records the run).
+# ---------------------------------------------------------------------------
+
+"A presigned PUT target the client uploads bytes to before classifying."
+type PresignUploadResult {
+  documentId: ID!
+  bucket: String!
+  objectKey: String!
+  "Presigned PUT URL — client uploads the file bytes directly to S3."
+  uploadUrl: String!
+}
+
+"The full outcome of classifying an uploaded document (mirrors the UI's old POST /api/classify body)."
+type ClassifyOutcome {
+  ok: Boolean!
+  "Full ClassificationOutput on success (opaque)."
+  result: Map
+  "ClassificationFailure on failure (opaque)."
+  error: Map
+  elapsedMs: Int!
+  documentId: ID!
+  objectKey: String!
+  inputName: String!
+  archiveDispatch: String
+  convertDispatch: String
+  emailDispatch: String
+}
+
+input PresignUploadInput {
+  workspaceId: ID!
+  inputName: String!
+  contentType: String
+}
+
+input ClassifyUploadedInput {
+  workspaceId: ID!
+  documentId: ID!
+  bucket: String!
+  objectKey: String!
+  inputName: String!
+  extension: String
+  contentType: String
+  overrideDuplicateCheck: Boolean
+  parentArchiveDepth: Int
+}
+
+extend type Mutation {
+  "Mint a presigned PUT + document id for a new upload."
+  presignUpload(input: PresignUploadInput!): PresignUploadResult!
+  "Classify an already-uploaded document, fan out archive/convert/email, record the run."
+  classifyUploaded(input: ClassifyUploadedInput!): ClassifyOutcome!
+}

@@ -37,6 +37,34 @@ type ClassificationStats struct {
 	Recent     []RecentRun    `json:"recent"`
 }
 
+// The full outcome of classifying an uploaded document (mirrors the UI's old POST /api/classify body).
+type ClassifyOutcome struct {
+	Ok bool `json:"ok"`
+	// Full ClassificationOutput on success (opaque).
+	Result map[string]any `json:"result,omitempty"`
+	// ClassificationFailure on failure (opaque).
+	Error           map[string]any `json:"error,omitempty"`
+	ElapsedMs       int            `json:"elapsedMs"`
+	DocumentID      string         `json:"documentId"`
+	ObjectKey       string         `json:"objectKey"`
+	InputName       string         `json:"inputName"`
+	ArchiveDispatch *string        `json:"archiveDispatch,omitempty"`
+	ConvertDispatch *string        `json:"convertDispatch,omitempty"`
+	EmailDispatch   *string        `json:"emailDispatch,omitempty"`
+}
+
+type ClassifyUploadedInput struct {
+	WorkspaceID            string  `json:"workspaceId"`
+	DocumentID             string  `json:"documentId"`
+	Bucket                 string  `json:"bucket"`
+	ObjectKey              string  `json:"objectKey"`
+	InputName              string  `json:"inputName"`
+	Extension              *string `json:"extension,omitempty"`
+	ContentType            *string `json:"contentType,omitempty"`
+	OverrideDuplicateCheck *bool   `json:"overrideDuplicateCheck,omitempty"`
+	ParentArchiveDepth     *int    `json:"parentArchiveDepth,omitempty"`
+}
+
 // Live office-convert progress for a converting run.
 type ConvertProgress struct {
 	ConvertStatus *string        `json:"convertStatus,omitempty"`
@@ -92,6 +120,21 @@ type EmailExtraction struct {
 }
 
 type Mutation struct {
+}
+
+type PresignUploadInput struct {
+	WorkspaceID string  `json:"workspaceId"`
+	InputName   string  `json:"inputName"`
+	ContentType *string `json:"contentType,omitempty"`
+}
+
+// A presigned PUT target the client uploads bytes to before classifying.
+type PresignUploadResult struct {
+	DocumentID string `json:"documentId"`
+	Bucket     string `json:"bucket"`
+	ObjectKey  string `json:"objectKey"`
+	// Presigned PUT URL — client uploads the file bytes directly to S3.
+	UploadURL string `json:"uploadUrl"`
 }
 
 type Query struct {

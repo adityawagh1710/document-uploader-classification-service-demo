@@ -71,6 +71,19 @@ type ComplexityRoot struct {
 		Total      func(childComplexity int) int
 	}
 
+	ClassifyOutcome struct {
+		ArchiveDispatch func(childComplexity int) int
+		ConvertDispatch func(childComplexity int) int
+		DocumentID      func(childComplexity int) int
+		ElapsedMs       func(childComplexity int) int
+		EmailDispatch   func(childComplexity int) int
+		Error           func(childComplexity int) int
+		InputName       func(childComplexity int) int
+		ObjectKey       func(childComplexity int) int
+		Ok              func(childComplexity int) int
+		Result          func(childComplexity int) int
+	}
+
 	ConvertProgress struct {
 		ConvertStatus func(childComplexity int) int
 		Progress      func(childComplexity int) int
@@ -112,10 +125,19 @@ type ComplexityRoot struct {
 	Mutation struct {
 		Classify            func(childComplexity int, documentID string) int
 		ClassifyDocument    func(childComplexity int, documentID string) int
+		ClassifyUploaded    func(childComplexity int, input model.ClassifyUploadedInput) int
 		CreateDocument      func(childComplexity int, input model.CreateDocumentInput) int
 		CreateWorkspace     func(childComplexity int, input model.CreateWorkspaceInput) int
+		PresignUpload       func(childComplexity int, input model.PresignUploadInput) int
 		ReapStuckConverts   func(childComplexity int) int
 		SaveWorkspaceConfig func(childComplexity int, input model.WorkspaceConfigInput) int
+	}
+
+	PresignUploadResult struct {
+		Bucket     func(childComplexity int) int
+		DocumentID func(childComplexity int) int
+		ObjectKey  func(childComplexity int) int
+		UploadURL  func(childComplexity int) int
 	}
 
 	Query struct {
@@ -219,6 +241,8 @@ type MutationResolver interface {
 	Classify(ctx context.Context, documentID string) (*model.ClassificationResult, error)
 	SaveWorkspaceConfig(ctx context.Context, input model.WorkspaceConfigInput) (*model.WorkspaceConfig, error)
 	ReapStuckConverts(ctx context.Context) (*model.ReapResult, error)
+	PresignUpload(ctx context.Context, input model.PresignUploadInput) (*model.PresignUploadResult, error)
+	ClassifyUploaded(ctx context.Context, input model.ClassifyUploadedInput) (*model.ClassifyOutcome, error)
 }
 type QueryResolver interface {
 	Workspaces(ctx context.Context) ([]model.Workspace, error)
@@ -393,6 +417,67 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ClassificationStats.Total(childComplexity), true
 
+	case "ClassifyOutcome.archiveDispatch":
+		if e.ComplexityRoot.ClassifyOutcome.ArchiveDispatch == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassifyOutcome.ArchiveDispatch(childComplexity), true
+	case "ClassifyOutcome.convertDispatch":
+		if e.ComplexityRoot.ClassifyOutcome.ConvertDispatch == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassifyOutcome.ConvertDispatch(childComplexity), true
+	case "ClassifyOutcome.documentId":
+		if e.ComplexityRoot.ClassifyOutcome.DocumentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassifyOutcome.DocumentID(childComplexity), true
+	case "ClassifyOutcome.elapsedMs":
+		if e.ComplexityRoot.ClassifyOutcome.ElapsedMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassifyOutcome.ElapsedMs(childComplexity), true
+	case "ClassifyOutcome.emailDispatch":
+		if e.ComplexityRoot.ClassifyOutcome.EmailDispatch == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassifyOutcome.EmailDispatch(childComplexity), true
+	case "ClassifyOutcome.error":
+		if e.ComplexityRoot.ClassifyOutcome.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassifyOutcome.Error(childComplexity), true
+	case "ClassifyOutcome.inputName":
+		if e.ComplexityRoot.ClassifyOutcome.InputName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassifyOutcome.InputName(childComplexity), true
+	case "ClassifyOutcome.objectKey":
+		if e.ComplexityRoot.ClassifyOutcome.ObjectKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassifyOutcome.ObjectKey(childComplexity), true
+	case "ClassifyOutcome.ok":
+		if e.ComplexityRoot.ClassifyOutcome.Ok == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassifyOutcome.Ok(childComplexity), true
+	case "ClassifyOutcome.result":
+		if e.ComplexityRoot.ClassifyOutcome.Result == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ClassifyOutcome.Result(childComplexity), true
+
 	case "ConvertProgress.convertStatus":
 		if e.ComplexityRoot.ConvertProgress.ConvertStatus == nil {
 			break
@@ -558,6 +643,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ClassifyDocument(childComplexity, args["documentId"].(string)), true
+	case "Mutation.classifyUploaded":
+		if e.ComplexityRoot.Mutation.ClassifyUploaded == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_classifyUploaded_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ClassifyUploaded(childComplexity, args["input"].(model.ClassifyUploadedInput)), true
 	case "Mutation.createDocument":
 		if e.ComplexityRoot.Mutation.CreateDocument == nil {
 			break
@@ -580,6 +676,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateWorkspace(childComplexity, args["input"].(model.CreateWorkspaceInput)), true
+	case "Mutation.presignUpload":
+		if e.ComplexityRoot.Mutation.PresignUpload == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_presignUpload_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.PresignUpload(childComplexity, args["input"].(model.PresignUploadInput)), true
 	case "Mutation.reapStuckConverts":
 		if e.ComplexityRoot.Mutation.ReapStuckConverts == nil {
 			break
@@ -597,6 +704,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SaveWorkspaceConfig(childComplexity, args["input"].(model.WorkspaceConfigInput)), true
+
+	case "PresignUploadResult.bucket":
+		if e.ComplexityRoot.PresignUploadResult.Bucket == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PresignUploadResult.Bucket(childComplexity), true
+	case "PresignUploadResult.documentId":
+		if e.ComplexityRoot.PresignUploadResult.DocumentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PresignUploadResult.DocumentID(childComplexity), true
+	case "PresignUploadResult.objectKey":
+		if e.ComplexityRoot.PresignUploadResult.ObjectKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PresignUploadResult.ObjectKey(childComplexity), true
+	case "PresignUploadResult.uploadUrl":
+		if e.ComplexityRoot.PresignUploadResult.UploadURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PresignUploadResult.UploadURL(childComplexity), true
 
 	case "Query.backendTarget":
 		if e.ComplexityRoot.Query.BackendTarget == nil {
@@ -1018,8 +1150,10 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputClassifyUploadedInput,
 		ec.unmarshalInputCreateDocumentInput,
 		ec.unmarshalInputCreateWorkspaceInput,
+		ec.unmarshalInputPresignUploadInput,
 		ec.unmarshalInputWorkspaceConfigInput,
 	)
 	first := true
@@ -1256,6 +1390,32 @@ func (ec *executionContext) childFields_ClassificationStats(ctx context.Context,
 	return nil, fmt.Errorf("no field named %q was found under type ClassificationStats", field.Name)
 }
 
+func (ec *executionContext) childFields_ClassifyOutcome(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "ok":
+		return ec.fieldContext_ClassifyOutcome_ok(ctx, field)
+	case "result":
+		return ec.fieldContext_ClassifyOutcome_result(ctx, field)
+	case "error":
+		return ec.fieldContext_ClassifyOutcome_error(ctx, field)
+	case "elapsedMs":
+		return ec.fieldContext_ClassifyOutcome_elapsedMs(ctx, field)
+	case "documentId":
+		return ec.fieldContext_ClassifyOutcome_documentId(ctx, field)
+	case "objectKey":
+		return ec.fieldContext_ClassifyOutcome_objectKey(ctx, field)
+	case "inputName":
+		return ec.fieldContext_ClassifyOutcome_inputName(ctx, field)
+	case "archiveDispatch":
+		return ec.fieldContext_ClassifyOutcome_archiveDispatch(ctx, field)
+	case "convertDispatch":
+		return ec.fieldContext_ClassifyOutcome_convertDispatch(ctx, field)
+	case "emailDispatch":
+		return ec.fieldContext_ClassifyOutcome_emailDispatch(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ClassifyOutcome", field.Name)
+}
+
 func (ec *executionContext) childFields_ConvertProgress(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "convertStatus":
@@ -1330,6 +1490,20 @@ func (ec *executionContext) childFields_EmailExtraction(ctx context.Context, fie
 		return ec.fieldContext_EmailExtraction_extraction(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type EmailExtraction", field.Name)
+}
+
+func (ec *executionContext) childFields_PresignUploadResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "documentId":
+		return ec.fieldContext_PresignUploadResult_documentId(ctx, field)
+	case "bucket":
+		return ec.fieldContext_PresignUploadResult_bucket(ctx, field)
+	case "objectKey":
+		return ec.fieldContext_PresignUploadResult_objectKey(ctx, field)
+	case "uploadUrl":
+		return ec.fieldContext_PresignUploadResult_uploadUrl(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PresignUploadResult", field.Name)
 }
 
 func (ec *executionContext) childFields_ReapResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -1608,6 +1782,20 @@ func (ec *executionContext) field_Mutation_classifyDocument_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_classifyUploaded_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.ClassifyUploadedInput, error) {
+			return ec.unmarshalNClassifyUploadedInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐClassifyUploadedInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_classify_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1642,6 +1830,20 @@ func (ec *executionContext) field_Mutation_createWorkspace_args(ctx context.Cont
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.CreateWorkspaceInput, error) {
 			return ec.unmarshalNCreateWorkspaceInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐCreateWorkspaceInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_presignUpload_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.PresignUploadInput, error) {
+			return ec.unmarshalNPresignUploadInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐPresignUploadInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -2430,6 +2632,236 @@ func (ec *executionContext) fieldContext_ClassificationStats_recent(_ context.Co
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _ClassifyOutcome_ok(ctx context.Context, field graphql.CollectedField, obj *model.ClassifyOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassifyOutcome_ok(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Ok, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassifyOutcome_ok(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassifyOutcome", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ClassifyOutcome_result(ctx context.Context, field graphql.CollectedField, obj *model.ClassifyOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassifyOutcome_result(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Result, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v map[string]any) graphql.Marshaler {
+			return ec.marshalOMap2map(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ClassifyOutcome_result(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassifyOutcome", field, false, false, errors.New("field of type Map does not have child fields"))
+}
+
+func (ec *executionContext) _ClassifyOutcome_error(ctx context.Context, field graphql.CollectedField, obj *model.ClassifyOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassifyOutcome_error(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v map[string]any) graphql.Marshaler {
+			return ec.marshalOMap2map(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ClassifyOutcome_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassifyOutcome", field, false, false, errors.New("field of type Map does not have child fields"))
+}
+
+func (ec *executionContext) _ClassifyOutcome_elapsedMs(ctx context.Context, field graphql.CollectedField, obj *model.ClassifyOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassifyOutcome_elapsedMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ElapsedMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassifyOutcome_elapsedMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassifyOutcome", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ClassifyOutcome_documentId(ctx context.Context, field graphql.CollectedField, obj *model.ClassifyOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassifyOutcome_documentId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DocumentID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassifyOutcome_documentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassifyOutcome", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _ClassifyOutcome_objectKey(ctx context.Context, field graphql.CollectedField, obj *model.ClassifyOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassifyOutcome_objectKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ObjectKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassifyOutcome_objectKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassifyOutcome", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ClassifyOutcome_inputName(ctx context.Context, field graphql.CollectedField, obj *model.ClassifyOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassifyOutcome_inputName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InputName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ClassifyOutcome_inputName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassifyOutcome", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ClassifyOutcome_archiveDispatch(ctx context.Context, field graphql.CollectedField, obj *model.ClassifyOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassifyOutcome_archiveDispatch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArchiveDispatch, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ClassifyOutcome_archiveDispatch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassifyOutcome", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ClassifyOutcome_convertDispatch(ctx context.Context, field graphql.CollectedField, obj *model.ClassifyOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassifyOutcome_convertDispatch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ConvertDispatch, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ClassifyOutcome_convertDispatch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassifyOutcome", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ClassifyOutcome_emailDispatch(ctx context.Context, field graphql.CollectedField, obj *model.ClassifyOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ClassifyOutcome_emailDispatch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EmailDispatch, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ClassifyOutcome_emailDispatch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ClassifyOutcome", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _ConvertProgress_convertStatus(ctx context.Context, field graphql.CollectedField, obj *model.ConvertProgress) (ret graphql.Marshaler) {
@@ -3229,6 +3661,186 @@ func (ec *executionContext) fieldContext_Mutation_reapStuckConverts(_ context.Co
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_presignUpload(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_presignUpload(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().PresignUpload(ctx, fc.Args["input"].(model.PresignUploadInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PresignUploadResult) graphql.Marshaler {
+			return ec.marshalNPresignUploadResult2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐPresignUploadResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_presignUpload(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PresignUploadResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_presignUpload_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_classifyUploaded(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_classifyUploaded(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ClassifyUploaded(ctx, fc.Args["input"].(model.ClassifyUploadedInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ClassifyOutcome) graphql.Marshaler {
+			return ec.marshalNClassifyOutcome2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐClassifyOutcome(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_classifyUploaded(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ClassifyOutcome(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_classifyUploaded_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PresignUploadResult_documentId(ctx context.Context, field graphql.CollectedField, obj *model.PresignUploadResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PresignUploadResult_documentId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DocumentID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PresignUploadResult_documentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PresignUploadResult", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _PresignUploadResult_bucket(ctx context.Context, field graphql.CollectedField, obj *model.PresignUploadResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PresignUploadResult_bucket(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Bucket, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PresignUploadResult_bucket(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PresignUploadResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PresignUploadResult_objectKey(ctx context.Context, field graphql.CollectedField, obj *model.PresignUploadResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PresignUploadResult_objectKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ObjectKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PresignUploadResult_objectKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PresignUploadResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PresignUploadResult_uploadUrl(ctx context.Context, field graphql.CollectedField, obj *model.PresignUploadResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PresignUploadResult_uploadUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UploadURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PresignUploadResult_uploadUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PresignUploadResult", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Query_workspaces(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -5977,6 +6589,92 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputClassifyUploadedInput(ctx context.Context, obj any) (model.ClassifyUploadedInput, error) {
+	var it model.ClassifyUploadedInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"workspaceId", "documentId", "bucket", "objectKey", "inputName", "extension", "contentType", "overrideDuplicateCheck", "parentArchiveDepth"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "workspaceId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workspaceId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WorkspaceID = data
+		case "documentId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("documentId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DocumentID = data
+		case "bucket":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bucket"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Bucket = data
+		case "objectKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("objectKey"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ObjectKey = data
+		case "inputName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("inputName"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.InputName = data
+		case "extension":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("extension"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Extension = data
+		case "contentType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("contentType"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ContentType = data
+		case "overrideDuplicateCheck":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("overrideDuplicateCheck"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.OverrideDuplicateCheck = data
+		case "parentArchiveDepth":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parentArchiveDepth"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ParentArchiveDepth = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateDocumentInput(ctx context.Context, obj any) (model.CreateDocumentInput, error) {
 	var it model.CreateDocumentInput
 	if obj == nil {
@@ -6046,6 +6744,50 @@ func (ec *executionContext) unmarshalInputCreateWorkspaceInput(ctx context.Conte
 				return it, err
 			}
 			it.RetentionDays = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputPresignUploadInput(ctx context.Context, obj any) (model.PresignUploadInput, error) {
+	var it model.PresignUploadInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"workspaceId", "inputName", "contentType"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "workspaceId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workspaceId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WorkspaceID = data
+		case "inputName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("inputName"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.InputName = data
+		case "contentType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("contentType"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ContentType = data
 		}
 	}
 	return it, nil
@@ -6322,6 +7064,75 @@ func (ec *executionContext) _ClassificationStats(ctx context.Context, sel ast.Se
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var classifyOutcomeImplementors = []string{"ClassifyOutcome"}
+
+func (ec *executionContext) _ClassifyOutcome(ctx context.Context, sel ast.SelectionSet, obj *model.ClassifyOutcome) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, classifyOutcomeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ClassifyOutcome")
+		case "ok":
+			out.Values[i] = ec._ClassifyOutcome_ok(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "result":
+			out.Values[i] = ec._ClassifyOutcome_result(ctx, field, obj)
+		case "error":
+			out.Values[i] = ec._ClassifyOutcome_error(ctx, field, obj)
+		case "elapsedMs":
+			out.Values[i] = ec._ClassifyOutcome_elapsedMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "documentId":
+			out.Values[i] = ec._ClassifyOutcome_documentId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "objectKey":
+			out.Values[i] = ec._ClassifyOutcome_objectKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "inputName":
+			out.Values[i] = ec._ClassifyOutcome_inputName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archiveDispatch":
+			out.Values[i] = ec._ClassifyOutcome_archiveDispatch(ctx, field, obj)
+		case "convertDispatch":
+			out.Values[i] = ec._ClassifyOutcome_convertDispatch(ctx, field, obj)
+		case "emailDispatch":
+			out.Values[i] = ec._ClassifyOutcome_emailDispatch(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -6655,6 +7466,74 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_reapStuckConverts(ctx, field)
 			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "presignUpload":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_presignUpload(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "classifyUploaded":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_classifyUploaded(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var presignUploadResultImplementors = []string{"PresignUploadResult"}
+
+func (ec *executionContext) _PresignUploadResult(ctx context.Context, sel ast.SelectionSet, obj *model.PresignUploadResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, presignUploadResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PresignUploadResult")
+		case "documentId":
+			out.Values[i] = ec._PresignUploadResult_documentId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "bucket":
+			out.Values[i] = ec._PresignUploadResult_bucket(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "objectKey":
+			out.Values[i] = ec._PresignUploadResult_objectKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "uploadUrl":
+			out.Values[i] = ec._PresignUploadResult_uploadUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -7915,6 +8794,25 @@ func (ec *executionContext) marshalNClassificationStats2ᚖgithubᚗcomᚋopus2�
 	return ec._ClassificationStats(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNClassifyOutcome2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐClassifyOutcome(ctx context.Context, sel ast.SelectionSet, v model.ClassifyOutcome) graphql.Marshaler {
+	return ec._ClassifyOutcome(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNClassifyOutcome2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐClassifyOutcome(ctx context.Context, sel ast.SelectionSet, v *model.ClassifyOutcome) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ClassifyOutcome(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNClassifyUploadedInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐClassifyUploadedInput(ctx context.Context, v any) (model.ClassifyUploadedInput, error) {
+	res, err := ec.unmarshalInputClassifyUploadedInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNConvertProgress2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐConvertProgress(ctx context.Context, sel ast.SelectionSet, v model.ConvertProgress) graphql.Marshaler {
 	return ec._ConvertProgress(ctx, sel, &v)
 }
@@ -8067,6 +8965,25 @@ func (ec *executionContext) marshalNMap2map(ctx context.Context, sel ast.Selecti
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNPresignUploadInput2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐPresignUploadInput(ctx context.Context, v any) (model.PresignUploadInput, error) {
+	res, err := ec.unmarshalInputPresignUploadInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPresignUploadResult2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐPresignUploadResult(ctx context.Context, sel ast.SelectionSet, v model.PresignUploadResult) graphql.Marshaler {
+	return ec._PresignUploadResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPresignUploadResult2ᚖgithubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐPresignUploadResult(ctx context.Context, sel ast.SelectionSet, v *model.PresignUploadResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PresignUploadResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNReapResult2githubᚗcomᚋopus2ᚋdocuploaderᚋunitsᚋingestionᚑserviceᚋingestionᚑsubgraphᚋgraphᚋmodelᚐReapResult(ctx context.Context, sel ast.SelectionSet, v model.ReapResult) graphql.Marshaler {
