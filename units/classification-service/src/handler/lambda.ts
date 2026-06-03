@@ -6,7 +6,7 @@ import { SQSClient } from "@aws-sdk/client-sqs";
 import { createDDBDocumentClient } from "../adapters/shared/dynamo-client.js";
 import { createStepFunctionAdapter } from "../adapters/step-functions/index.js";
 import { createSqsArchiveDispatcher } from "../adapters/sqs-archive-dispatcher/index.js";
-import { createPowertoolsLogger } from "../adapters/powertools/index.js";
+import { createPinoLogger } from "../adapters/pino/index.js";
 import type { ArchiveDispatcher } from "../ports/ArchiveDispatcher.js";
 
 import { composeClassificationService } from "./classification-service-factory.js";
@@ -52,7 +52,7 @@ const s3 = new S3Client({
 });
 const sfn = new SFNClient({ retryMode: "standard", maxAttempts: 3 });
 
-const logger = createPowertoolsLogger("classification-service", "documentId");
+const logger = createPinoLogger("classification-service", "documentId");
 
 const inputValidator = createInputValidator();
 const taskSignaler = createStepFunctionAdapter({ sfn, logger });

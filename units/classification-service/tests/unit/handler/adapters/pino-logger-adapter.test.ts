@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { createPowertoolsLogger } from "../../../../src/adapters/powertools/index.js";
+import { createPinoLogger } from "../../../../src/adapters/pino/index.js";
 
-describe("PowertoolsLoggerAdapter", () => {
+describe("PinoLoggerAdapter", () => {
   it("exposes the Logger port methods", () => {
-    const logger = createPowertoolsLogger("test-service", "documentId");
+    const logger = createPinoLogger("test-service", "documentId");
     expect(typeof logger.info).toBe("function");
     expect(typeof logger.warn).toBe("function");
     expect(typeof logger.error).toBe("function");
@@ -11,7 +11,7 @@ describe("PowertoolsLoggerAdapter", () => {
   });
 
   it("does not throw on basic log calls — exercises both context-present and context-absent branches across all 4 levels", () => {
-    const logger = createPowertoolsLogger("test-service", "documentId");
+    const logger = createPinoLogger("test-service", "documentId");
     // info — both branches
     expect(() => logger.info("hello")).not.toThrow();
     expect(() => logger.info("hello", { workspaceId: "ws-1" })).not.toThrow();
@@ -27,7 +27,7 @@ describe("PowertoolsLoggerAdapter", () => {
   });
 
   it("returns a frozen object", () => {
-    const logger = createPowertoolsLogger("test-service", "documentId");
+    const logger = createPinoLogger("test-service", "documentId");
     expect(Object.isFrozen(logger)).toBe(true);
   });
 });

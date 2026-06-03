@@ -14,7 +14,7 @@ import http from "node:http";
 import { S3Client } from "@aws-sdk/client-s3";
 
 import { createDDBDocumentClient } from "../adapters/shared/dynamo-client.js";
-import { createPowertoolsLogger } from "../adapters/powertools/index.js";
+import { createPinoLogger } from "../adapters/pino/index.js";
 import { composeClassificationService } from "./classification-service-factory.js";
 import type { TaskPayload } from "../shared/types.js";
 
@@ -36,7 +36,7 @@ interface ClassifyRequest {
   correlationId?: string;
 }
 
-const logger = createPowertoolsLogger("classification-http", "documentId");
+const logger = createPinoLogger("classification-http", "documentId");
 
 // Mirror lambda.ts's LocalStack handling: when AWS_ENDPOINT_URL is set, relax
 // checksum validation + force path-style so reads against LocalStack succeed.
