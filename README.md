@@ -14,9 +14,9 @@ libs/
 units/
   classification-service/           TS service: src + worker + infra(CDK) + tests + sync /classify HTTP
   document-uploader-ui/             Next.js UI (own unit); talks GraphQL to the router
-  ingestion-service/                ingestion front door (sidecar-pair Pod):
-    wundergraph-router/             pulled Cosmo gateway (federates the subgraph)
-    ingestion-subgraph/             Go gqlgen Federation v2 server over the contract
+  ingestion-service/                ingestion front door (the BFF/router):
+    ingestion-subgraph/             Go gqlgen Federation v2 server — THE live router the UI calls
+    wundergraph-router/             pulled Cosmo gateway config — POC only (not in the live stack/CI/Helm)
 tools/ci/units.json                 path -> unit -> image map (path-filtered CI)
 pnpm-workspace.yaml                 TS workspace (classification-service + ui)
                                     (Go units are standalone modules; each resolves libs/* via a replace directive — go.work omitted due to a machine GOFLAGS=-mod=mod conflict)
@@ -37,8 +37,8 @@ standalone modules resolving `libs/*` via a `replace` directive.
 | `classification-service` | TS (Node) | **fastify 5** — sync `/classify` HTTP server (`src/handler/http-server.ts`); **plus** an AWS **Lambda** handler (`src/handler/lambda.ts`, invoked by the runtime, no HTTP server). Infra: **CDK** (`aws-cdk-lib`) | **pino 10** (Powertools fully removed) | vitest + property-based (fast-check) |
 | `classification-service/worker` | TS (Node) | SQS consumer for the convert stage; `@aws-sdk/client-sfn` for the task-token signal | structured JSON (`worker/src/logger.ts`) | vitest |
 | `document-uploader-ui` | TS | **Next.js 15 / React 19** (standalone); **pure router client — zero `@aws-sdk`** | — | cypress e2e |
-| `ingestion-service/ingestion-subgraph` | Go | **gqlgen** Apollo Federation v2 over `net/http`; `aws-sdk-go-v2` (incl. `service/sfn`) — this is the BFF/router | **slog** | go test |
-| `ingestion-service/wundergraph-router` | — | pulled **Cosmo** gateway image (federates the subgraph); sidecar to `ingestion-subgraph` | — | — |
+| `ingestion-service/ingestion-subgraph` | Go | **gqlgen** Apollo Federation v2 over `net/http`; `aws-sdk-go-v2` (incl. `service/sfn`) — **the live BFF/router the UI calls directly** | **slog** | go test |
+| `ingestion-service/wundergraph-router` | — | pulled **Cosmo** gateway image — **POC only; not in the live runtime, CI, or Helm** (the live stack talks to the subgraph directly; single subgraph, no real federation join yet) | — | — |
 
 **AIDLC conformance (done):** TS units npm→**pnpm**; classification logging Powertools→**pino**;
 the `/classify` server `node:http`→**fastify**; UI Next 14→**15** / React 19; the Go router

@@ -2,9 +2,11 @@
 
 The Go server of the **ingestion-service** unit — a gqlgen **Apollo Federation v2
 subgraph** over the shared wire contract. It mints presigned uploads (S3
-claim-check) and dispatches `StageRequest`s into the pipeline. In deployment it
-sits behind the sibling **`../wundergraph-router/`** (the real WunderGraph Cosmo
-router), which federates and fronts it; the UI talks GraphQL to that gateway.
+claim-check) and dispatches `StageRequest`s into the pipeline. **This subgraph is the
+live router the UI talks to directly** — in the running stack/compose it *is* the
+`router` service. The sibling **`../wundergraph-router/`** (the pulled WunderGraph
+Cosmo gateway) is a **POC** of the intended UI → gateway → subgraph topology; it is
+**not** wired into the running stack, CI, or Helm.
 
 > POC scope per `../../../aidlc-docs/operations/wundergraph/WunderGraph_Router_POC_Plan.md`. Resolvers are
 > hand-written; this is one subgraph (no `@key` entities yet). The full Go

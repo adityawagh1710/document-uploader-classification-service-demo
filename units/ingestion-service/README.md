@@ -1,15 +1,17 @@
 # ingestion-service
 
-The document-uploader **ingestion front door**. One unit, deployed as a
+The document-uploader **ingestion front door**. *Intended* to deploy as a
 **sidecar-pair Pod** of two containers (the same pattern as `office` =
-Aspose + orchestrator and `html` = Gotenberg + sidecar):
+Aspose + orchestrator and `html` = Gotenberg + sidecar) — but today only the
+subgraph half runs; the Cosmo gateway is a POC (see below):
 
 ```
 units/ingestion-service/
-├── wundergraph-router/      gateway  — the real WunderGraph Cosmo router (PULLED image)
-│                                       composes + fronts the subgraph; the UI talks to this
-└── ingestion-subgraph/      server   — Go gqlgen Apollo Federation v2 subgraph (BUILT image)
-                                        mints presigned S3 uploads, dispatches StageRequests
+├── ingestion-subgraph/      server   — Go gqlgen Apollo Federation v2 subgraph (BUILT image)
+│                                       THE live router: the UI talks to this DIRECTLY;
+│                                       mints presigned S3 uploads, dispatches StageRequests
+└── wundergraph-router/      gateway  — pulled WunderGraph Cosmo router (config only) — POC of the
+                                        UI → gateway → subgraph topology; NOT in the live stack/CI/Helm
 ```
 
 | Deployable | Image | Source |
@@ -17,9 +19,10 @@ units/ingestion-service/
 | `wundergraph-router` | `ghcr.io/wundergraph/cosmo/router` (pulled) | config only — `graph.yaml` → `wgc router compose` → `router-config.json` |
 | `ingestion-subgraph` | `…/classification-service-sandbox/ingestion-subgraph` (built) | `ingestion-subgraph/Dockerfile` (multi-stage Go → distroless) |
 
-**Request path:** UI → `wundergraph-router` (gateway) → `ingestion-subgraph` (subgraph)
-→ presign S3 + dispatch `StageRequest:classify` to `classification-classify-queue`
-(the connect point with the classification service).
+**Request path (live):** UI → `ingestion-subgraph` **directly** → presign S3 + dispatch the
+post-classify `StageRequest`. **Intended/POC topology:** UI → `wundergraph-router` (Cosmo
+gateway) → `ingestion-subgraph` — the gateway is stood up as a POC (its own
+`wundergraph-router/docker-compose.yml`) but is **not** wired into the running stack, CI, or Helm.
 
 ## Run it locally
 

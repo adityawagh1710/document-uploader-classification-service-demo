@@ -84,7 +84,7 @@ services:
       - "9000:8080"
 
   # ── Synchronous classify endpoint ──────────────────────────────────────
-  # The wire surface the wundergraph-router's classify resolver calls. Same
+  # The wire surface the router's (ingestion-subgraph) classify resolver calls. Same
   # engine as the Lambda (shared composition), but request/response over HTTP.
   classification-http:
     image: classification-service-http:dev
@@ -106,9 +106,10 @@ services:
     ports:
       - "8091:8091"
 
-  # The wundergraph-router (ingestion subgraph) — the single backend the UI now
-  # talks to. Owns ALL AWS access (S3/DynamoDB/SQS) + the classify write-path;
-  # the UI holds no AWS SDK.
+  # The router = the Go gqlgen ingestion-subgraph itself — the single backend the
+  # UI talks to directly (the WunderGraph Cosmo router is a separate POC, not run
+  # here). Owns ALL AWS access (S3/DynamoDB/SQS) + the classify write-path; the UI
+  # holds no AWS SDK.
   router:
     image: ingestion-subgraph:dev
     build:

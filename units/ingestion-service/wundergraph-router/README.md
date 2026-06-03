@@ -11,6 +11,12 @@ GraphQL gateway). Two pieces:
 > Naming note: this unit *builds the subgraph*; the router itself is the pulled Cosmo image
 > (no source authored beyond config), mirroring the html/Gotenberg pattern.
 
+> **Status: POC — not in the live path.** The Cosmo router runs **only** via *this*
+> directory's `docker-compose.yml`. It is **not** part of the main stack
+> (`units/classification-service/docker-compose.yml`), CI, or Helm — those talk to the
+> `ingestion-subgraph` **directly** (the live `router` service *is* the subgraph). The
+> federation here is nominal: a single subgraph, no `@key` entity joins across subgraphs.
+
 ## Run locally (verified)
 
 ```bash
