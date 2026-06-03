@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getEmailExtraction } from "@/lib/email-extractions";
+import { routerGraphQL } from "@/lib/router-graphql";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,17 +8,21 @@ interface RouteContext {
   params: { documentId: string };
 }
 
-// Returns the cached email-extraction-service response for a given classifier
-// documentId. 404 when no cache entry exists (UI container restarted, or the
-// row predates the fan-out wiring).
+// The parsed email-extraction payload, now persisted to DynamoDB during classify
+// and read back through the router (replaces the UI's old process-local cache).
+const EMAIL_QUERY = `query($d: ID!){ emailExtraction(documentId: $d){ documentId extraction } }`;
+
 export async function GET(_req: Request, { params }: RouteContext) {
-  const documentId = params.documentId;
-  const extraction = getEmailExtraction(documentId);
-  if (!extraction) {
+  const data = await routerGraphQL<{
+    emailExtraction: { documentId: string; extraction: Record<string, unknown> | null } | null;
+  }>(EMAIL_QUERY, { d: params.documentId });
+
+  const ext = data.emailExtraction;
+  if (!ext || !ext.extraction) {
     return NextResponse.json(
-      { error: "no cached extraction for this document", documentId },
+      { error: "no extraction recorded for this document", documentId: params.documentId },
       { status: 404 },
     );
   }
-  return NextResponse.json({ documentId, extraction });
+  return NextResponse.json({ documentId: ext.documentId, extraction: ext.extraction });
 }

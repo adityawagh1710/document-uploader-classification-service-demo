@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Save, Plus, X, CheckCircle2, SlidersHorizontal } from "lucide-react";
-import type { WorkspaceConfig } from "@svc/shared/types";
+import type { WorkspaceConfig } from "@/lib/types";
 import {
   Button,
   Card,
