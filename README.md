@@ -26,6 +26,25 @@ CODEOWNERS
 **Boundary rule:** the only legal cross-unit imports are `libs/*`. No unit imports
 another unit.
 
+## Tech stack & frameworks
+
+Frameworks/tooling follow the platform spec `tech-environment.md` (the binding tier).
+All TS units are a **pnpm** workspace (npm/yarn lockfiles are prohibited); Go units are
+standalone modules resolving `libs/*` via a `replace` directive.
+
+| Unit | Lang | Framework / runtime | Logging | Tests |
+|---|---|---|---|---|
+| `classification-service` | TS (Node) | **fastify 5** — sync `/classify` HTTP server (`src/handler/http-server.ts`); **plus** an AWS **Lambda** handler (`src/handler/lambda.ts`, invoked by the runtime, no HTTP server). Infra: **CDK** (`aws-cdk-lib`) | **pino 10** (Powertools fully removed) | vitest + property-based (fast-check) |
+| `classification-service/worker` | TS (Node) | SQS consumer for the convert stage; `@aws-sdk/client-sfn` for the task-token signal | structured JSON (`worker/src/logger.ts`) | vitest |
+| `document-uploader-ui` | TS | **Next.js 15 / React 19** (standalone); **pure router client — zero `@aws-sdk`** | — | cypress e2e |
+| `ingestion-service/ingestion-subgraph` | Go | **gqlgen** Apollo Federation v2 over `net/http`; `aws-sdk-go-v2` (incl. `service/sfn`) — this is the BFF/router | **slog** | go test |
+| `ingestion-service/wundergraph-router` | — | pulled **Cosmo** gateway image (federates the subgraph); sidecar to `ingestion-subgraph` | — | — |
+
+**AIDLC conformance (done):** TS units npm→**pnpm**; classification logging Powertools→**pino**;
+the `/classify` server `node:http`→**fastify**; UI Next 14→**15** / React 19; the Go router
+already conformant (gqlgen + slog + aws-sdk-go-v2). See `aidlc-docs/aidlc-state.md`
+"Architecture Evolution (2026-06-03)".
+
 ## Per-unit build
 
 | Unit | Commands |
