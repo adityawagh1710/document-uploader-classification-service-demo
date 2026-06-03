@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Mail, X, Paperclip, FileText, AlertTriangle, Hash, Layers, Copy } from "lucide-react";
-import type { EmailExtractionResponse } from "@/lib/email-extractions";
+import type { EmailExtractionResponse } from "@/lib/types";
 import { Badge } from "@/components/ui/primitives";
 
 /**

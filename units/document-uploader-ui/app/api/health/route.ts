@@ -1,37 +1,30 @@
 import { NextResponse } from "next/server";
-import { ListTablesCommand } from "@aws-sdk/client-dynamodb";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { awsClientConfig, DISPLAY_ENDPOINT } from "@/lib/classifier";
+import { routerGraphQL } from "@/lib/router-graphql";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Readiness now probes the router (which owns DynamoDB connectivity) instead of
+// the UI talking to DynamoDB directly. ready:false maps to a 503 so the k8s
+// liveness/readiness probes behave as before.
+const HEALTH_QUERY = `{ routerHealth { ready endpoint tables latencyMs } }`;
+
 export async function GET() {
-  // Reuse the backend config classifier.ts resolved: LocalStack pins the
-  // endpoint + static creds; AWS mode passes region-only so the IRSA chain
-  // applies. Without this, AWS mode would probe localhost:4566 (absent in the
-  // pod), 503, and the readiness/liveness probes would never pass.
-  // A 2 s timeout keeps the probe snappy.
-  const client = new DynamoDBClient({
-    ...awsClientConfig,
-    requestHandler: { requestTimeout: 2000 } as never,
-  });
   try {
-    const start = Date.now();
-    const out = await client.send(new ListTablesCommand({}));
-    return NextResponse.json({
-      ready: true,
-      endpoint: DISPLAY_ENDPOINT,
-      tables: out.TableNames ?? [],
-      latencyMs: Date.now() - start,
-    });
+    const data = await routerGraphQL<{
+      routerHealth: { ready: boolean; endpoint: string; tables: string[]; latencyMs: number };
+    }>(HEALTH_QUERY);
+    const h = data.routerHealth;
+    if (!h.ready) {
+      return NextResponse.json(
+        { ready: false, endpoint: h.endpoint, error: "router reports not ready" },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json(h);
   } catch (e: unknown) {
     return NextResponse.json(
-      {
-        ready: false,
-        endpoint: DISPLAY_ENDPOINT,
-        error: (e as Error)?.message ?? "unknown",
-      },
+      { ready: false, error: (e as Error)?.message ?? "router unreachable" },
       { status: 503 },
     );
   }

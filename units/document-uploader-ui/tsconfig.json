@@ -16,8 +16,7 @@
     "plugins": [{ "name": "next" }],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "@svc/*": ["../classification-service/src/*"]
+      "@/*": ["./*"]
     }
   },
   "include": [

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FolderOpen, Plus, Search, ShieldCheck, Lock } from "lucide-react";
-import type { WorkspaceConfig } from "@svc/shared/types";
+import type { WorkspaceConfig } from "@/lib/types";
 import { Button, Card, CardBody, Badge, Input } from "@/components/ui/primitives";
 import { setSelectedWorkspace } from "@/lib/ui-workspace";
 
