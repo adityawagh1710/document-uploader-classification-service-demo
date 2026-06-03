@@ -525,7 +525,13 @@ ecr-lifecycle-status: check-aws ## [deploy] Show the currently-applied lifecycle
 .PHONY: image-build
 image-build: check-docker ## [deploy] Build the UI image for linux/amd64 (EKS node arch)
 	$(call banner,Building UI image $(DEPLOY_IMAGE_FULL))
-	@docker build --platform linux/amd64 -f ui/Dockerfile -t $(DEPLOY_IMAGE_FULL) .
+	# The UI moved to its own unit (units/document-uploader-ui). Its Dockerfile
+	# builds from the REPO ROOT (it COPYs units/document-uploader-ui + the
+	# outputFileTracingRoot standalone layout is rooted at units/), so the build
+	# context is ../.. and the Dockerfile path is unit-relative from there.
+	@docker build --platform linux/amd64 \
+		-f ../../units/document-uploader-ui/Dockerfile \
+		-t $(DEPLOY_IMAGE_FULL) ../..
 	$(call ok,Built $(DEPLOY_IMAGE_FULL))
 
 .PHONY: image-push
