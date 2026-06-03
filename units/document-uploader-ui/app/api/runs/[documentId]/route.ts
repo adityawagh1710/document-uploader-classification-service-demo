@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface RouteContext {
-  params: { documentId: string };
+  params: Promise<{ documentId: string }>;
 }
 
 // Look up what got persisted for a single classification — the content-hash DDB
@@ -19,6 +19,7 @@ const DOCUMENT_RUN_QUERY = `query($w: ID!, $d: ID!, $ch: String, $ok: String, $r
 }`;
 
 export async function GET(req: Request, { params }: RouteContext) {
+  const { documentId } = await params;
   const { searchParams } = new URL(req.url);
   const workspaceId = searchParams.get("workspaceId");
   if (!workspaceId) {
@@ -29,7 +30,7 @@ export async function GET(req: Request, { params }: RouteContext) {
     DOCUMENT_RUN_QUERY,
     {
       w: workspaceId,
-      d: params.documentId,
+      d: documentId,
       ch: searchParams.get("contentHash"),
       ok: searchParams.get("objectKey"),
       r: searchParams.get("runId"),

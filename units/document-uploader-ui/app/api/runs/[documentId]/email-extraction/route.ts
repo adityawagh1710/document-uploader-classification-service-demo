@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface RouteContext {
-  params: { documentId: string };
+  params: Promise<{ documentId: string }>;
 }
 
 // The parsed email-extraction payload, now persisted to DynamoDB during classify
@@ -13,14 +13,15 @@ interface RouteContext {
 const EMAIL_QUERY = `query($d: ID!){ emailExtraction(documentId: $d){ documentId extraction } }`;
 
 export async function GET(_req: Request, { params }: RouteContext) {
+  const { documentId } = await params;
   const data = await routerGraphQL<{
     emailExtraction: { documentId: string; extraction: Record<string, unknown> | null } | null;
-  }>(EMAIL_QUERY, { d: params.documentId });
+  }>(EMAIL_QUERY, { d: documentId });
 
   const ext = data.emailExtraction;
   if (!ext || !ext.extraction) {
     return NextResponse.json(
-      { error: "no extraction recorded for this document", documentId: params.documentId },
+      { error: "no extraction recorded for this document", documentId },
       { status: 404 },
     );
   }
