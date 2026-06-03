@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@9.15.9",
   "description": "Document Classification Service — first decision point in the document-ingestion pipeline",
   "engines": {
     "node": ">=20.0.0"
@@ -53,8 +54,5 @@
     "tsx": "^4.16.0",
     "typescript": "^5.4.0",
     "vitest": "^3.2.0"
-  },
-  "overrides": {
-    "tmp": "^0.2.6"
   }
 }

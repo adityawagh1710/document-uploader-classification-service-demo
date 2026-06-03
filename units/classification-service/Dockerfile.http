@@ -1,26 +1,36 @@
 # syntax=docker/dockerfile:1.7
 # ----------------------------------------------------------------------------
 # Synchronous classify HTTP endpoint (src/handler/http-server.ts). Same engine
-# as Dockerfile.lambda (shared composition), but a long-running Node server
-# instead of the Lambda runtime. The wundergraph-router calls POST /classify.
-# Build context = units/classification-service (package-lock.json must be here).
+# as Dockerfile.lambda (shared composition), but a long-running Node server.
+# The wundergraph-router calls POST /classify.
+#
+# Build context = REPOSITORY ROOT — the pnpm workspace lockfile lives there.
+#   docker build -f units/classification-service/Dockerfile.http -t classification-service-http:dev .
 # ----------------------------------------------------------------------------
 
 FROM node:20-alpine AS builder
-WORKDIR /build
-COPY package.json package-lock.json tsconfig.json ./
-RUN npm ci --ignore-scripts --no-audit --no-fund
-COPY src ./src
-RUN npx tsc -p tsconfig.json
-RUN npm prune --omit=dev
+RUN corepack enable
+WORKDIR /workspace
+# Workspace manifests + lockfile first (layer cache); install is content-keyed
+# on these, not on the source.
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc ./
+COPY units/classification-service/package.json units/classification-service/
+COPY units/classification-service/worker/package.json units/classification-service/worker/
+COPY units/document-uploader-ui/package.json units/document-uploader-ui/
+RUN pnpm install --frozen-lockfile --ignore-scripts
+# Build just this member, then produce a self-contained prod deployable
+# (flat node_modules via the workspace's node-linker=hoisted).
+COPY units/classification-service ./units/classification-service
+RUN pnpm --filter classification-service run build
+RUN pnpm --filter classification-service deploy --prod /out
 
 FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 # tsc preserves the src/ tree under dist/, so the entry is dist/handler/http-server.js.
-COPY --from=builder /build/dist ./dist
-COPY --from=builder /build/node_modules ./node_modules
-COPY --from=builder /build/package.json ./package.json
+COPY --from=builder /out/dist ./dist
+COPY --from=builder /out/node_modules ./node_modules
+COPY --from=builder /out/package.json ./package.json
 EXPOSE 8091
 USER node
 CMD ["node", "dist/handler/http-server.js"]

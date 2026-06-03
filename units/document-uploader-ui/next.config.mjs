@@ -7,12 +7,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig = {
   output: "standalone",
   experimental: {
-    // Keep the standalone file-tracing root at the monorepo `units/` dir so the
-    // Docker image's entrypoint stays `document-uploader-ui/server.js`. The UI no
-    // longer imports the classification engine from ../src — it is a pure
-    // HTTP/GraphQL client of the wundergraph-router — so the old @svc webpack
-    // resolution hacks are gone.
-    outputFileTracingRoot: path.resolve(__dirname, ".."),
+    // Root the standalone file-tracing at the REPO ROOT (../..), not units/.
+    // Under the pnpm workspace, dependencies hoist to the repo-root node_modules
+    // (node-linker=hoisted); tracing must start there or the standalone bundle
+    // misses them. Consequence: the standalone entry is
+    // `units/document-uploader-ui/server.js` (see the Dockerfile CMD).
+    outputFileTracingRoot: path.resolve(__dirname, "../.."),
   },
 };
 
