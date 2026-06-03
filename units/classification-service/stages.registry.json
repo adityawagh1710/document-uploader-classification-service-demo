@@ -1,0 +1,57 @@
+{
+  "$comment": "Single source of truth for pipeline stages. RUNTIME is identical for both delivery models — a stage is always a queue + a Standard state machine + an sqs:sendMessage.waitForTaskToken round-trip. The ONLY difference between a monorepo `unit` and an `external` (own-repo) service is `source.type`, which affects build/dev wiring (compose image), NOT how the stage participates. Edit this file to register a stage, then run `node scripts/gen-stages.mjs` to regenerate the LocalStack bootstrap block. See aidlc-docs/operations/sfn/ + ONBOARDING.md.",
+  "version": 1,
+  "defaults": {
+    "region": "eu-west-1",
+    "account": "000000000000",
+    "execRoleArn": "arn:aws:iam::000000000000:role/sfn-exec",
+    "timeoutSeconds": 1800
+  },
+  "stages": [
+    {
+      "name": "convert",
+      "category": "convert",
+      "stateName": "Convert",
+      "stateMachine": "classification-convert-pipeline",
+      "failError": "ConvertFailed",
+      "routerEnv": "STATE_MACHINE_ARN",
+      "queue": {
+        "name": "classification-convert-queue",
+        "visibilityTimeout": 1800,
+        "retentionPeriod": 1209600,
+        "dlq": { "name": "classification-convert-queue-dlq", "maxReceiveCount": 3 }
+      },
+      "claim": [
+        "pipelineExecutionId", "tenantId", "documentId", "runId",
+        "sourceBucket", "sourceKey", "filename", "subCategory", "correlationId"
+      ],
+      "source": {
+        "type": "unit",
+        "path": "units/classification-service/worker",
+        "image": "classification-service-convert-worker:dev",
+        "composeService": "worker"
+      }
+    },
+    {
+      "name": "archive",
+      "category": "archive",
+      "stateName": "Extract",
+      "stateMachine": "classification-zip-pipeline",
+      "failError": "ZipExtractionFailed",
+      "routerEnv": "ARCHIVE_STATE_MACHINE_ARN",
+      "queue": {
+        "name": "zip-extraction-queue"
+      },
+      "claim": [
+        "pipelineExecutionId", "tenantId", "documentId",
+        "sourceBucket", "sourceKey", "correlationId"
+      ],
+      "source": {
+        "type": "external",
+        "repo": "zip-extraction-service-demo",
+        "image": "zip-extraction:dev",
+        "composeService": "zip-extraction"
+      }
+    }
+  ]
+}
