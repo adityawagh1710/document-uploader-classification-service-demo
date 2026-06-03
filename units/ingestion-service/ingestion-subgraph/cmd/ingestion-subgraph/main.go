@@ -26,6 +26,7 @@ import (
 	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/internal/app"
 	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/internal/awsadapters"
 	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/internal/classifierhttp"
+	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/internal/emailextract"
 	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/internal/officeconvert"
 )
 
@@ -48,6 +49,8 @@ func main() {
 		convertProgress app.ConvertProgressClient
 		health          app.HealthChecker
 		target          app.BackendTarget
+		pipeline        app.PipelineDispatcher // nil in memory mode (→ dispatch "skipped")
+		emailExtractor  app.EmailExtractor     // nil when email fan-out disabled
 	)
 	bus := app.NewMemBus()
 
@@ -79,6 +82,8 @@ func main() {
 		runStore = awsadapters.NewDynamoRunStore(cfg, opts, classificationsTable, contentHashTable)
 		emailStore = awsadapters.NewDynamoEmailExtractionStore(cfg, opts, emailExtractionsTable)
 		health = awsadapters.NewDynamoHealthChecker(cfg, opts)
+		pipeline = awsadapters.NewSQSPipelineDispatcher(cfg, opts,
+			os.Getenv("ZIP_EXTRACTION_QUEUE_URL"), os.Getenv("CONVERT_QUEUE_URL"))
 		// Backend-target labels match the UI's old /api/target view.
 		if opts.LocalStackMode() {
 			target = app.BackendTarget{Endpoint: opts.Endpoint, Backend: "localstack"}
@@ -116,6 +121,16 @@ func main() {
 		logger.Info("convertProgress=stub (set OFFICE_CONVERT_API_URL to poll office-convert)")
 	}
 
+	// Email fan-out client: enabled only when EMAIL_EXTRACTION_URL is set (the
+	// UI's empty-URL guard). Left nil otherwise → classify reports email
+	// dispatch "skipped".
+	if u := os.Getenv("EMAIL_EXTRACTION_URL"); u != "" {
+		emailExtractor = emailextract.New(u)
+		logger.Info("emailExtractor=http", "url", u)
+	} else {
+		logger.Info("emailExtractor=disabled (set EMAIL_EXTRACTION_URL to enable email fan-out)")
+	}
+
 	// Classifier: HTTP to the classification service's /classify when CLASSIFY_URL
 	// is set; otherwise a canned stub (so the router runs without it locally).
 	var classifier app.Classifier = app.StubClassifier{}
@@ -131,6 +146,7 @@ func main() {
 		Bus: bus, Classifier: classifier, WorkspaceConfigStore: configStore,
 		RunStore: runStore, ObjectStore: objectStore, EmailStore: emailStore,
 		ConvertProgress: convertProgress, Health: health, Target: target,
+		Pipeline: pipeline, EmailExtractor: emailExtractor,
 		Log: logger, Tenant: tenant,
 	}
 

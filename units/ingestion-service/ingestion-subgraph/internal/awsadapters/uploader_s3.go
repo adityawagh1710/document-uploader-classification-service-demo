@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -73,6 +74,34 @@ func (u *S3Uploader) Presign(ctx context.Context, tenantID, documentID, filename
 		return "", contracts.ClaimCheck{}, fmt.Errorf("presign put: %w", err)
 	}
 	return req.URL, contracts.ClaimCheck{Bucket: u.bucket, Key: key}, nil
+}
+
+// PresignUpload mints a presigned PUT under the UI's own `ui/{documentId}/
+// {filename}` prefix. Content-type is intentionally not signed so the client's
+// streaming PUT can't be rejected for a header mismatch.
+func (u *S3Uploader) PresignUpload(ctx context.Context, documentID, filename, _ string) (string, contracts.ClaimCheck, error) {
+	key := fmt.Sprintf("ui/%s/%s", documentID, filename)
+	req, err := u.presign.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(u.bucket),
+		Key:    aws.String(key),
+	}, s3.WithPresignExpires(u.expiry))
+	if err != nil {
+		return "", contracts.ClaimCheck{}, fmt.Errorf("presign upload: %w", err)
+	}
+	return req.URL, contracts.ClaimCheck{Bucket: u.bucket, Key: key}, nil
+}
+
+// GetObject reads the full object body (used by the email fan-out).
+func (u *S3Uploader) GetObject(ctx context.Context, bucket, key string) ([]byte, error) {
+	out, err := u.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer out.Body.Close()
+	return io.ReadAll(out.Body)
 }
 
 // Head returns S3 object metadata, or (nil, nil) when the object is absent —

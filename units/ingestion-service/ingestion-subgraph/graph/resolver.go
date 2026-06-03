@@ -25,6 +25,10 @@ type Resolver struct {
 	ConvertProgress app.ConvertProgressClient
 	Health          app.HealthChecker
 	Target          app.BackendTarget
+	// Classify write-path fan-out. Pipeline is nil when no fan-out queues are
+	// wired; EmailExtractor is nil when email fan-out is disabled (→ "skipped").
+	Pipeline       app.PipelineDispatcher
+	EmailExtractor app.EmailExtractor
 	Log             *slog.Logger
 	Tenant          string // default tenant for the POC (real flow resolves from the token)
 }

@@ -7,10 +7,12 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	contracts "github.com/opus2/docuploader/libs/pipeline-contracts/go"
 	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/graph/model"
 	"github.com/opus2/docuploader/units/ingestion-service/ingestion-subgraph/internal/app"
@@ -130,6 +132,166 @@ func (r *mutationResolver) ReapStuckConverts(ctx context.Context) (*model.ReapRe
 		StuckAfterMs: int(res.StuckAfterMs),
 		DurationMs:   int(res.DurationMs),
 		Reaped:       reaped,
+	}, nil
+}
+
+// PresignUpload is the resolver for the presignUpload field. Mints a document
+// id + a presigned PUT under the UI's `ui/{documentId}/{inputName}` prefix; the
+// client streams the bytes there, then calls classifyUploaded.
+func (r *mutationResolver) PresignUpload(ctx context.Context, input model.PresignUploadInput) (*model.PresignUploadResult, error) {
+	documentID := "doc-" + uuid.NewString()
+	contentType := ""
+	if input.ContentType != nil {
+		contentType = *input.ContentType
+	}
+	url, source, err := r.Uploader.PresignUpload(ctx, documentID, input.InputName, contentType)
+	if err != nil {
+		return nil, err
+	}
+	return &model.PresignUploadResult{
+		DocumentID: documentID,
+		Bucket:     source.Bucket,
+		ObjectKey:  source.Key,
+		UploadURL:  url,
+	}, nil
+}
+
+// ClassifyUploaded is the resolver for the classifyUploaded field. Ports the
+// UI's old POST /api/classify (lines 130–315): classify the uploaded object,
+// fan out archive/convert (SQS) + email (HTTP), record the run, and return the
+// full outcome. Dispatch failures never fail the call — classification is the
+// primary contract.
+func (r *mutationResolver) ClassifyUploaded(ctx context.Context, input model.ClassifyUploadedInput) (*model.ClassifyOutcome, error) {
+	source := contracts.ClaimCheck{Bucket: input.Bucket, Key: input.ObjectKey}
+	workspaceID, documentID, inputName := input.WorkspaceID, input.DocumentID, input.InputName
+	extension, contentType := strDeref(input.Extension), strDeref(input.ContentType)
+
+	start := time.Now()
+	attempt, err := r.Classifier.ClassifyRaw(ctx, app.ClassifyRequest{
+		WorkspaceID:            workspaceID,
+		DocumentID:             documentID,
+		Source:                 source,
+		Extension:              extension,
+		ContentType:            contentType,
+		OverrideDuplicateCheck: boolDeref(input.OverrideDuplicateCheck),
+		ParentArchiveDepth:     intDeref(input.ParentArchiveDepth),
+	})
+	elapsed := int(time.Since(start).Milliseconds())
+	if err != nil {
+		return nil, err // transport error (mirrors the UI route's 500)
+	}
+
+	runTs := time.Now().UTC().Format(time.RFC3339)
+
+	// --- Failure path: record a failed run, return ok:false. ---
+	if !attempt.OK {
+		reason := failureReason(attempt.Failure)
+		kind, _ := attempt.Failure["kind"].(string)
+		_ = r.RunStore.RecordRun(ctx, app.RecentRun{
+			ID: documentID, Ts: runTs, InputName: inputName, WorkspaceID: workspaceID,
+			ElapsedMs: elapsed, Status: "failed",
+			FailureReason: &reason, FailureKind: ptr(kind), ObjectKey: &input.ObjectKey,
+			ArchiveDispatch: "skipped", ConvertDispatch: "skipped",
+		}, input.Bucket)
+		return &model.ClassifyOutcome{
+			Ok: false, Error: attempt.Failure, ElapsedMs: elapsed,
+			DocumentID: documentID, ObjectKey: input.ObjectKey, InputName: inputName,
+		}, nil
+	}
+
+	// --- Success path: derive category + fan out. ---
+	result := attempt.Result
+	cls, _ := result["classification"].(map[string]any)
+	category, _ := cls["category"].(string)
+	var subCategory *string
+	if sc, ok := cls["subCategory"].(string); ok && sc != "" {
+		subCategory = &sc
+	}
+
+	// Archive fan-out (category=archive).
+	archiveDispatch := "skipped"
+	if category == "archive" && r.Pipeline != nil {
+		switch derr := r.Pipeline.DispatchArchive(ctx, app.ArchiveClaim{
+			PipelineExecutionID: documentID, TenantID: workspaceID, DocumentID: documentID,
+			SourceBucket: input.Bucket, SourceKey: input.ObjectKey, CorrelationID: documentID,
+		}); {
+		case derr == nil:
+			archiveDispatch = "ok"
+		case errors.Is(derr, app.ErrQueueNotConfigured):
+			archiveDispatch = "skipped"
+		default:
+			archiveDispatch = "failed"
+			r.Log.Error("classify archive dispatch failed", "documentId", documentID, "err", derr)
+		}
+	}
+
+	// Convert fan-out (category=convert), with the DWG short-circuit. runId is
+	// the classifications SK (`<ts>#<id>`) — precomputed so the SQS body and the
+	// DDB row agree.
+	convertDispatch := "skipped"
+	runID := runTs + "#" + documentID
+	isConvert := category == "convert"
+	isDwg := strings.HasSuffix(strings.ToLower(inputName), ".dwg")
+	if isConvert && isDwg {
+		convertDispatch = "dwg-excluded"
+	} else if isConvert && r.Pipeline != nil {
+		switch derr := r.Pipeline.DispatchConvert(ctx, app.ConvertClaim{
+			PipelineExecutionID: documentID, TenantID: workspaceID, DocumentID: documentID,
+			RunID: runID, SourceBucket: input.Bucket, SourceKey: input.ObjectKey,
+			Filename: inputName, SubCategory: subCategory, CorrelationID: documentID,
+		}); {
+		case derr == nil:
+			convertDispatch = "ok"
+		case errors.Is(derr, app.ErrQueueNotConfigured):
+			convertDispatch = "skipped"
+		default:
+			convertDispatch = "failed"
+			r.Log.Error("classify convert dispatch failed", "documentId", documentID, "err", derr)
+		}
+	}
+
+	// Email fan-out (category=email) — re-read the bytes from S3 and POST to the
+	// extraction service, then persist the parsed payload. Disabled (nil
+	// extractor) → skipped.
+	emailDispatch := "skipped"
+	if category == "email" && r.EmailExtractor != nil {
+		if body, gerr := r.ObjectStore.GetObject(ctx, input.Bucket, input.ObjectKey); gerr != nil {
+			emailDispatch = "failed"
+			r.Log.Error("classify email read failed", "documentId", documentID, "err", gerr)
+		} else if ext, eerr := r.EmailExtractor.Extract(ctx, workspaceID, documentID, body); eerr != nil {
+			emailDispatch = "failed"
+			r.Log.Error("classify email dispatch failed", "documentId", documentID, "err", eerr)
+		} else {
+			emailDispatch = "ok"
+			_ = r.EmailStore.Save(ctx, documentID, ext)
+		}
+	}
+
+	// convertStatus mirrors lib/stats.ts recordSuccess: ok→queued, failed/
+	// dwg-excluded→failed, else null.
+	var convertStatus, convertQueuedAt *string
+	if isConvert {
+		switch convertDispatch {
+		case "ok":
+			s := "queued"
+			convertStatus, convertQueuedAt = &s, &runTs
+		case "failed", "dwg-excluded":
+			s := "failed"
+			convertStatus = &s
+		}
+	}
+
+	_ = r.RunStore.RecordRun(ctx, app.RecentRun{
+		ID: documentID, Ts: runTs, InputName: inputName, WorkspaceID: workspaceID,
+		ElapsedMs: elapsed, Status: "ok", Result: result, ObjectKey: &input.ObjectKey,
+		ArchiveDispatch: archiveDispatch, ConvertStatus: convertStatus,
+		ConvertQueuedAt: convertQueuedAt, ConvertDispatch: convertDispatch,
+	}, input.Bucket)
+
+	return &model.ClassifyOutcome{
+		Ok: true, Result: result, ElapsedMs: elapsed,
+		DocumentID: documentID, ObjectKey: input.ObjectKey, InputName: inputName,
+		ArchiveDispatch: &archiveDispatch, ConvertDispatch: &convertDispatch, EmailDispatch: &emailDispatch,
 	}, nil
 }
 

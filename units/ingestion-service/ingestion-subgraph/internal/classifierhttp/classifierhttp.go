@@ -47,6 +47,12 @@ type classifyRequest struct {
 		Extension   *string `json:"extension"`
 		ContentType *string `json:"contentType"`
 	} `json:"hints"`
+	Context *classifyContext `json:"context,omitempty"`
+}
+
+type classifyContext struct {
+	ParentArchiveDepth     int  `json:"parentArchiveDepth"`
+	OverrideDuplicateCheck bool `json:"overrideDuplicateCheck"`
 }
 
 type classifyResponse struct {
@@ -123,4 +129,68 @@ func (c *Client) Classify(ctx context.Context, workspaceID, documentID string, s
 		IsDuplicate:       out.Dedup.IsDuplicate,
 		PolicyVersion:     out.PolicyVersion,
 	}, nil
+}
+
+// ClassifyRaw POSTs to /classify and returns the FULL envelope as opaque maps:
+// the nested ClassificationOutput on 200, or the ClassificationFailure on 422.
+// Used by the classify write-path, which persists/returns the whole JSON.
+func (c *Client) ClassifyRaw(ctx context.Context, in app.ClassifyRequest) (app.ClassifyAttempt, error) {
+	var reqBody classifyRequest
+	reqBody.WorkspaceID = in.WorkspaceID
+	reqBody.DocumentID = in.DocumentID
+	reqBody.S3 = s3Ref{Bucket: in.Source.Bucket, Key: in.Source.Key}
+	reqBody.Hints.Extension = optional(in.Extension)
+	reqBody.Hints.ContentType = optional(in.ContentType)
+	reqBody.Context = &classifyContext{
+		ParentArchiveDepth:     in.ParentArchiveDepth,
+		OverrideDuplicateCheck: in.OverrideDuplicateCheck,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return app.ClassifyAttempt{}, fmt.Errorf("marshal classify request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/classify", bytes.NewReader(body))
+	if err != nil {
+		return app.ClassifyAttempt{}, fmt.Errorf("build classify request: %w", err)
+	}
+	req.Header.Set("content-type", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return app.ClassifyAttempt{}, fmt.Errorf("call classify: %w", err)
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return app.ClassifyAttempt{}, fmt.Errorf("read classify response: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusOK {
+		var out map[string]any
+		if err := json.Unmarshal(raw, &out); err != nil {
+			return app.ClassifyAttempt{}, fmt.Errorf("decode classify result: %w", err)
+		}
+		return app.ClassifyAttempt{OK: true, Result: out}, nil
+	}
+
+	// Non-200 → { error: ClassificationFailure | string }. Normalize to a map.
+	var envelope struct {
+		Error json.RawMessage `json:"error"`
+	}
+	_ = json.Unmarshal(raw, &envelope)
+	failure := map[string]any{"kind": "unknown", "reason": "classify-service-error"}
+	if len(envelope.Error) > 0 {
+		var asMap map[string]any
+		if err := json.Unmarshal(envelope.Error, &asMap); err == nil {
+			failure = asMap
+		} else {
+			var asStr string
+			if err := json.Unmarshal(envelope.Error, &asStr); err == nil {
+				failure = map[string]any{"kind": "unexpected", "message": asStr}
+			}
+		}
+	}
+	return app.ClassifyAttempt{OK: false, Failure: failure}, nil
 }
