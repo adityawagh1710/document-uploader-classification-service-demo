@@ -54,7 +54,7 @@ Step Functions state machines `classification-convert-pipeline` (P1) +
 
 ## Plans / status
 
-- `WunderGraph_Router_POC_Plan.md` — Go router POC (P0–P6 done; P7 dev05 deploy pending rebuild).
+- `aidlc-docs/operations/wundergraph/WunderGraph_Router_POC_Plan.md` — Go router POC (P0–P6 done; P7 dev05 deploy pending rebuild).
 - `aidlc-docs/operations/monorepo/MONOREPO_LAYOUT_REFACTOR_PLAN.md` — this layout refactor (executed; archived).
 - `Contracts_Baked_POC_Design.md` / `Approach_Pipeline_flowchart.md` — the contracts-baked design (on the `docs/contracts-baked-poc` branch).
 - `aidlc-docs/operations/sfn/StepFunctions_Pipeline_Design.md` — SFN orchestration design + recommendation, with the **as-built P1 (convert) + P2 (archive/zip)** flows (§9/§10). Flowchart: `aidlc-docs/operations/sfn/SFN_Pipeline_Flows.pdf`.
