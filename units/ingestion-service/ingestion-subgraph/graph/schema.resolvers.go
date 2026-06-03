@@ -210,18 +210,20 @@ func (r *mutationResolver) ClassifyUploaded(ctx context.Context, input model.Cla
 
 	// Archive fan-out (category=archive).
 	archiveDispatch := "skipped"
-	if category == "archive" && r.Pipeline != nil {
-		switch derr := r.Pipeline.DispatchArchive(ctx, app.ArchiveClaim{
+	if category == "archive" && r.PipelineStarter != nil {
+		// P2: start the archive state machine (SFN owns the zip-extraction-queue
+		// dispatch via waitForTaskToken); the zip-extraction service signals back.
+		switch derr := r.PipelineStarter.StartArchive(ctx, app.ArchiveClaim{
 			PipelineExecutionID: documentID, TenantID: workspaceID, DocumentID: documentID,
 			SourceBucket: input.Bucket, SourceKey: input.ObjectKey, CorrelationID: documentID,
 		}); {
 		case derr == nil:
 			archiveDispatch = "ok"
-		case errors.Is(derr, app.ErrQueueNotConfigured):
+		case errors.Is(derr, app.ErrPipelineNotConfigured):
 			archiveDispatch = "skipped"
 		default:
 			archiveDispatch = "failed"
-			r.Log.Error("classify archive dispatch failed", "documentId", documentID, "err", derr)
+			r.Log.Error("classify archive start-execution failed", "documentId", documentID, "err", derr)
 		}
 	}
 
@@ -234,19 +236,22 @@ func (r *mutationResolver) ClassifyUploaded(ctx context.Context, input model.Cla
 	isDwg := strings.HasSuffix(strings.ToLower(inputName), ".dwg")
 	if isConvert && isDwg {
 		convertDispatch = "dwg-excluded"
-	} else if isConvert && r.Pipeline != nil {
-		switch derr := r.Pipeline.DispatchConvert(ctx, app.ConvertClaim{
+	} else if isConvert && r.PipelineStarter != nil {
+		// P1: start the convert state machine (SFN owns the queue dispatch via
+		// sqs:sendMessage.waitForTaskToken + retries/timeout). The worker signals
+		// SendTaskSuccess/Failure.
+		switch derr := r.PipelineStarter.StartConvert(ctx, app.ConvertClaim{
 			PipelineExecutionID: documentID, TenantID: workspaceID, DocumentID: documentID,
 			RunID: runID, SourceBucket: input.Bucket, SourceKey: input.ObjectKey,
 			Filename: inputName, SubCategory: subCategory, CorrelationID: documentID,
 		}); {
 		case derr == nil:
 			convertDispatch = "ok"
-		case errors.Is(derr, app.ErrQueueNotConfigured):
+		case errors.Is(derr, app.ErrPipelineNotConfigured):
 			convertDispatch = "skipped"
 		default:
 			convertDispatch = "failed"
-			r.Log.Error("classify convert dispatch failed", "documentId", documentID, "err", derr)
+			r.Log.Error("classify convert start-execution failed", "documentId", documentID, "err", derr)
 		}
 	}
 

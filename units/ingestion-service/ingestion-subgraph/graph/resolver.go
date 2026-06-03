@@ -29,6 +29,9 @@ type Resolver struct {
 	// wired; EmailExtractor is nil when email fan-out is disabled (→ "skipped").
 	Pipeline       app.PipelineDispatcher
 	EmailExtractor app.EmailExtractor
+	// PipelineStarter starts the convert Step Functions execution (P1). When set,
+	// category=convert goes through SFN instead of Pipeline.DispatchConvert.
+	PipelineStarter app.PipelineStarter
 	Log             *slog.Logger
 	Tenant          string // default tenant for the POC (real flow resolves from the token)
 }
