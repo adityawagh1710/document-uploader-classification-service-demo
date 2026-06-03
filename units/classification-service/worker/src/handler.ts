@@ -2,6 +2,7 @@ import type { ConvertClaim } from "./message.js";
 import type { OfficeConvertClient } from "./office-convert-client.js";
 import type { DdbUpdater } from "./ddb-update.js";
 import type { Logger } from "./logger.js";
+import type { TaskSignaler } from "./task-signaler.js";
 
 /**
  * Disposition the poller uses to decide what to do with the SQS message after
@@ -29,6 +30,8 @@ export interface HandlerDeps {
   readonly outputBucket: (claim: ConvertClaim) => string;
   /** Object key inside outputBucket. Default: `converted/{documentId}.pdf`. */
   readonly outputKey: (claim: ConvertClaim) => string;
+  /** Signals the SFN convert state machine (no-op when the claim has no token). */
+  readonly taskSignaler: TaskSignaler;
 }
 
 /**
@@ -43,7 +46,7 @@ export interface HandlerDeps {
  * directly. Makes it trivially unit-testable with mocked deps.
  */
 export function createHandler(deps: HandlerDeps) {
-  const { officeConvert, ddb, logger, excludeDwg, outputBucket, outputKey } = deps;
+  const { officeConvert, ddb, logger, excludeDwg, outputBucket, outputKey, taskSignaler } = deps;
 
   return async function handle(args: HandleArgs): Promise<MessageDisposition> {
     const { claim, attempts } = args;
@@ -69,6 +72,7 @@ export function createHandler(deps: HandlerDeps) {
         runId: claim.runId,
         error: "format_unsupported:dwg",
       });
+      await taskSignaler.failure(claim.taskToken, "ConvertExcluded", "format_unsupported:dwg");
       return "delete";
     }
 
@@ -91,6 +95,7 @@ export function createHandler(deps: HandlerDeps) {
         // Nothing to mark, nothing to do — delete the message rather than
         // redrive forever.
         log.warn("handler.row_missing");
+        await taskSignaler.success(claim.taskToken, { skipped: "row_missing" });
         return "delete";
       }
       // Any other DDB error is transient — let SQS redrive.
@@ -120,6 +125,10 @@ export function createHandler(deps: HandlerDeps) {
           s3Key: outcome.outputKey ?? outKey,
           requestId: outcome.requestId,
         });
+        await taskSignaler.success(claim.taskToken, {
+          outputBucket: outcome.outputBucket ?? outBucket,
+          outputKey: outcome.outputKey ?? outKey,
+        });
         log.info("handler.done");
         return "delete";
 
@@ -132,6 +141,7 @@ export function createHandler(deps: HandlerDeps) {
           error: errorLine,
           ...(outcome.requestId ? { requestId: outcome.requestId } : {}),
         });
+        await taskSignaler.failure(claim.taskToken, "ConvertFailed", errorLine);
         log.warn("handler.caller_error", {
           status: outcome.status,
           failureClass: outcome.failureClass,

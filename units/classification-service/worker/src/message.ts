@@ -36,6 +36,13 @@ export const ConvertClaimSchema = z.object({
   subCategory: z.string().nullable(),
   /** End-to-end correlation id stamped into every log line for this run. */
   correlationId: z.string().min(1),
+  /**
+   * Step Functions task token — present when the message was dispatched by the
+   * convert state machine via sqs:sendMessage.waitForTaskToken. The worker calls
+   * SendTaskSuccess/Failure with it. Optional so plain (non-SFN) dispatch still
+   * parses.
+   */
+  taskToken: z.string().optional(),
 });
 
 export type ConvertClaim = z.infer<typeof ConvertClaimSchema>;
