@@ -4,6 +4,7 @@ coverage/
 .vitest-cache/
 cdk.out/
 .cdk.staging/
+bundle-report.json
 *.log
 .DS_Store
 .env

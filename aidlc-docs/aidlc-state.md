@@ -4,7 +4,7 @@
 - **Project Name**: Classification Service
 - **Project Type**: Greenfield
 - **Start Date**: 2026-05-22T00:00:00Z
-- **Current Stage**: OPERATIONS (placeholder workflow, but with real maintenance + tooling artifacts as of 2026-05-25)
+- **Current Stage**: OPERATIONS (placeholder workflow, but with real maintenance + tooling artifacts as of 2026-05-25; post-MVP the system evolved into a monorepo of independently-deployed units with a router BFF and Step Functions orchestration — see "Architecture Evolution (2026-06-03)")
 - **Completion Date**: 2026-05-22T00:00:00Z (AI-DLC workflow); 2026-05-25 (operations tooling)
 
 ## Workspace State
@@ -114,6 +114,14 @@
       DEPLOY_INGRESS_HOST=classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com \
       DEPLOY_ROUTE53_ZONE_ID=Z045669519R5D9D8CKC79
     ```
+
+#### Architecture Evolution (2026-06-03)
+Post-MVP the demo grew from a single Lambda into a **monorepo of independently-deployed units** (*monorepo for code, microservices at runtime*) with a router BFF and Step Functions orchestration. All landed on `integration`.
+- [x] **Monorepo layout** — `units/` (classification-service [TS] + worker, document-uploader-ui [Next.js], ingestion-service: wundergraph-router + ingestion-subgraph [Go gqlgen]) + `libs/pipeline-contracts` (shared wire contract). Boundary rule: only `libs/*` may be imported cross-unit.
+- [x] **Full BFF sever** — the UI is now a pure router client (zero `@aws-sdk`, zero direct service calls); the Go router (`ingestion-subgraph`) owns the whole BFF surface (documentRun/stats/convertProgress/email/target/health/reap + presignUpload/classifyUploaded), reading from DDB. End-to-end verified on LocalStack.
+- [x] **AIDLC `tech-environment.md` conformance** — TS units migrated npm→**pnpm** workspace, Powertools logger→**pino**, `/classify` `node:http`→**fastify**, UI Next 14→**15** / React 19 (cleared remaining high CVEs; CI supply-chain green). Go router already conformant (gqlgen + slog + aws-sdk-go-v2).
+- [x] **Step Functions orchestration (P1 convert + P2 archive)** — two Standard state machines (`classification-convert-pipeline`, `classification-zip-pipeline`) dispatch to the convert / zip-extraction SQS queues via `sqs:sendMessage.waitForTaskToken`; workers (and the external zip-extraction service, by contract) call `SendTaskSuccess/Failure`. `TimeoutSeconds:1800` + `Catch` replace the convert-watchdog reaper. The router starts one execution per upload (name = documentId, idempotent). Verified end-to-end on LocalStack 3.7. Design + as-built flows in repo-root `StepFunctions_Pipeline_Design.md` (+ `SFN_Pipeline_Flows.pdf`, `SFN_Stage_Service_Shared_Contract.md`).
+- [ ] **dev05 deploy of the new topology** — UI→router→classify-http + the two state machines (CDK constructs + IRSA deltas) — planned, not executed (local-first). See [[dev05-bff-deployment-plan]] in agent memory.
 
 #### Bugs Found by the Test UI (2026-05-25)
 - [x] **AWS SDK ↔ LocalStack checksum mismatch** — SDK v3.730+ enforces CRC32 response validation; LocalStack returns checksums that don't match the bytes it serves back when objects were written via `lib-storage` multipart Upload. Surfaced via UI multipart uploads; integration tests don't trip it (they use plain `PutObjectCommand` with a Buffer, no multipart). Patched UI-side by setting `responseChecksumValidation: "WHEN_REQUIRED"` and `requestChecksumCalculation: "WHEN_REQUIRED"` on `ui/lib/classifier.ts`'s S3Client. Deployed Lambda unaffected (single-part PutObjects against real AWS S3).
