@@ -3,7 +3,7 @@
 One repo, many independently-deployed microservices — *monorepo for code,
 microservices at runtime*. (This repo also serves as the classification-service
 demo; the root was refactored into the `units/` + `libs/` layout — see
-`MONOREPO_LAYOUT_REFACTOR_PLAN.md`.)
+`aidlc-docs/operations/monorepo/MONOREPO_LAYOUT_REFACTOR_PLAN.md`.)
 
 ## Layout
 
@@ -55,7 +55,7 @@ Step Functions state machines `classification-convert-pipeline` (P1) +
 ## Plans / status
 
 - `WunderGraph_Router_POC_Plan.md` — Go router POC (P0–P6 done; P7 dev05 deploy pending rebuild).
-- `MONOREPO_LAYOUT_REFACTOR_PLAN.md` — this layout refactor.
+- `aidlc-docs/operations/monorepo/MONOREPO_LAYOUT_REFACTOR_PLAN.md` — this layout refactor (executed; archived).
 - `Contracts_Baked_POC_Design.md` / `Approach_Pipeline_flowchart.md` — the contracts-baked design (on the `docs/contracts-baked-poc` branch).
 - `aidlc-docs/operations/sfn/StepFunctions_Pipeline_Design.md` — SFN orchestration design + recommendation, with the **as-built P1 (convert) + P2 (archive/zip)** flows (§9/§10). Flowchart: `aidlc-docs/operations/sfn/SFN_Pipeline_Flows.pdf`.
 - `aidlc-docs/operations/sfn/SFN_Stage_Service_Shared_Contract.md` — the contract a stage service must honour to participate in the SFN task-token protocol.
