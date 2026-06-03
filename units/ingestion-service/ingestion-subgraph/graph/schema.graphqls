@@ -106,3 +106,132 @@ type Subscription {
   "Live status transitions for a document (graphql-transport-ws)."
   documentStatusChanged(documentId: ID!): Document!
 }
+
+# ---------------------------------------------------------------------------
+# BFF surface — the read/admin operations the document-uploader UI needs so it
+# never touches DynamoDB/S3 directly. Nested JSON (the classification result,
+# the raw DDB row, convert progress, email extraction, the KPI maps) is passed
+# through opaquely via the Map scalar rather than re-modeled in GraphQL.
+# ---------------------------------------------------------------------------
+
+"S3 object metadata for a stored upload (HeadObject)."
+type S3Object {
+  key: String!
+  size: Int
+  contentType: String
+  etag: String
+  lastModified: String
+}
+
+"One row of the durable classification activity log (the Recent feed)."
+type RecentRun {
+  id: ID!
+  ts: String!
+  inputName: String!
+  workspaceId: ID!
+  elapsedMs: Int!
+  status: String!
+  result: Map
+  failureReason: String
+  failureKind: String
+  objectKey: String
+  archiveDispatch: String!
+  convertStatus: String
+  convertQueuedAt: String
+  convertDispatch: String!
+}
+
+"What got persisted for a single classification run (content-hash row + S3 object + presigned downloads)."
+type DocumentRun {
+  documentId: ID!
+  workspaceId: ID!
+  "Full content-hash DDB row (opaque)."
+  ddbRow: Map
+  s3Object: S3Object
+  bucket: String!
+  table: String!
+  downloadUrl: String
+  "Worker-mutated convert progress columns on the classifications row (opaque)."
+  convert: Map
+  convertedDownloadUrl: String
+}
+
+"KPI tiles + recent feed, aggregated from the classifications table."
+type ClassificationStats {
+  total: Int!
+  byTier: Map!
+  byCategory: Map!
+  byFormat: Map!
+  errors: Int!
+  recent: [RecentRun!]!
+}
+
+"Live office-convert progress for a converting run."
+type ConvertProgress {
+  convertStatus: String
+  requestId: String
+  progress: Map
+  reason: String
+}
+
+"Parsed email-extraction payload, persisted during classify."
+type EmailExtraction {
+  documentId: ID!
+  extraction: Map
+}
+
+"Operator-facing view of which AWS surface the router is pointed at."
+type BackendTarget {
+  endpoint: String!
+  region: String!
+  bucket: String!
+  contentHashTable: String!
+  workspaceConfigTable: String!
+  backend: String!
+}
+
+"Router readiness probe (DynamoDB connectivity)."
+type RouterHealth {
+  ready: Boolean!
+  endpoint: String!
+  tables: [String!]!
+  latencyMs: Int!
+}
+
+"One row force-failed by the stuck-convert watchdog."
+type ReapedRun {
+  workspaceId: ID!
+  runId: String!
+  convertStartedAt: String!
+}
+
+"Result of the stuck-convert watchdog sweep."
+type ReapResult {
+  ok: Boolean!
+  scannedCount: Int!
+  reapedCount: Int!
+  cutoffIso: String!
+  stuckAfterMs: Int!
+  durationMs: Int!
+  reaped: [ReapedRun!]!
+}
+
+extend type Query {
+  "What got persisted for one classification run (content-hash row + S3 object + presigned download)."
+  documentRun(workspaceId: ID!, documentId: ID!, contentHash: String, objectKey: String, runId: String): DocumentRun
+  "Dashboard KPIs + recent feed, aggregated from the classifications table."
+  classificationStats(workspaceId: ID!): ClassificationStats!
+  "Live office-convert progress for a converting run."
+  convertProgress(workspaceId: ID!, runId: String!): ConvertProgress!
+  "Parsed email-extraction payload for a document (null if none)."
+  emailExtraction(documentId: ID!): EmailExtraction
+  "Which AWS surface the router is pointed at."
+  backendTarget: BackendTarget!
+  "Router readiness (DynamoDB connectivity)."
+  routerHealth: RouterHealth!
+}
+
+extend type Mutation {
+  "Force-fail convert rows stuck in `converting` past the watchdog cutoff."
+  reapStuckConverts: ReapResult!
+}

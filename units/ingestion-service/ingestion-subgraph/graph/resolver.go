@@ -18,8 +18,15 @@ type Resolver struct {
 	Bus                  app.StatusBus
 	Classifier           app.Classifier
 	WorkspaceConfigStore app.WorkspaceConfigStore
-	Log                  *slog.Logger
-	Tenant               string // default tenant for the POC (real flow resolves from the token)
+	// BFF surface — the read/admin ports backing the document-uploader UI.
+	RunStore        app.RunStore
+	ObjectStore     app.ObjectStore
+	EmailStore      app.EmailExtractionStore
+	ConvertProgress app.ConvertProgressClient
+	Health          app.HealthChecker
+	Target          app.BackendTarget
+	Log             *slog.Logger
+	Tenant          string // default tenant for the POC (real flow resolves from the token)
 }
 
 // --- domain → GraphQL model mapping ---
