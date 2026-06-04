@@ -1104,18 +1104,34 @@ router-status: check-kubectl ## [router] kubectl get for router pod + svc + SA +
 	@kubectl -n $(DEPLOY_NAMESPACE) get pods,svc,sa,cm -l app.kubernetes.io/name=ingestion-subgraph 2>&1 || true
 
 # ── BFF umbrella ─────────────────────────────────────────────────────────────
+# Namespace lifecycle (shared by all three pods): the FIRST `helm --create-
+# namespace` below creates it; `bff-undeploy` drops it LAST (after all three
+# releases are uninstalled). The UI overlay sets namespace.create=false so the
+# UI chart does NOT own the namespace — see values-aws.yaml.
 .PHONY: bff-deploy
-bff-deploy: http-deploy router-deploy ## [deploy] Full 3-pod BFF: classify-http → router → UI (run with DEPLOY_BACKEND=aws). Requires HTTP_IRSA_ROLE_ARN + ROUTER_IRSA_ROLE_ARN.
+bff-deploy: http-deploy router-deploy ## [deploy] Full 3-pod BFF: classify-http → router → UI. Requires HTTP_IRSA_ROLE_ARN + ROUTER_IRSA_ROLE_ARN (+ DEPLOY_INGRESS_HOST/ZONE for the UI ALB).
 	@printf "$(COL_BOLD)$(COL_CYN)▶ http + router deployed — now deploying the UI (router-client)$(COL_OFF)\n"
-	@$(MAKE) --no-print-directory deploy-dev DEPLOY_BACKEND=aws
+	@# Deploy the UI via the GRANULAR targets, NOT `deploy-dev`: deploy-dev runs
+	@# `__undeploy-soft` → `undeploy-dev` → `ns-delete`, which would delete the
+	@# shared namespace and tear down the router + http we just deployed.
+	@$(MAKE) --no-print-directory image-push DEPLOY_BACKEND=aws
+	@$(MAKE) --no-print-directory helm-deploy DEPLOY_BACKEND=aws
+	@$(MAKE) --no-print-directory manifest-snapshot DEPLOY_BACKEND=aws
+	@$(MAKE) --no-print-directory route53-sync DEPLOY_BACKEND=aws
 	$(call ok,bff-deploy complete — UI → router → classify-http on dev05)
 
 .PHONY: bff-undeploy
-bff-undeploy: ## [deploy] Tear down the BFF pods (UI + router + classify-http); data + IRSA roles kept
-	-@$(MAKE) --no-print-directory undeploy-dev
+bff-undeploy: ## [deploy] Tear down the BFF in reverse (UI → router → http) then drop the shared namespace LAST; data + IRSA roles kept
+	@printf "$(COL_BOLD)$(COL_CYN)▶ Tearing down the BFF (UI → router → http), namespace last$(COL_OFF)\n"
+	@# Reverse of deploy. helm-undeploy uninstalls ONLY the UI release (the UI
+	@# overlay's namespace.create=false means it no longer owns/deletes the ns),
+	@# so router + http survive until their own uninstall; ns-delete runs LAST.
+	-@$(MAKE) --no-print-directory route53-cleanup
+	-@$(MAKE) --no-print-directory helm-undeploy
 	-@$(MAKE) --no-print-directory router-undeploy
 	-@$(MAKE) --no-print-directory http-undeploy
-	$(call ok,bff-undeploy complete)
+	-@$(MAKE) --no-print-directory ns-delete
+	$(call ok,bff-undeploy complete — namespace dropped after all three releases)
 
 # ---------------------------------------------------------------------------
 # Housekeeping
