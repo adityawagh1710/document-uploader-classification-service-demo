@@ -1,4 +1,5 @@
-# document-uploader (monorepo)
+# document-uploader-demo-poc (monorepo)
+## Classification service 
 
 One repo, many independently-deployed microservices — *monorepo for code,
 microservices at runtime*. (This repo also serves as the classification-service
