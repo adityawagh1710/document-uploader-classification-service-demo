@@ -119,6 +119,13 @@ A `SUCCEEDED` execution = your stage received the claim, did the work, and signa
 token. (If it `TIMED_OUT` after 30 min, your service didn't `SendTaskSuccess` — check the
 `taskToken` handling.)
 
+> **Local image names are scoped per repo so cross-repo builds never clobber each other.**
+> `make pipeline-images` is the bridge that retags the sibling stage images into this repo's
+> `classification-pipeline/*` namespace. How the convention works across all three repos —
+> who owns which image name, and the rules for adding a new stage — is documented in
+> [`aidlc-docs/operations/local-docker-images.md`](aidlc-docs/operations/local-docker-images.md)
+> (the same doc ships in all three repos).
+
 ---
 
 ## 5. Contribution workflow
