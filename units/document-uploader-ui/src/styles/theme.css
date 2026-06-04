@@ -1,0 +1,73 @@
+/**
+ * App-specific styles only. Design tokens and base typography come from Codex.
+ */
+
+@layer utilities {
+  .auth-grid-overlay {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .auth-grid-overlay-light {
+    background-image:
+      linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  @keyframes auth-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .auth-rise {
+    animation: auth-rise 0.55s ease forwards;
+    opacity: 0;
+  }
+
+  @keyframes progress-fill-shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  .progress-fill-shimmer {
+    background-color: var(--color-fg-brand-primary);
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgb(255 255 255 / 0.35) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: progress-fill-shimmer 2s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .progress-fill-shimmer {
+      animation: none;
+    }
+  }
+
+  .app-table thead,
+  .app-table thead.bg-secondary {
+    background-color: var(--color-bg-primary);
+  }
+
+  .app-table .table-section-header {
+    background-color: var(--color-bg-primary);
+  }
+}

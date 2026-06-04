@@ -1,0 +1,10 @@
+@import './tailwind.css';
+
+/* Codex design system — tokens, typography, and base styles */
+@import '@opus2-platform/codex/styles.css';
+
+/* Toast positioning and animations */
+@import 'sonner/dist/styles.css';
+
+/* App-specific utilities (auth animations, etc.) */
+@import './theme.css';

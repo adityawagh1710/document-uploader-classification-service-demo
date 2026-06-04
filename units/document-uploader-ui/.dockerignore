@@ -1,10 +1,7 @@
-node_modules
-.next
-.turbo
-dist
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/cdk.out
+**/*.local
 .git
-.env*.local
-# Cypress artifacts — never needed at runtime
-cypress/screenshots
-cypress/videos
-cypress/downloads
