@@ -15,6 +15,15 @@
 #     --set image.repository=<acct>.dkr.ecr.eu-west-1.amazonaws.com/<repo> \
 #     --set image.tag=<git-sha>
 
+# The namespace is a SHARED resource in the 3-pod BFF topology (UI + router +
+# classification-service-http all live in it), so the UI chart must NOT own it —
+# otherwise `helm uninstall classification-ui` would delete the namespace out
+# from under the still-running router + http. On dev05 the namespace lifecycle is
+# imperative: created by the first `helm --create-namespace` (bff-deploy) and
+# dropped last by `make bff-undeploy` / `make ns-delete`.
+namespace:
+  create: false
+
 # No in-cluster LocalStack — and (because localstackConfig is gated on this)
 # the LocalStack endpoint + "test" creds are omitted from the pod env.
 localstack:
