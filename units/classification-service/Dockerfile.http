@@ -17,6 +17,10 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc ./
 COPY units/classification-service/package.json units/classification-service/
 COPY units/classification-service/worker/package.json units/classification-service/worker/
 COPY units/document-uploader-ui/package.json units/document-uploader-ui/
+# document-uploader-ui pulls its design system from vendored tarballs (file:
+# deps in the shared lockfile); the workspace-wide frozen install needs them
+# present even though this image doesn't use the UI.
+COPY units/document-uploader-ui/packages units/document-uploader-ui/packages
 RUN pnpm install --frozen-lockfile --ignore-scripts
 # Build just this member, then produce a self-contained prod deployable
 # (flat node_modules via the workspace's node-linker=hoisted).

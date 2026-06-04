@@ -12,9 +12,9 @@
       "id": "document-uploader-ui",
       "path": "units/document-uploader-ui",
       "lang": "ts",
-      "build": "npm ci && npm run build",
+      "build": "pnpm install --frozen-lockfile && pnpm --filter document-uploader-ui run build",
       "images": ["document-uploader-ui"],
-      "_note": "Talks to the wundergraph-router (GraphQL). Retains a documented temporary @svc type/dispatcher dep on classification-service/src until the router is a full BFF."
+      "_note": "Vite/React SPA (Codex design system) served by nginx. Pure browser-direct GraphQL client of the ingestion-subgraph router (presignUpload -> S3 PUT -> classifyUploaded). No AWS, no server."
     },
     {
       "id": "ingestion-service",
