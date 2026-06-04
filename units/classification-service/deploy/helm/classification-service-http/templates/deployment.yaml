@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: classification-service-http
+  namespace: {{ include "classification-service-http.namespace" . }}
+  labels:
+    {{- include "classification-service-http.labels" . | nindent 4 }}
+    {{- include "classification-service-http.selector" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  # Stateless request/response → RollingUpdate.
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "classification-service-http.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "classification-service-http.selector" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "classification-service-http.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: http
+          image: {{ include "classification-service-http.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          envFrom:
+            - configMapRef:
+                name: classification-service-http-config
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

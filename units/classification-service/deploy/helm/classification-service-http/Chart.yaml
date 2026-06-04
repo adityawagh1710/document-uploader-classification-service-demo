@@ -1,0 +1,19 @@
+apiVersion: v2
+name: classification-service-http
+description: |
+  classification-service-http — the synchronous classify endpoint (fastify,
+  POST /classify) that the BFF router (ingestion-subgraph) calls. Wraps the
+  SAME engine as the Step Functions Lambda via the shared composition, but
+  returns the ClassificationOutput over HTTP. ClusterIP-only Deployment;
+  mirrors the classification charts' conventions (namespace, IRSA,
+  Guaranteed-QoS, security context, httpGet /healthz probes).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/adityawagh1710/document-uploader-classification-service-demo
+keywords:
+  - document-uploader
+  - classification
+  - http
+maintainers:
+  - name: document-uploader maintainers
