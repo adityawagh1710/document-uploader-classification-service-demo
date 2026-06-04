@@ -614,7 +614,11 @@ helm-deploy: check-helm check-kubectl check-deploy-backend ## [deploy] helm upgr
 	@# the ns was created out-of-band (e.g. by `make irsa-smoketest`) and there's
 	@# no prior release for `__undeploy-soft` to clean. No-op when the ns is absent
 	@# (helm --create-namespace creates it) or already owned by this release.
-	@if kubectl get ns $(DEPLOY_NAMESPACE) >/dev/null 2>&1; then \
+	@# ONLY in localstack mode: there the UI chart renders+owns the Namespace
+	@# (namespace.create=true). In aws/BFF mode the namespace is SHARED and the UI
+	@# chart does NOT own it (values-aws sets namespace.create=false), so claiming
+	@# release ownership here would be wrong — skip it.
+	@if [ "$(DEPLOY_BACKEND)" != "aws" ] && kubectl get ns $(DEPLOY_NAMESPACE) >/dev/null 2>&1; then \
 		kubectl label ns $(DEPLOY_NAMESPACE) app.kubernetes.io/managed-by=Helm --overwrite >/dev/null 2>&1 || true; \
 		kubectl annotate ns $(DEPLOY_NAMESPACE) \
 			meta.helm.sh/release-name=$(DEPLOY_HELM_RELEASE) \
@@ -731,8 +735,17 @@ helm-undeploy: check-helm check-kubectl ## [deploy] helm uninstall
 	fi
 
 .PHONY: ns-delete
-ns-delete: check-kubectl ## [deploy] Drop the namespace (waits for finalizers)
-	@if kubectl get ns $(DEPLOY_NAMESPACE) >/dev/null 2>&1; then \
+ns-delete: check-kubectl ## [deploy] Drop the namespace (waits for finalizers) — skipped if BFF sibling releases (router/http) still live in it
+	@# The namespace is SHARED in the BFF topology. Refuse to drop it while the
+	@# router or classification-service-http releases are still installed (e.g. a
+	@# standalone `make undeploy-dev` or the `__undeploy-soft` pre-deploy cleanup):
+	@# deleting it would tear down those siblings. `make bff-undeploy` removes all
+	@# three releases first, so by the time it calls ns-delete the guard passes.
+	@if helm status $(ROUTER_HELM_RELEASE) -n $(DEPLOY_NAMESPACE) >/dev/null 2>&1 \
+		|| helm status $(HTTP_HELM_RELEASE) -n $(DEPLOY_NAMESPACE) >/dev/null 2>&1; then \
+		printf "$(COL_YEL)! Namespace $(DEPLOY_NAMESPACE) still hosts BFF releases (ingestion-subgraph / classification-service-http) — keeping it.$(COL_OFF)\n"; \
+		printf "  Use $(COL_BOLD)make bff-undeploy$(COL_OFF) to tear the whole 3-pod stack down.\n"; \
+	elif kubectl get ns $(DEPLOY_NAMESPACE) >/dev/null 2>&1; then \
 		kubectl delete ns $(DEPLOY_NAMESPACE) --wait=true 2>&1 | tee -a $(DEPLOY_UNDEPLOY_LOG); \
 	else \
 		printf "$(COL_YEL)! Namespace $(DEPLOY_NAMESPACE) not present — skipping$(COL_OFF)\n"; \
