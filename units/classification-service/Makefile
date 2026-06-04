@@ -211,6 +211,10 @@ check-aws: ## [setup] Verify AWS CLI installed (optional)
 		printf "$(COL_GRN)✓ aws $$(aws --version 2>&1 | awk '{print $$1}')$(COL_OFF)\n"; \
 	fi
 
+.PHONY: pipeline-images
+pipeline-images: ## [setup] Retag sibling images (office-convert, zip-extraction) into the classification-pipeline namespace for `--profile pipeline`
+	@bash scripts/pipeline-images.sh
+
 # Verify a fixture / config file exists; offer to skip the target if not.
 # $(1) = file path, $(2) = target name for the message.
 define require_file

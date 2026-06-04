@@ -108,6 +108,7 @@ node scripts/gen-stages.mjs --check         # CI drift gate (run in CI to keep r
 
 ```bash
 cd units/classification-service
+make pipeline-images                         # retag sibling office-convert/zip-extraction images into classification-pipeline/* (build them in their own repos first)
 docker compose --profile pipeline up        # LocalStack → bootstrap → classify → router → UI (:3000) + stages
 # upload a document that classifies into your category, then:
 aws --endpoint-url=http://localhost:4566 --region eu-west-1 stepfunctions list-executions \

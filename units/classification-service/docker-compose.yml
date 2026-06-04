@@ -214,8 +214,11 @@ services:
   # worker's claim-checks resolve. Aspose license + image come from that repo.
   # Profile-gated: `docker compose --profile pipeline up`.
   office-convert:
-    image: office-convert:go
-    pull_policy: never        # local-only tag from the sibling repo; never pull
+    # Classification-OWNED alias — never reference the sibling repo's tag
+    # (`office-convert:go`) directly. `scripts/pipeline-images.sh` retags the
+    # sibling image into this namespace so no image name is shared across repos.
+    image: ${PIPELINE_OFFICE_CONVERT_IMAGE:-classification-pipeline/office-convert:local}
+    pull_policy: never        # local-only alias; created by pipeline-images.sh
     profiles: ["pipeline"]
     depends_on:
       bootstrap:
@@ -250,8 +253,11 @@ services:
   # -demo) S3-aligned to OUR stack. Consumes zip-extraction-queue, classifies
   # each extracted child back through the UI (/api/classify). Profile: pipeline.
   zip-extraction:
-    image: zip-extraction:dev
-    pull_policy: never
+    # Classification-OWNED alias — never reference the sibling repo's tag
+    # (`zip-extraction-service:dev`) directly. `scripts/pipeline-images.sh`
+    # retags the sibling image into this namespace; no image name is shared.
+    image: ${PIPELINE_ZIP_EXTRACTION_IMAGE:-classification-pipeline/zip-extraction:local}
+    pull_policy: never        # local-only alias; created by pipeline-images.sh
     profiles: ["pipeline"]
     depends_on:
       bootstrap:
