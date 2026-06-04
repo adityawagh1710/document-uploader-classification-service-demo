@@ -1,0 +1,62 @@
+# Defaults for classification-service-http (the sync classify backend the BFF
+# router calls). Required at install (no defaults):
+#   --set image.repository=537462380503.dkr.ecr.eu-west-1.amazonaws.com/classification-service-sandbox/classification-service-http
+#   --set image.tag=<git-sha>
+#   --set serviceAccount.roleArn=arn:aws:iam::537462380503:role/classification-service-http-irsa
+#
+# ClusterIP-only: only the in-cluster router reaches it (router CLASSIFY_URL →
+# http://classification-service-http...:8091). Owns the engine's S3 read +
+# content-hashes/workspace-config DDB access via IRSA.
+
+namespace:
+  create: false
+  name: classification-service-sandbox
+
+image:
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Stateless request/response → multiple replicas + RollingUpdate.
+replicaCount: 2
+
+serviceAccount:
+  create: true
+  # MUST match the IRSA trust policy's system:serviceaccount:<ns>:<name>.
+  name: classification-service-http
+  # IRSA role ARN. REQUIRED on dev05; empty in a LocalStack-mode dev loop.
+  roleArn: ""
+
+service:
+  port: 8091
+
+app:
+  awsRegion: "eu-west-1"
+  awsEndpointUrl: ""             # empty on dev05 (regional); http://localstack:4566 locally
+  contentHashTableName: "content-hashes-dev"
+  workspaceConfigTableName: "workspace-config-dev"
+
+# Guaranteed-QoS pod (requests == limits), per the platform standard.
+resources:
+  requests: { cpu: "250m", memory: "512Mi" }
+  limits: { cpu: "250m", memory: "512Mi" }
+
+# HTTP service → httpGet probes on /healthz.
+readinessProbe:
+  httpGet: { path: /healthz, port: 8091 }
+  initialDelaySeconds: 3
+  periodSeconds: 10
+livenessProbe:
+  httpGet: { path: /healthz, port: 8091 }
+  initialDelaySeconds: 5
+  periodSeconds: 15
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: classification-service-http
+  namespace: {{ include "classification-service-http.namespace" . }}
+  labels:
+    {{- include "classification-service-http.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "classification-service-http.selector" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
