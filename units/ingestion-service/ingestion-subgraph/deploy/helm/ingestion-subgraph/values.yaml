@@ -1,8 +1,12 @@
-# Defaults for ingestion-subgraph. Required at install (no defaults):
+# Defaults for ingestion-subgraph (the BFF router). Required at install (no defaults):
 #   --set image.repository=537462380503.dkr.ecr.eu-west-1.amazonaws.com/classification-service-sandbox/ingestion-subgraph
 #   --set image.tag=<git-sha>
 #   --set serviceAccount.roleArn=arn:aws:iam::537462380503:role/ingestion-subgraph-irsa
-#   --set router.queueClassify=https://sqs.eu-west-1.amazonaws.com/537462380503/classification-classify-queue-dev
+#
+# This is the full-BFF router: it owns ALL AWS access (S3 presign/claim-check,
+# the classification engine's DDB tables, the stage queues) and calls the
+# in-cluster classification-service-http over HTTP for synchronous classify.
+# The UI is a pure GraphQL client of this service (no AWS role).
 
 namespace:
   create: false
@@ -31,9 +35,31 @@ router:
   awsRegion: "eu-west-1"
   awsEndpointUrl: ""             # empty on dev05 (regional); http://localstack:4566 locally
   stagingBucket: "classification-ui-dev05"
+  # Document/workspace store (the BFF document CRUD surface).
   workspacesTableName: "workspaces-dev"
   documentsTableName: "documents-dev"
-  queueClassify: ""              # SQS URL of the classify queue (required in aws mode)
+  # Classification-engine tables the BFF reads/writes directly.
+  contentHashTableName: "content-hashes-dev"
+  classificationsTableName: "classifications-dev"
+  workspaceConfigTableName: "workspace-config-dev"
+  emailExtractionsTableName: "email-extractions-dev"
+  # Synchronous classify backend — the in-cluster classification-service-http.
+  classifyUrl: "http://classification-service-http.classification-service-sandbox.svc.cluster.local:8091"
+  # Stage fan-out queues (full https SQS URLs). Empty string disables the fan-out.
+  #   convert  → OUR queue (ClassificationConvertQueue-dev CDK stack)
+  #   archive  → the external zip-extraction service's queue (it owns it)
+  convertQueueUrl: "https://sqs.eu-west-1.amazonaws.com/537462380503/classification-convert-queue-dev"
+  zipExtractionQueueUrl: "https://sqs.eu-west-1.amazonaws.com/537462380503/zip-extraction-dev05"
+  # Step Functions ARNs — OPTIONAL. When BOTH are empty (the dev05 default until
+  # the SFN pipeline stack is deployed), convert/archive dispatch goes DIRECTLY
+  # to the queues above (the pre-SFN path). Set these once the state machines
+  # exist on dev05 to route through Step Functions instead.
+  stateMachineArn: ""
+  archiveStateMachineArn: ""
+  # Office-convert progress polling (optional) — the in-cluster office-convert API.
+  officeConvertApiUrl: "http://office-convert.office-convert-dev.svc.cluster.local"
+  # Email fan-out (optional) — no email service on dev05, so left empty.
+  emailExtractionUrl: ""
   defaultTenantId: "tenant-dev"
   corsOrigin: "*"                # tighten to the UI origin on dev05
   logLevel: "info"

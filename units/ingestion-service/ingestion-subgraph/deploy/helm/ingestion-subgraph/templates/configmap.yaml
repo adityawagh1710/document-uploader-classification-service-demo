@@ -15,7 +15,29 @@ data:
   DOCUPLOADER_STAGING_BUCKET: {{ .Values.router.stagingBucket | quote }}
   WORKSPACES_TABLE_NAME: {{ .Values.router.workspacesTableName | quote }}
   DOCUMENTS_TABLE_NAME: {{ .Values.router.documentsTableName | quote }}
-  QUEUE_CLASSIFY: {{ .Values.router.queueClassify | quote }}
+  CONTENT_HASH_TABLE_NAME: {{ .Values.router.contentHashTableName | quote }}
+  CLASSIFICATIONS_TABLE_NAME: {{ .Values.router.classificationsTableName | quote }}
+  WORKSPACE_CONFIG_TABLE_NAME: {{ .Values.router.workspaceConfigTableName | quote }}
+  EMAIL_EXTRACTIONS_TABLE_NAME: {{ .Values.router.emailExtractionsTableName | quote }}
+  CLASSIFY_URL: {{ .Values.router.classifyUrl | quote }}
+  {{- if .Values.router.convertQueueUrl }}
+  CONVERT_QUEUE_URL: {{ .Values.router.convertQueueUrl | quote }}
+  {{- end }}
+  {{- if .Values.router.zipExtractionQueueUrl }}
+  ZIP_EXTRACTION_QUEUE_URL: {{ .Values.router.zipExtractionQueueUrl | quote }}
+  {{- end }}
+  {{- if .Values.router.stateMachineArn }}
+  STATE_MACHINE_ARN: {{ .Values.router.stateMachineArn | quote }}
+  {{- end }}
+  {{- if .Values.router.archiveStateMachineArn }}
+  ARCHIVE_STATE_MACHINE_ARN: {{ .Values.router.archiveStateMachineArn | quote }}
+  {{- end }}
+  {{- if .Values.router.officeConvertApiUrl }}
+  OFFICE_CONVERT_API_URL: {{ .Values.router.officeConvertApiUrl | quote }}
+  {{- end }}
+  {{- if .Values.router.emailExtractionUrl }}
+  EMAIL_EXTRACTION_URL: {{ .Values.router.emailExtractionUrl | quote }}
+  {{- end }}
   DEFAULT_TENANT_ID: {{ .Values.router.defaultTenantId | quote }}
   CORS_ORIGIN: {{ .Values.router.corsOrigin | quote }}
   LOG_LEVEL: {{ .Values.router.logLevel | quote }}
