@@ -12,6 +12,7 @@ export class ClassificationDataStack extends cdk.Stack {
   readonly contentHashTable: dynamodb.ITable;
   readonly workspaceConfigTable: dynamodb.ITable;
   readonly classificationsTable: dynamodb.ITable;
+  readonly emailExtractionsTable: dynamodb.ITable;
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, {
@@ -90,12 +91,42 @@ export class ClassificationDataStack extends cdk.Stack {
       },
     ]);
 
+    // email-extractions table — per-document email fan-out activity log written
+    // by the router (ingestion-subgraph) when an email/.msg is extracted. The
+    // router's EmailExtractionStore writes one row per documentId. Ephemeral +
+    // TTL-bounded like classifications (PK=documentId, TTL=expiresAt). Until now
+    // it existed only in scripts/bootstrap-localstack.sh (LocalStack); this adds
+    // it to the dev05/staging/prod IaC so the BFF router has a real table.
+    const emailExtractionsTable = new dynamodb.Table(this, "EmailExtractions", {
+      tableName: env === "prod" ? "email-extractions" : `email-extractions-${env}`,
+      partitionKey: { name: "documentId", type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: false },
+      timeToLiveAttribute: "expiresAt",
+      deletionProtection: props.envConfig.deletionProtectionEnabled,
+      removalPolicy,
+      contributorInsightsEnabled: true,
+    });
+
+    // cdk-nag suppression for email-extractions (no PITR — ephemeral, TTL-bounded
+    // fan-out activity log; not a system of record).
+    NagSuppressions.addResourceSuppressions(emailExtractionsTable, [
+      {
+        id: "AwsSolutions-DDB3",
+        reason:
+          "Email-extractions is an ephemeral, TTL-bounded fan-out activity log (not a system of record). " +
+          "PITR overhead not justified.",
+      },
+    ]);
+
     // Component tag for cost slicing
     cdk.Tags.of(this).add("Component", "data");
 
     this.contentHashTable = contentHashTable;
     this.workspaceConfigTable = workspaceConfigTable;
     this.classificationsTable = classificationsTable;
+    this.emailExtractionsTable = emailExtractionsTable;
 
     // Cross-stack exports
     new cdk.CfnOutput(this, "ContentHashTableName", {
@@ -121,6 +152,14 @@ export class ClassificationDataStack extends cdk.Stack {
     new cdk.CfnOutput(this, "ClassificationsTableArn", {
       value: classificationsTable.tableArn,
       exportName: `ClassificationClassificationsTableArn-${env}`,
+    });
+    new cdk.CfnOutput(this, "EmailExtractionsTableName", {
+      value: emailExtractionsTable.tableName,
+      exportName: `ClassificationEmailExtractionsTableName-${env}`,
+    });
+    new cdk.CfnOutput(this, "EmailExtractionsTableArn", {
+      value: emailExtractionsTable.tableArn,
+      exportName: `ClassificationEmailExtractionsTableArn-${env}`,
     });
   }
 }
