@@ -61,8 +61,16 @@ The optional **`pipeline` profile** also starts the convert + zip-extraction
 stage services and the Step Functions orchestration:
 
 ```
-cd units/classification-service && docker compose --profile pipeline up
+cd units/classification-service
+make pipeline-images                 # retag sibling office-convert/zip-extraction images
+docker compose --profile pipeline up
 ```
+
+> The `pipeline` profile consumes the **office-convert** and **zip-extraction**
+> images that are built and owned by their sibling repos. No image name is
+> shared across repos — build those images in their own repos first, then
+> `make pipeline-images` retags them into this repo's `classification-pipeline/*`
+> namespace (see `scripts/pipeline-images.sh`).
 
 `scripts/bootstrap-localstack.sh` seeds the integration-test resources in
 LocalStack (`eu-west-1`): S3 `classification-ui-bucket`; DynamoDB
