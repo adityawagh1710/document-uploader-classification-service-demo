@@ -96,6 +96,10 @@ help: ## Show this help (default)
 	@awk 'BEGIN{FS=":.*##"} /^[a-z-]+:.*## \[deploy\]/ {printf "    $(COL_GRN)%-18s$(COL_OFF) %s\n", $$1, gensub(/^ ?\[deploy\] ?/, "", "g", $$2)}' $(MAKEFILE_LIST)
 	@printf "\n  $(COL_CYN)Convert-worker (auto-convert fan-out)$(COL_OFF)\n"
 	@awk 'BEGIN{FS=":.*##"} /^[a-z-]+:.*## \[worker\]/ {printf "    $(COL_GRN)%-22s$(COL_OFF) %s\n", $$1, gensub(/^ ?\[worker\] ?/, "", "g", $$2)}' $(MAKEFILE_LIST)
+	@printf "\n  $(COL_CYN)BFF — classification-service-http$(COL_OFF)\n"
+	@awk 'BEGIN{FS=":.*##"} /^[a-z-]+:.*## \[http\]/ {printf "    $(COL_GRN)%-22s$(COL_OFF) %s\n", $$1, gensub(/^ ?\[http\] ?/, "", "g", $$2)}' $(MAKEFILE_LIST)
+	@printf "\n  $(COL_CYN)BFF — ingestion-subgraph (router)$(COL_OFF)\n"
+	@awk 'BEGIN{FS=":.*##"} /^[a-z-]+:.*## \[router\]/ {printf "    $(COL_GRN)%-22s$(COL_OFF) %s\n", $$1, gensub(/^ ?\[router\] ?/, "", "g", $$2)}' $(MAKEFILE_LIST)
 	@printf "\n  $(COL_CYN)Housekeeping$(COL_OFF)\n"
 	@awk 'BEGIN{FS=":.*##"} /^[a-z-]+:.*## \[misc\]/ {printf "    $(COL_GRN)%-18s$(COL_OFF) %s\n", $$1, gensub(/^ ?\[misc\] ?/, "", "g", $$2)}' $(MAKEFILE_LIST)
 	@printf "\n  $(COL_CYN)Variables$(COL_OFF)\n"
@@ -545,15 +549,15 @@ image-push: ecr-ensure ecr-login image-build ## [deploy] Push UI image to ECR
 	$(call ok,Pushed)
 
 .PHONY: check-deploy-backend
-check-deploy-backend: ## [deploy] Validate DEPLOY_BACKEND (aws requires DEPLOY_IRSA_ROLE_ARN)
-	@if [ "$(DEPLOY_BACKEND)" = "aws" ] && [ -z "$(DEPLOY_IRSA_ROLE_ARN)" ]; then \
-		printf "$(COL_RED)✗ DEPLOY_BACKEND=aws requires DEPLOY_IRSA_ROLE_ARN=<role-arn>$(COL_OFF)\n"; \
-		printf "  Create the IRSA role first — see deploy/AWS_TOPOLOGY.md (Step 3).\n"; \
-		exit 1; \
-	elif [ "$(DEPLOY_BACKEND)" != "localstack" ] && [ "$(DEPLOY_BACKEND)" != "aws" ]; then \
+check-deploy-backend: ## [deploy] Validate DEPLOY_BACKEND value
+	@if [ "$(DEPLOY_BACKEND)" != "localstack" ] && [ "$(DEPLOY_BACKEND)" != "aws" ]; then \
 		printf "$(COL_RED)✗ DEPLOY_BACKEND must be 'localstack' or 'aws' (got '$(DEPLOY_BACKEND)')$(COL_OFF)\n"; \
 		exit 1; \
 	fi
+	@# NOTE: in the full-BFF topology the UI is a pure router client with NO AWS
+	@# role — so BACKEND=aws no longer requires DEPLOY_IRSA_ROLE_ARN for the UI.
+	@# The router + classification-service-http carry the IRSA roles; their own
+	@# check-router-deploy / check-http-deploy enforce their role ARNs.
 
 .PHONY: irsa-smoketest
 irsa-smoketest: check-kubectl ## [deploy] Pre-flight (no UI deploy): assume the IRSA role as the SA + list tables + node arch
@@ -908,6 +912,210 @@ worker-logs: check-kubectl ## [worker] Tail worker pod logs (-f)
 worker-status: check-kubectl ## [worker] kubectl get for worker pod + SA + cm
 	@kubectl -n $(DEPLOY_NAMESPACE) get pods,sa,cm -l app.kubernetes.io/name=convert-worker 2>&1 || \
 		kubectl -n $(DEPLOY_NAMESPACE) get deploy/convert-worker sa/convert-worker cm/convert-worker-config 2>&1 || true
+
+# ---------------------------------------------------------------------------
+# BFF deploy — classification-service-http + ingestion-subgraph (router)
+# ---------------------------------------------------------------------------
+# The full-BFF topology adds two more pods alongside the UI:
+#   classification-service-http  — the sync classify backend the router calls
+#   ingestion-subgraph (router)  — owns ALL AWS; the UI's only backend
+# Each mirrors the worker pattern (own ECR repo + build/push/helm targets).
+# Deploy order: http → router → ui (`make bff-deploy`). Each needs its IRSA role.
+
+# ── classification-service-http ────────────────────────────────────────────
+HTTP_ECR_REPO       ?= classification-service-sandbox/classification-service-http
+HTTP_HELM_RELEASE   ?= classification-service-http
+HTTP_CHART_DIR      ?= deploy/helm/classification-service-http
+HTTP_IRSA_ROLE_NAME ?= classification-service-http-irsa
+HTTP_IRSA_ROLE_ARN  ?=
+HTTP_IMAGE_REPO := $(DEPLOY_ECR_REGISTRY)/$(HTTP_ECR_REPO)
+HTTP_IMAGE_FULL := $(HTTP_IMAGE_REPO):$(DEPLOY_IMAGE_TAG)
+
+.PHONY: http-ecr-ensure
+http-ecr-ensure: check-aws ## [http] Create the classification-service-http ECR repo if missing (idempotent)
+	$(call banner,Ensuring ECR repo $(HTTP_ECR_REPO))
+	@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr describe-repositories \
+		--repository-names $(HTTP_ECR_REPO) --region $(DEPLOY_AWS_REGION) >/dev/null 2>&1 \
+	|| AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr create-repository \
+		--repository-name $(HTTP_ECR_REPO) --region $(DEPLOY_AWS_REGION) \
+		--image-scanning-configuration scanOnPush=true \
+		--tags Key=Owner,Value=platform-team Key=CostCenter,Value=tbd Key=Service,Value=classification-service Key=Environment,Value=dev Key=Component,Value=classify-http Key=ManagedBy,Value=manual-dev05 >/dev/null
+	$(call ok,classification-service-http ECR repo present)
+
+.PHONY: http-image-build
+http-image-build: check-docker ## [http] Build the classification-service-http image for linux/amd64
+	$(call banner,Building classify-http image $(HTTP_IMAGE_FULL))
+	# Repo-root context (../..): pnpm workspace member; lockfile at the monorepo root.
+	@docker build --platform linux/amd64 \
+		-f ../../units/classification-service/Dockerfile.http \
+		-t $(HTTP_IMAGE_FULL) ../..
+	$(call ok,Built $(HTTP_IMAGE_FULL))
+
+.PHONY: http-image-push
+http-image-push: http-ecr-ensure ecr-login http-image-build ## [http] Push classification-service-http image to ECR
+	$(call banner,Pushing $(HTTP_IMAGE_FULL))
+	@docker push $(HTTP_IMAGE_FULL)
+	$(call ok,Pushed)
+
+.PHONY: http-helm-lint
+http-helm-lint: check-helm ## [http] helm lint the classification-service-http chart
+	@helm lint $(HTTP_CHART_DIR) --set image.repository=$(HTTP_IMAGE_REPO) --set image.tag=$(DEPLOY_IMAGE_TAG)
+
+.PHONY: http-helm-template
+http-helm-template: check-helm ## [http] helm template (dry-run render → deploy/logs)
+	@mkdir -p $(DEPLOY_LOG_DIR)
+	@helm template $(HTTP_HELM_RELEASE) $(HTTP_CHART_DIR) \
+		--namespace $(DEPLOY_NAMESPACE) \
+		--set image.repository=$(HTTP_IMAGE_REPO) \
+		--set image.tag=$(DEPLOY_IMAGE_TAG) \
+		$(if $(HTTP_IRSA_ROLE_ARN),--set serviceAccount.roleArn=$(HTTP_IRSA_ROLE_ARN),) \
+		| tee $(DEPLOY_LOG_DIR)/manifest-http-$(DEPLOY_TS).yaml
+	$(call ok,Rendered classify-http manifest)
+
+.PHONY: check-http-deploy
+check-http-deploy:
+	@if [ -z "$(HTTP_IRSA_ROLE_ARN)" ]; then \
+		printf "$(COL_RED)✗ http-helm-deploy requires HTTP_IRSA_ROLE_ARN=<role-arn>$(COL_OFF)\n"; \
+		printf "  Create the role first — see deploy/iam/classification-service-http-irsa-*.json + deploy/iam/README.md\n"; \
+		exit 1; \
+	fi
+
+.PHONY: http-helm-deploy
+http-helm-deploy: check-helm check-kubectl check-http-deploy ## [http] helm upgrade --install classification-service-http
+	$(call banner,Deploying $(HTTP_HELM_RELEASE) → ns=$(DEPLOY_NAMESPACE))
+	@mkdir -p $(DEPLOY_LOG_DIR)
+	@helm upgrade --install $(HTTP_HELM_RELEASE) $(HTTP_CHART_DIR) \
+		--namespace $(DEPLOY_NAMESPACE) --create-namespace \
+		--set image.repository=$(HTTP_IMAGE_REPO) \
+		--set image.tag=$(DEPLOY_IMAGE_TAG) \
+		--set serviceAccount.roleArn=$(HTTP_IRSA_ROLE_ARN) \
+		--wait --timeout=3m 2>&1 | tee -a $(DEPLOY_LOG_DIR)/http-deploy-$(DEPLOY_TS).log
+	$(call ok,classification-service-http release upgraded)
+
+.PHONY: http-deploy
+http-deploy: http-image-push http-helm-deploy ## [http] Full pipeline: build → push → helm upgrade
+	$(call ok,http-deploy complete  tag=$(DEPLOY_IMAGE_TAG))
+
+.PHONY: http-undeploy
+http-undeploy: check-helm check-kubectl ## [http] helm uninstall classification-service-http
+	@if helm status $(HTTP_HELM_RELEASE) --namespace $(DEPLOY_NAMESPACE) >/dev/null 2>&1; then \
+		helm uninstall $(HTTP_HELM_RELEASE) --namespace $(DEPLOY_NAMESPACE) 2>&1 | tee -a $(DEPLOY_LOG_DIR)/http-undeploy-$(DEPLOY_TS).log; \
+	else \
+		printf "$(COL_YEL)! classification-service-http release not present — skipping$(COL_OFF)\n"; \
+	fi
+
+.PHONY: http-logs
+http-logs: check-kubectl ## [http] Tail classification-service-http pod logs (-f)
+	@kubectl -n $(DEPLOY_NAMESPACE) logs -l app=classification-service-http --tail=200 -f
+
+.PHONY: http-status
+http-status: check-kubectl ## [http] kubectl get for classify-http pod + svc + SA + cm
+	@kubectl -n $(DEPLOY_NAMESPACE) get pods,svc,sa,cm -l app.kubernetes.io/name=classification-service-http 2>&1 || true
+
+# ── ingestion-subgraph (router) ──────────────────────────────────────────────
+ROUTER_ECR_REPO       ?= classification-service-sandbox/ingestion-subgraph
+ROUTER_HELM_RELEASE   ?= ingestion-subgraph
+ROUTER_CHART_DIR      ?= ../ingestion-service/ingestion-subgraph/deploy/helm/ingestion-subgraph
+ROUTER_DOCKERFILE     ?= ../../units/ingestion-service/ingestion-subgraph/Dockerfile
+ROUTER_IRSA_ROLE_NAME ?= ingestion-subgraph-irsa
+ROUTER_IRSA_ROLE_ARN  ?=
+ROUTER_IMAGE_REPO := $(DEPLOY_ECR_REGISTRY)/$(ROUTER_ECR_REPO)
+ROUTER_IMAGE_FULL := $(ROUTER_IMAGE_REPO):$(DEPLOY_IMAGE_TAG)
+
+.PHONY: router-ecr-ensure
+router-ecr-ensure: check-aws ## [router] Create the ingestion-subgraph ECR repo if missing (idempotent)
+	$(call banner,Ensuring ECR repo $(ROUTER_ECR_REPO))
+	@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr describe-repositories \
+		--repository-names $(ROUTER_ECR_REPO) --region $(DEPLOY_AWS_REGION) >/dev/null 2>&1 \
+	|| AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr create-repository \
+		--repository-name $(ROUTER_ECR_REPO) --region $(DEPLOY_AWS_REGION) \
+		--image-scanning-configuration scanOnPush=true \
+		--tags Key=Owner,Value=platform-team Key=CostCenter,Value=tbd Key=Service,Value=classification-service Key=Environment,Value=dev Key=Component,Value=router Key=ManagedBy,Value=manual-dev05 >/dev/null
+	$(call ok,ingestion-subgraph ECR repo present)
+
+.PHONY: router-image-build
+router-image-build: check-docker ## [router] Build the ingestion-subgraph image for linux/amd64
+	$(call banner,Building router image $(ROUTER_IMAGE_FULL))
+	# Repo-root context (../..): the Dockerfile COPYs libs/pipeline-contracts.
+	@docker build --platform linux/amd64 \
+		-f $(ROUTER_DOCKERFILE) \
+		-t $(ROUTER_IMAGE_FULL) ../..
+	$(call ok,Built $(ROUTER_IMAGE_FULL))
+
+.PHONY: router-image-push
+router-image-push: router-ecr-ensure ecr-login router-image-build ## [router] Push ingestion-subgraph image to ECR
+	$(call banner,Pushing $(ROUTER_IMAGE_FULL))
+	@docker push $(ROUTER_IMAGE_FULL)
+	$(call ok,Pushed)
+
+.PHONY: router-helm-lint
+router-helm-lint: check-helm ## [router] helm lint the ingestion-subgraph chart
+	@helm lint $(ROUTER_CHART_DIR) --set image.repository=$(ROUTER_IMAGE_REPO) --set image.tag=$(DEPLOY_IMAGE_TAG)
+
+.PHONY: router-helm-template
+router-helm-template: check-helm ## [router] helm template (dry-run render → deploy/logs)
+	@mkdir -p $(DEPLOY_LOG_DIR)
+	@helm template $(ROUTER_HELM_RELEASE) $(ROUTER_CHART_DIR) \
+		--namespace $(DEPLOY_NAMESPACE) \
+		--set image.repository=$(ROUTER_IMAGE_REPO) \
+		--set image.tag=$(DEPLOY_IMAGE_TAG) \
+		$(if $(ROUTER_IRSA_ROLE_ARN),--set serviceAccount.roleArn=$(ROUTER_IRSA_ROLE_ARN),) \
+		| tee $(DEPLOY_LOG_DIR)/manifest-router-$(DEPLOY_TS).yaml
+	$(call ok,Rendered router manifest)
+
+.PHONY: check-router-deploy
+check-router-deploy:
+	@if [ -z "$(ROUTER_IRSA_ROLE_ARN)" ]; then \
+		printf "$(COL_RED)✗ router-helm-deploy requires ROUTER_IRSA_ROLE_ARN=<role-arn>$(COL_OFF)\n"; \
+		printf "  Create the role first — see units/ingestion-service/ingestion-subgraph/deploy/iam/\n"; \
+		exit 1; \
+	fi
+
+.PHONY: router-helm-deploy
+router-helm-deploy: check-helm check-kubectl check-router-deploy ## [router] helm upgrade --install ingestion-subgraph
+	$(call banner,Deploying $(ROUTER_HELM_RELEASE) → ns=$(DEPLOY_NAMESPACE))
+	@mkdir -p $(DEPLOY_LOG_DIR)
+	@helm upgrade --install $(ROUTER_HELM_RELEASE) $(ROUTER_CHART_DIR) \
+		--namespace $(DEPLOY_NAMESPACE) --create-namespace \
+		--set image.repository=$(ROUTER_IMAGE_REPO) \
+		--set image.tag=$(DEPLOY_IMAGE_TAG) \
+		--set serviceAccount.roleArn=$(ROUTER_IRSA_ROLE_ARN) \
+		--wait --timeout=3m 2>&1 | tee -a $(DEPLOY_LOG_DIR)/router-deploy-$(DEPLOY_TS).log
+	$(call ok,ingestion-subgraph release upgraded)
+
+.PHONY: router-deploy
+router-deploy: router-image-push router-helm-deploy ## [router] Full pipeline: build → push → helm upgrade
+	$(call ok,router-deploy complete  tag=$(DEPLOY_IMAGE_TAG))
+
+.PHONY: router-undeploy
+router-undeploy: check-helm check-kubectl ## [router] helm uninstall ingestion-subgraph
+	@if helm status $(ROUTER_HELM_RELEASE) --namespace $(DEPLOY_NAMESPACE) >/dev/null 2>&1; then \
+		helm uninstall $(ROUTER_HELM_RELEASE) --namespace $(DEPLOY_NAMESPACE) 2>&1 | tee -a $(DEPLOY_LOG_DIR)/router-undeploy-$(DEPLOY_TS).log; \
+	else \
+		printf "$(COL_YEL)! ingestion-subgraph release not present — skipping$(COL_OFF)\n"; \
+	fi
+
+.PHONY: router-logs
+router-logs: check-kubectl ## [router] Tail ingestion-subgraph pod logs (-f)
+	@kubectl -n $(DEPLOY_NAMESPACE) logs -l app=ingestion-subgraph --tail=200 -f
+
+.PHONY: router-status
+router-status: check-kubectl ## [router] kubectl get for router pod + svc + SA + cm
+	@kubectl -n $(DEPLOY_NAMESPACE) get pods,svc,sa,cm -l app.kubernetes.io/name=ingestion-subgraph 2>&1 || true
+
+# ── BFF umbrella ─────────────────────────────────────────────────────────────
+.PHONY: bff-deploy
+bff-deploy: http-deploy router-deploy ## [deploy] Full 3-pod BFF: classify-http → router → UI (run with DEPLOY_BACKEND=aws). Requires HTTP_IRSA_ROLE_ARN + ROUTER_IRSA_ROLE_ARN.
+	@printf "$(COL_BOLD)$(COL_CYN)▶ http + router deployed — now deploying the UI (router-client)$(COL_OFF)\n"
+	@$(MAKE) --no-print-directory deploy-dev DEPLOY_BACKEND=aws
+	$(call ok,bff-deploy complete — UI → router → classify-http on dev05)
+
+.PHONY: bff-undeploy
+bff-undeploy: ## [deploy] Tear down the BFF pods (UI + router + classify-http); data + IRSA roles kept
+	-@$(MAKE) --no-print-directory undeploy-dev
+	-@$(MAKE) --no-print-directory router-undeploy
+	-@$(MAKE) --no-print-directory http-undeploy
+	$(call ok,bff-undeploy complete)
 
 # ---------------------------------------------------------------------------
 # Housekeeping
