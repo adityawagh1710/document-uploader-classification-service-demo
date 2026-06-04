@@ -6,9 +6,24 @@ import devConfig from "../config/dev.js";
 import prodConfig from "../config/prod.js";
 
 describe("ClassificationDataStack", () => {
-  it("creates exactly 3 DDB tables", () => {
+  it("creates exactly 4 DDB tables", () => {
     const { template } = buildAppAndStack(ClassificationDataStack);
-    template.resourceCountIs("AWS::DynamoDB::Table", 3);
+    template.resourceCountIs("AWS::DynamoDB::Table", 4);
+  });
+
+  it("email-extractions table has correct partition key (documentId), TTL, no sort key", () => {
+    const { template } = buildAppAndStack(ClassificationDataStack);
+    const tables = template.findResources("AWS::DynamoDB::Table");
+    const emailExtractionsTable = Object.values(tables).find((t) => {
+      const keySchema = (t.Properties as { KeySchema?: Array<{ AttributeName: string }> })?.KeySchema;
+      return keySchema?.length === 1 && keySchema[0]?.AttributeName === "documentId";
+    });
+    expect(emailExtractionsTable).toBeDefined();
+    expect(emailExtractionsTable?.Properties).toMatchObject({
+      BillingMode: "PAY_PER_REQUEST",
+      SSESpecification: { SSEEnabled: true },
+      TimeToLiveSpecification: { AttributeName: "expiresAt", Enabled: true },
+    });
   });
 
   it("classifications table has correct keys, billing mode, encryption, TTL", () => {

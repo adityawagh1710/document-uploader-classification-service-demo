@@ -41,6 +41,25 @@ exports[`ClassificationDataStack > matches snapshot (dev) 1`] = `
         "Ref": "ContentHashes__HASH__",
       },
     },
+    "EmailExtractionsTableArn": {
+      "Export": {
+        "Name": "ClassificationEmailExtractionsTableArn-dev",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "EmailExtractions__HASH__",
+          "Arn",
+        ],
+      },
+    },
+    "EmailExtractionsTableName": {
+      "Export": {
+        "Name": "ClassificationEmailExtractionsTableName-dev",
+      },
+      "Value": {
+        "Ref": "EmailExtractions__HASH__",
+      },
+    },
     "WorkspaceConfigTableArn": {
       "Export": {
         "Name": "ClassificationWorkspaceConfigTableArn-dev",
@@ -154,6 +173,48 @@ exports[`ClassificationDataStack > matches snapshot (dev) 1`] = `
           "SSEEnabled": true,
         },
         "TableName": "content-hashes-dev",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "data",
+          },
+        ],
+        "TimeToLiveSpecification": {
+          "AttributeName": "expiresAt",
+          "Enabled": true,
+        },
+      },
+      "Type": "AWS::DynamoDB::Table",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "EmailExtractions__HASH__": {
+      "DeletionPolicy": "Delete",
+      "Metadata": "__SCRUBBED_METADATA__",
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "documentId",
+            "AttributeType": "S",
+          },
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "ContributorInsightsSpecification": {
+          "Enabled": true,
+        },
+        "DeletionProtectionEnabled": false,
+        "KeySchema": [
+          {
+            "AttributeName": "documentId",
+            "KeyType": "HASH",
+          },
+        ],
+        "PointInTimeRecoverySpecification": {
+          "PointInTimeRecoveryEnabled": false,
+        },
+        "SSESpecification": {
+          "SSEEnabled": true,
+        },
+        "TableName": "email-extractions-dev",
         "Tags": [
           {
             "Key": "Component",
