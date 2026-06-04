@@ -1,55 +1,42 @@
-# Real-AWS profile for dev05 (Option A topology).
+# Real-AWS profile for dev05 — FULL-BFF topology.
 #
-# Option A: the UI runs the classifier IN-PROCESS against real DynamoDB + S3
-# via IRSA. No Lambda, no Step Functions. See deploy/AWS_TOPOLOGY.md for the
-# full runbook (data-stack deploy, bucket creation, IRSA role, workspace seed).
+# The UI is now a PURE router client: it holds NO AWS SDK, NO IRSA role, and
+# talks GraphQL to the in-cluster ingestion-subgraph (the router/BFF), which
+# owns all AWS access. This replaces the old Option-A in-process classifier
+# (CLASSIFIER_AWS_MODE + direct DynamoDB/S3 via classification-ui-irsa).
+#
+# Deploy order: classification-service-http → ingestion-subgraph (router) → UI.
+# See deploy/AWS_TOPOLOGY.md for the full runbook.
 #
 # Layer this ON TOP of values.yaml:
 #   helm upgrade --install classification-ui deploy/helm/classification-ui \
 #     -f deploy/helm/classification-ui/values.yaml \
 #     -f deploy/helm/classification-ui/values-aws.yaml \
 #     --set image.repository=<acct>.dkr.ecr.eu-west-1.amazonaws.com/<repo> \
-#     --set image.tag=<git-sha> \
-#     --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=arn:aws:iam::537462380503:role/classification-ui-irsa
+#     --set image.tag=<git-sha>
 
 # No in-cluster LocalStack — and (because localstackConfig is gated on this)
-# AWS_ENDPOINT_URL + the "test" creds are omitted from the pod env, so the SDK
-# default chain falls through to the IRSA web-identity token.
+# the LocalStack endpoint + "test" creds are omitted from the pod env.
 localstack:
   enabled: false
 
-# IRSA identity. Operator supplies the role ARN via --set at install (above).
+# The UI no longer needs an AWS identity — it never touches AWS directly. No
+# IRSA ServiceAccount is created; the pod runs under the namespace default SA.
 serviceAccount:
-  create: true
-  name: classification-ui
+  create: false
 
 config:
-  # Flip the classifier to real-AWS client construction (default chain → IRSA).
-  CLASSIFIER_AWS_MODE: "true"
-  AWS_REGION: "eu-west-1"
-  # Tables created by the CDK data-stack (infra/lib/data-stack.ts) at env=dev.
-  CONTENT_HASH_TABLE_NAME: "content-hashes-dev"
-  WORKSPACE_CONFIG_TABLE_NAME: "workspace-config-dev"
-  CLASSIFICATIONS_TABLE_NAME: "classifications-dev"
-  # Bucket created out-of-band (`aws s3 mb`) — see runbook.
-  UI_S3_BUCKET: "classification-ui-dev05"
-  # Archive fan-out — empty string disables it. Points at the LIVE
-  # zip-extraction service's input queue on dev05 (owned by that service; do
-  # not create/delete it). Verified 2026-05-27: the consumer accepts our
-  # claim-check schema and fetches the object from the message's sourceBucket.
-  # Requires TWO grants (see runbook): (1) this IRSA role needs sqs:SendMessage
-  # on the queue ARN, (2) the zip-extraction-dev05 role needs s3:GetObject on
-  # classification-ui-dev05 (else the consumer 403s on download).
-  ZIP_EXTRACTION_QUEUE_URL: "https://sqs.eu-west-1.amazonaws.com/537462380503/zip-extraction-dev05"
-  # Auto-convert fan-out — empty string disables it. Points at OUR queue
-  # (created by ClassificationConvertQueue-dev CDK stack — feat/02). When
-  # category=convert, /api/classify enqueues a ConvertClaim here and the
-  # convert-worker (deploy/helm/convert-worker chart) consumes + bridges to
-  # office-convert. Cross-service contract: deploy/INTEGRATIONS.md §"Sends
-  # to → office-convert".
-  # Without this env var set, the convert dispatcher silently becomes
-  # undefined → convertDispatch="skipped" on every classify → the entire
-  # convert pipeline is dark.
-  # IRSA: classification-ui-irsa Sid `ConvertFanOut` grants sqs:SendMessage
-  # on this queue ARN. Tracked in deploy/iam/classification-ui-irsa-perms.json.
-  CONVERT_QUEUE_URL: "https://sqs.eu-west-1.amazonaws.com/537462380503/classification-convert-queue-dev"
+  # Pure router client: every server-side /api/* route proxies to the BFF
+  # router over in-cluster GraphQL. No AWS_* envs, no classifier mode flag.
+  ROUTER_GRAPHQL_URL: "http://ingestion-subgraph.classification-service-sandbox.svc.cluster.local:8080/graphql"
+  # Neutralize the base values.yaml localstack/in-process-classifier defaults —
+  # Helm deep-merges the config map, so these would otherwise leak into the pod.
+  # Setting them null drops the keys during coalesce, leaving ONLY the router URL.
+  CLASSIFIER_AWS_MODE: null
+  AWS_REGION: null
+  UI_S3_BUCKET: null
+  CONTENT_HASH_TABLE_NAME: null
+  WORKSPACE_CONFIG_TABLE_NAME: null
+  CLASSIFICATIONS_TABLE_NAME: null
+  ZIP_EXTRACTION_QUEUE_URL: null
+  OFFICE_CONVERT_API_URL: null
