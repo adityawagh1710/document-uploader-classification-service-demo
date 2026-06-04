@@ -1,5 +1,14 @@
 # Real-AWS Topology on dev05 (Option A)
 
+> ⚠️ **SUPERSEDED (2026-06-04).** This describes the original **Option A** shape —
+> the UI running the classifier **in-process** against AWS via `classification-ui-irsa`.
+> The repo is now a **full BFF**: the dev05 deploy is the 3-pod topology
+> (UI → router → classification-service-http), the UI holds no AWS role, and
+> `values-aws.yaml` is a pure router-client. For the current runbook see
+> **`aidlc-docs/operations/dev05-bff-deployment.md`**. This file is kept for the
+> IRSA / bucket / Route53 mechanics it still documents accurately, but the
+> UI-in-process classifier flow below no longer reflects how dev05 is deployed.
+
 **Goal:** run the Classification UI against **real AWS** DynamoDB + S3 on the
 dev05 EKS cluster, while **local stays on LocalStack** with zero changes.
 
