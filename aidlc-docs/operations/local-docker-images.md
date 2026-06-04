@@ -61,7 +61,7 @@ compose file. Instead:
 
    ```bash
    # office-convert  ->  office-convert:go
-   cd office-conversion-service-demo && make docker-go
+   cd office-conversion-service-demo && make build-go
 
    # zip-extraction  ->  zip-extraction-service:dev
    cd zip-extraction-service-demo/services/zip-extraction \

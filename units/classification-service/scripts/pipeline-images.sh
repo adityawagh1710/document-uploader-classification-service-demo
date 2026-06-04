@@ -19,7 +19,7 @@
 # namespace.
 #
 # Prerequisite: build the sibling images first, in their own repos:
-#   (office) cd ../../../office-conversion-service-demo && make docker-go   # -> office-convert:go
+#   (office) cd ../../../office-conversion-service-demo && make build-go    # -> office-convert:go
 #   (zip)    cd ../../../zip-extraction-service-demo/services/zip-extraction \
 #              && docker compose -f deploy/docker-compose.yml build zip-extraction  # -> zip-extraction-service:dev
 #
