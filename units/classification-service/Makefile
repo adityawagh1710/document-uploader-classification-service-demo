@@ -500,6 +500,17 @@ tag-resources: check-aws ## [deploy] Apply the standard tag set to the out-of-ba
 		bash deploy/scripts/tag-resources.sh
 	$(call ok,Tagged S3 + IAM role + ECR repo)
 
+.PHONY: bucket-cors
+bucket-cors: check-aws ## [deploy] Put the browser-upload CORS policy on the out-of-band staging bucket (idempotent)
+	$(call banner,Setting S3 CORS → bucket=$(DEPLOY_S3_BUCKET) (browser-direct presigned PUT))
+	@# The SPA uploads bytes straight from the browser to the presigned S3 URL,
+	@# so the staging bucket needs CORS (GET/PUT/HEAD) for the preflight to pass.
+	@# Mirrors the LocalStack policy in scripts/bootstrap-localstack.sh.
+	@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws s3api put-bucket-cors \
+		--bucket $(DEPLOY_S3_BUCKET) --region $(DEPLOY_AWS_REGION) \
+		--cors-configuration file://deploy/s3-cors.json
+	$(call ok,CORS applied to $(DEPLOY_S3_BUCKET) (see deploy/s3-cors.json))
+
 .PHONY: ecr-login
 ecr-login: check-aws ## [deploy] Docker login to ECR (60-min token)
 	@AWS_PROFILE=$(DEPLOY_AWS_PROFILE) aws ecr get-login-password --region $(DEPLOY_AWS_REGION) \
@@ -672,7 +683,7 @@ deploy-summary: check-kubectl ## [deploy] Print clean URL + resource block (also
 	  printf "\n$(COL_BOLD)$(COL_CYN)▶ Deployed resources$(COL_OFF)\n"; \
 	  if [ -n "$(DEPLOY_INGRESS_HOST)" ]; then \
 	    printf "  $(COL_BOLD)%-15s$(COL_OFF) %s\n" "Public URL"   "https://$(DEPLOY_INGRESS_HOST)/"; \
-	    printf "  $(COL_BOLD)%-15s$(COL_OFF) %s\n" "Health check" "https://$(DEPLOY_INGRESS_HOST)/api/health"; \
+	    printf "  $(COL_BOLD)%-15s$(COL_OFF) %s\n" "Health check" "https://$(DEPLOY_INGRESS_HOST)/ (static SPA — nginx serves index)"; \
 	    if [ -n "$(DEPLOY_ROUTE53_ZONE_ID)" ]; then \
 	      printf "  $(COL_BOLD)%-15s$(COL_OFF) %s\n" "Route 53"   "$(DEPLOY_INGRESS_HOST) → ALB (zone $(DEPLOY_ROUTE53_ZONE_ID))"; \
 	    fi; \
@@ -1127,6 +1138,9 @@ bff-deploy: http-deploy router-deploy ## [deploy] Full 3-pod BFF: classify-http 
 	@# Deploy the UI via the GRANULAR targets, NOT `deploy-dev`: deploy-dev runs
 	@# `__undeploy-soft` → `undeploy-dev` → `ns-delete`, which would delete the
 	@# shared namespace and tear down the router + http we just deployed.
+	@# Browser-direct uploads PUT straight to the presigned S3 URL, so the
+	@# staging bucket needs CORS before the UI is reachable.
+	@$(MAKE) --no-print-directory bucket-cors
 	@$(MAKE) --no-print-directory image-push DEPLOY_BACKEND=aws
 	@$(MAKE) --no-print-directory helm-deploy DEPLOY_BACKEND=aws
 	@$(MAKE) --no-print-directory manifest-snapshot DEPLOY_BACKEND=aws
