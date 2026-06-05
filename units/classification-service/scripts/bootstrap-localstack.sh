@@ -22,6 +22,14 @@ echo "Bootstrapping LocalStack at $ENDPOINT ..."
 
 aws --endpoint-url="$ENDPOINT" s3 mb "s3://$BUCKET" 2>/dev/null || true
 
+# Bucket CORS — required for the browser-direct UI to PUT bytes to presigned
+# S3 URLs (the SPA uploads straight to S3; the preflight needs ACAO). On real
+# AWS (dev05) the same CORS policy must be set on the staging bucket.
+aws --endpoint-url="$ENDPOINT" s3api put-bucket-cors \
+  --bucket "$BUCKET" \
+  --cors-configuration '{"CORSRules":[{"AllowedOrigins":["*"],"AllowedMethods":["GET","PUT","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3000}]}' \
+  2>/dev/null || true
+
 aws --endpoint-url="$ENDPOINT" dynamodb create-table \
   --table-name "$CH_TABLE" \
   --attribute-definitions \

@@ -161,13 +161,19 @@ services:
       router:
         condition: service_started
     environment:
-      # The UI is a pure HTTP/GraphQL client of the router now — no AWS envs.
-      # Server-side route handlers reach the router in-network; the browser-side
-      # ingestion client uses the host-published port (its NEXT_PUBLIC default of
-      # http://localhost:8099/graphql already matches).
-      ROUTER_GRAPHQL_URL: http://router:8099/graphql
+      # Vite/React SPA served by nginx — a pure browser-direct GraphQL client of
+      # the router (no AWS, no server). Approach A: the browser calls the router
+      # on its host-published port (8099). GRAPHQL_URL is injected at container
+      # start into the served config.js (deploy/docker-entrypoint.sh). For
+      # same-origin Approach B on dev05, set GRAPHQL_URL=/graphql and enable the
+      # proxy block in deploy/nginx.conf.
+      GRAPHQL_URL: http://localhost:8099/graphql
+      # Local-dev shim: LocalStack signs presigned PUT URLs with the internal
+      # host (localstack:4566), unreachable from the browser — rewrite to the
+      # host-published endpoint. Empty on real AWS (dev05).
+      UPLOAD_REWRITE: localstack:4566=localhost:4566
     ports:
-      - "3000:3000"
+      - "3000:80"
 
   # ── Auto-convert worker (feat/03 + feat/04) ────────────────────────────
   # Polls the convert queue (bootstrapped by scripts/bootstrap-localstack.sh)

@@ -9,8 +9,3 @@ data:
   {{- range $key, $value := .Values.config }}
   {{ $key }}: {{ $value | quote }}
   {{- end }}
-  {{- if .Values.localstack.enabled }}
-  {{- range $key, $value := .Values.localstackConfig }}
-  {{ $key }}: {{ $value | quote }}
-  {{- end }}
-  {{- end }}

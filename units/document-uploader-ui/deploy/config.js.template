@@ -1,0 +1,8 @@
+// Generated at container start by docker-entrypoint (envsubst). The SPA reads
+// window.__APP_CONFIG__ at runtime, so one built image is repointable per
+// environment without a rebuild. uploadRewrite is a local-dev-only shim for
+// LocalStack's internal presigned-URL host (empty on real AWS).
+window.__APP_CONFIG__ = {
+  graphqlUrl: "${GRAPHQL_URL}",
+  uploadRewrite: "${UPLOAD_REWRITE}",
+};

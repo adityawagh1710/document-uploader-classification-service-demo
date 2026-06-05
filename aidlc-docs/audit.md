@@ -1056,3 +1056,11 @@ Then updated docs: `StepFunctions_Pipeline_Design.md` (+§10 as-built P2 flow, s
 **Context**: OPERATIONS — the SFN orchestration (P1+P2) + the config-driven stage registry + onboarding are now MERGED on `integration` (`afc9ca5`); other teams can branch off it to integrate a stage by either delivery model. dev05 execution (CDK/IRSA) remains the open operator-gated item.
 
 ---
+
+## OPERATIONS — close the dev05 SPA alignment gap (Helm + nginx + S3 CORS)
+**Timestamp**: 2026-06-05T00:00:00Z
+**User Input**: "load previous session" → "close the dev05 SPA alignment gap"
+**AI Response**: Restored session context (branch feat/poc-ui-replace-nextjs; Vite/React SPA rewrite), then aligned the dev05 classification-ui Helm chart + UI image to the nginx-served browser-direct SPA. Changes: (1) nginx same-origin /graphql proxy made env-driven via GRAPHQL_UPSTREAM (one image works local browser-direct + dev05 proxy); (2) base values.yaml containerPort 3000→80, probes /api/health→/, healthcheckPath→/, config env replaced (Next.js AWS env → SPA GRAPHQL_URL/UPLOAD_REWRITE/GRAPHQL_UPSTREAM), localstackConfig dropped, resources right-sized for static nginx; (3) values-aws.yaml flipped to GRAPHQL_URL=/graphql + in-cluster GRAPHQL_UPSTREAM=ingestion-subgraph:8080 + UPLOAD_REWRITE=""; (4) configmap template localstackConfig branch removed; (5) new `make bucket-cors` (deploy/s3-cors.json) wired into bff-deploy so the browser-direct S3 PUT works on dev05; (6) deploy-summary health URL + portforward HEALTH_PATH /api/health→/; (7) runbook dev05-bff-deployment.md updated.
+**Context**: OPERATIONS — deploy-config alignment for the SPA on dev05. No live AWS mutation; validated via helm lint/template + docker build of the UI image.
+
+---

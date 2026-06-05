@@ -35,17 +35,13 @@ serviceAccount:
   create: false
 
 config:
-  # Pure router client: every server-side /api/* route proxies to the BFF
-  # router over in-cluster GraphQL. No AWS_* envs, no classifier mode flag.
-  ROUTER_GRAPHQL_URL: "http://ingestion-subgraph.classification-service-sandbox.svc.cluster.local:8080/graphql"
-  # Neutralize the base values.yaml localstack/in-process-classifier defaults —
-  # Helm deep-merges the config map, so these would otherwise leak into the pod.
-  # Setting them null drops the keys during coalesce, leaving ONLY the router URL.
-  CLASSIFIER_AWS_MODE: null
-  AWS_REGION: null
-  UI_S3_BUCKET: null
-  CONTENT_HASH_TABLE_NAME: null
-  WORKSPACE_CONFIG_TABLE_NAME: null
-  CLASSIFICATIONS_TABLE_NAME: null
-  ZIP_EXTRACTION_QUEUE_URL: null
-  OFFICE_CONVERT_API_URL: null
+  # Browser-direct SPA on a ClusterIP-only router: the browser MUST call
+  # same-origin, so GRAPHQL_URL is the relative "/graphql" and nginx proxies it
+  # in-cluster to the router (GRAPHQL_UPSTREAM). No CORS, router never exposed.
+  GRAPHQL_URL: "/graphql"
+  # In-cluster router base — nginx preserves the /graphql URI when proxying.
+  GRAPHQL_UPSTREAM: "http://ingestion-subgraph.classification-service-sandbox.svc.cluster.local:8080"
+  # Real AWS: presigned-PUT URLs target the public regional S3 endpoint, which
+  # the browser can reach directly — no host rewrite. (The staging bucket needs
+  # CORS for the cross-origin PUT — `make bucket-cors`, run by `bff-deploy`.)
+  UPLOAD_REWRITE: ""

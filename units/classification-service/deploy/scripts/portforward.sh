@@ -10,7 +10,7 @@
 #
 # Usage:
 #   ./portforward.sh start    # spawn detached pf; print port + health
-#   ./portforward.sh status   # PID + port + /api/health probe
+#   ./portforward.sh status   # PID + port + / probe (static SPA root)
 #   ./portforward.sh restart  # stop + start
 #   ./portforward.sh stop     # kill + remove state files
 
@@ -21,7 +21,7 @@ SVC_NAME="${HELM_RELEASE:-classification-ui}"
 SVC_PORT="${UI_SVC_PORT:-80}"
 LOCAL_BASE="${UI_LOCAL_PORT_BASE:-3000}"
 PORT_WALK="${UI_LOCAL_PORT_WALK:-10}"
-HEALTH_PATH="/api/health"
+HEALTH_PATH="/"
 
 PID_FILE="/tmp/classification-ui-portforward.pid"
 PORT_FILE="/tmp/classification-ui-portforward.port"

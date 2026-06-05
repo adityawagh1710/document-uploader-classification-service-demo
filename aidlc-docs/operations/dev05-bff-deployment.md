@@ -15,18 +15,43 @@ role (no router; the sync classify engine existed only as the Lambda / in-proces
 repo has since become a full BFF, so dev05 now runs **three pods**:
 
 ```
-browser ─► ALB ─► document-uploader-ui          (NO AWS, NO IRSA — pure router client)
-                    │ in-cluster GraphQL
-                    ▼
-                 ingestion-subgraph (router)     (IRSA — owns ALL AWS: S3 presign,
-                    │ in-cluster HTTP /classify    the engine's DDB tables, stage queues)
-                    ▼
-                 classification-service-http      (IRSA — S3 read + content-hashes/
-                                                   workspace-config DDB for the engine)
+browser ─► ALB ─► document-uploader-ui          (Vite SPA on nginx :80 — NO AWS, NO IRSA)
+   │  ▲  ▲           │ same-origin /graphql proxy (nginx) → in-cluster GraphQL
+   │  │  │           ▼
+   │  │  │        ingestion-subgraph (router)    (IRSA — owns ALL AWS: S3 presign,
+   │  │  │           │ in-cluster HTTP /classify    the engine's DDB tables, stage queues)
+   │  │  │           ▼
+   │  │  │        classification-service-http     (IRSA — S3 read + content-hashes/
+   │  │  │                                          workspace-config DDB for the engine)
+   │  │  └── presignUpload (GraphQL via the nginx proxy)
+   └──┴───── PUT bytes DIRECT to presigned S3 URL (regional endpoint — needs bucket CORS)
 ```
 
-The UI **loses** its AWS role entirely; **two new IRSA roles** appear (router, classify-http);
-**one new DDB table** (`email-extractions-dev`) appears.
+The UI is now a **browser-direct SPA** served static by nginx: the browser is the GraphQL
+client (it calls same-origin `/graphql`, which the UI pod's nginx proxies in-cluster to the
+ClusterIP-only router) and it PUTs upload bytes **straight to the presigned S3 URL**. The UI
+pod holds no AWS SDK and runs no server logic. The UI **loses** its AWS role entirely;
+**two new IRSA roles** appear (router, classify-http); **one new DDB table**
+(`email-extractions-dev`) appears.
+
+### UI pod env (Helm ConfigMap, `values-aws.yaml`)
+Three keys only (the SPA reads them at container start via the nginx entrypoint):
+`GRAPHQL_URL=/graphql` (same-origin), `GRAPHQL_UPSTREAM=http://ingestion-subgraph.<ns>.svc.cluster.local:8080`
+(the in-cluster router base the nginx `/graphql` proxy forwards to), and `UPLOAD_REWRITE=""`
+(empty on real AWS — the regional S3 endpoint is directly reachable). The container listens
+on **:80**; probes hit `/` (static SPA — there is no `/api/health`). One image serves both
+local browser-direct (GRAPHQL_UPSTREAM unset → no proxy) and dev05 same-origin (proxy on).
+
+> **Deploy ordering note:** nginx resolves the `GRAPHQL_UPSTREAM` host at startup, so the
+> `ingestion-subgraph` **Service** must exist before the UI pod starts. `bff-deploy` deploys
+> http → router → UI, so the router Service is always present first (a ClusterIP A-record
+> resolves even before the router has ready endpoints — proxied calls just 502 until ready).
+
+### S3 bucket CORS (browser-direct upload)
+The cross-origin browser→S3 PUT needs CORS on the staging bucket (`classification-ui-dev05`).
+`make bff-deploy` runs `make bucket-cors` automatically (policy in `deploy/s3-cors.json`,
+mirroring `scripts/bootstrap-localstack.sh`). Run it standalone with
+`make bucket-cors` if you ever recreate the bucket.
 
 ## dev05 facts (operator: confirm still current)
 
@@ -48,7 +73,7 @@ The UI **loses** its AWS role entirely; **two new IRSA roles** appear (router, c
 |---|---|---|---|---|
 | **classification-service-http** | `Dockerfile.http` (port 8091) | `deploy/helm/classification-service-http` (ClusterIP) | `deploy/iam/classification-service-http-irsa-{perms,trust}.json` | `http-deploy` / `http-undeploy` |
 | **ingestion-subgraph** (router) | `units/ingestion-service/ingestion-subgraph/Dockerfile` (8080) | `…/ingestion-subgraph/deploy/helm/ingestion-subgraph` (ClusterIP) | `…/ingestion-subgraph/deploy/iam/ingestion-subgraph-irsa-{perms,trust}.json` | `router-deploy` / `router-undeploy` |
-| **document-uploader-ui** | `units/document-uploader-ui/Dockerfile` (3000) | `deploy/helm/classification-ui` (+`values-aws.yaml`) | none (router client) | `deploy-dev` (within `bff-deploy`) |
+| **document-uploader-ui** | `units/document-uploader-ui/Dockerfile` (Vite SPA on **nginx :80**) | `deploy/helm/classification-ui` (+`values-aws.yaml`) | none (browser client) | `deploy-dev` (within `bff-deploy`) |
 | **convert-worker** | `worker/Dockerfile` | `deploy/helm/convert-worker` | `deploy/iam/convert-worker-irsa-*` | `worker-deploy` |
 | **DynamoDB tables** | — | CDK `infra/lib/data-stack.ts` | — | `synth` / `cdk deploy ClassificationData-dev` |
 
@@ -104,7 +129,8 @@ Per-component targets also exist (`http-deploy`, `router-deploy`, `worker-deploy
    - `classification-service-http-irsa` ← `deploy/iam/classification-service-http-irsa-*.json`
    - `ingestion-subgraph-irsa` ← `…/ingestion-subgraph/deploy/iam/ingestion-subgraph-irsa-*.json` (now grants all six tables, both queues, SFN StartExecution)
 4. `cdk deploy ClassificationData-dev` (creates the new `email-extractions-dev` table).
-5. ECR repos auto-create on first `*-image-push`; the `classification-ui-dev05` bucket is out-of-band.
+5. ECR repos auto-create on first `*-image-push`; the `classification-ui-dev05` bucket is
+   out-of-band (its browser-upload CORS is applied by `make bucket-cors`, which `bff-deploy` runs).
 
 ## Cross-references
 - `units/classification-service/deploy/AWS_TOPOLOGY.md` — **superseded** (Option-A in-process UI).
