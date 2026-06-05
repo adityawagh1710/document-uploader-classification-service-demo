@@ -1,0 +1,31 @@
+{
+  "_comment": "Path->unit->artifact map for path-filtered CI. Change a unit path -> build only that unit; change libs/** -> rebuild all consumers.",
+  "units": [
+    {
+      "id": "classification-service",
+      "path": "units/classification-service",
+      "lang": "ts",
+      "build": "npm ci && npm run build",
+      "images": ["classification-lambda", "classification-service-http"]
+    },
+    {
+      "id": "document-uploader-ui",
+      "path": "units/document-uploader-ui",
+      "lang": "ts",
+      "build": "npm ci && npm run build",
+      "images": ["document-uploader-ui"],
+      "_note": "Talks to the wundergraph-router (GraphQL). Retains a documented temporary @svc type/dispatcher dep on classification-service/src until the router is a full BFF."
+    },
+    {
+      "id": "ingestion-service",
+      "path": "units/ingestion-service",
+      "lang": "go",
+      "build": "cd ingestion-subgraph && go build ./...",
+      "images": ["ingestion-subgraph"],
+      "_note": "Sidecar-pair Pod: ingestion-subgraph is built here; wundergraph-router is the pulled Cosmo gateway (no source build)."
+    }
+  ],
+  "libs": [
+    { "id": "pipeline-contracts", "path": "libs/pipeline-contracts", "rebuildAllConsumersOnChange": true }
+  ]
+}

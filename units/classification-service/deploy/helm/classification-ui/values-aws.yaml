@@ -1,0 +1,51 @@
+# Real-AWS profile for dev05 — FULL-BFF topology.
+#
+# The UI is now a PURE router client: it holds NO AWS SDK, NO IRSA role, and
+# talks GraphQL to the in-cluster ingestion-subgraph (the router/BFF), which
+# owns all AWS access. This replaces the old Option-A in-process classifier
+# (CLASSIFIER_AWS_MODE + direct DynamoDB/S3 via classification-ui-irsa).
+#
+# Deploy order: classification-service-http → ingestion-subgraph (router) → UI.
+# See deploy/AWS_TOPOLOGY.md for the full runbook.
+#
+# Layer this ON TOP of values.yaml:
+#   helm upgrade --install classification-ui deploy/helm/classification-ui \
+#     -f deploy/helm/classification-ui/values.yaml \
+#     -f deploy/helm/classification-ui/values-aws.yaml \
+#     --set image.repository=<acct>.dkr.ecr.eu-west-1.amazonaws.com/<repo> \
+#     --set image.tag=<git-sha>
+
+# The namespace is a SHARED resource in the 3-pod BFF topology (UI + router +
+# classification-service-http all live in it), so the UI chart must NOT own it —
+# otherwise `helm uninstall classification-ui` would delete the namespace out
+# from under the still-running router + http. On dev05 the namespace lifecycle is
+# imperative: created by the first `helm --create-namespace` (bff-deploy) and
+# dropped last by `make bff-undeploy` / `make ns-delete`.
+namespace:
+  create: false
+
+# No in-cluster LocalStack — and (because localstackConfig is gated on this)
+# the LocalStack endpoint + "test" creds are omitted from the pod env.
+localstack:
+  enabled: false
+
+# The UI no longer needs an AWS identity — it never touches AWS directly. No
+# IRSA ServiceAccount is created; the pod runs under the namespace default SA.
+serviceAccount:
+  create: false
+
+config:
+  # Pure router client: every server-side /api/* route proxies to the BFF
+  # router over in-cluster GraphQL. No AWS_* envs, no classifier mode flag.
+  ROUTER_GRAPHQL_URL: "http://ingestion-subgraph.classification-service-sandbox.svc.cluster.local:8080/graphql"
+  # Neutralize the base values.yaml localstack/in-process-classifier defaults —
+  # Helm deep-merges the config map, so these would otherwise leak into the pod.
+  # Setting them null drops the keys during coalesce, leaving ONLY the router URL.
+  CLASSIFIER_AWS_MODE: null
+  AWS_REGION: null
+  UI_S3_BUCKET: null
+  CONTENT_HASH_TABLE_NAME: null
+  WORKSPACE_CONFIG_TABLE_NAME: null
+  CLASSIFICATIONS_TABLE_NAME: null
+  ZIP_EXTRACTION_QUEUE_URL: null
+  OFFICE_CONVERT_API_URL: null

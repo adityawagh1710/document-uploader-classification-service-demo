@@ -1,0 +1,19 @@
+apiVersion: v2
+name: ingestion-subgraph
+description: |
+  ingestion-subgraph — the document-uploader ingestion front door (Go/gqlgen
+  GraphQL gateway over the wire contract). Request/response EKS Deployment;
+  mints presigned uploads (S3 claim-check), dispatches StageRequests to the
+  stage queues, surfaces document status. Mirrors the classification charts'
+  conventions (namespace, IRSA, Guaranteed-QoS, security context).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/adityawagh1710/document-uploader-classification-service-demo
+keywords:
+  - document-uploader
+  - ingestion
+  - graphql
+  - wundergraph
+maintainers:
+  - name: document-uploader maintainers

@@ -1,0 +1,76 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DispatchToStageQueues",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:SendMessage",
+        "sqs:GetQueueUrl",
+        "sqs:GetQueueAttributes"
+      ],
+      "Resource": [
+        "arn:aws:sqs:eu-west-1:537462380503:classification-convert-queue-dev",
+        "arn:aws:sqs:eu-west-1:537462380503:zip-extraction-dev05"
+      ]
+    },
+    {
+      "Sid": "PresignAndClaimCheck",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::classification-ui-dev05/*"
+    },
+    {
+      "Sid": "BffDataTables",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:Query",
+        "dynamodb:Scan",
+        "dynamodb:DescribeTable"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:eu-west-1:537462380503:table/workspaces-dev",
+        "arn:aws:dynamodb:eu-west-1:537462380503:table/documents-dev",
+        "arn:aws:dynamodb:eu-west-1:537462380503:table/documents-dev/index/workspaceId-index",
+        "arn:aws:dynamodb:eu-west-1:537462380503:table/content-hashes-dev",
+        "arn:aws:dynamodb:eu-west-1:537462380503:table/classifications-dev",
+        "arn:aws:dynamodb:eu-west-1:537462380503:table/workspace-config-dev",
+        "arn:aws:dynamodb:eu-west-1:537462380503:table/email-extractions-dev"
+      ]
+    },
+    {
+      "Sid": "StartPipelineStateMachines",
+      "Effect": "Allow",
+      "Action": [
+        "states:StartExecution"
+      ],
+      "Resource": [
+        "arn:aws:states:eu-west-1:537462380503:stateMachine:classification-convert-pipeline",
+        "arn:aws:states:eu-west-1:537462380503:stateMachine:classification-zip-pipeline"
+      ]
+    },
+    {
+      "Sid": "DecryptKmsViaSqsAndS3",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": [
+            "sqs.eu-west-1.amazonaws.com",
+            "s3.eu-west-1.amazonaws.com"
+          ]
+        }
+      }
+    }
+  ]
+}

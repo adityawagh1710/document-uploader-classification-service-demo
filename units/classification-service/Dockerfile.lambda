@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1.7
+# ----------------------------------------------------------------------------
+# Lambda function image for local docker-compose. Compiles src/ via tsc and
+# packages it into the AWS Lambda Node.js 20 runtime image (which ships the
+# Lambda Runtime Interface Emulator on :8080).
+#
+# Build context = REPOSITORY ROOT — the pnpm workspace lockfile lives there.
+#   docker build -f units/classification-service/Dockerfile.lambda -t classification-lambda:dev .
+# ----------------------------------------------------------------------------
+
+FROM node:20-alpine AS builder
+RUN corepack enable
+WORKDIR /workspace
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc ./
+COPY units/classification-service/package.json units/classification-service/
+COPY units/classification-service/worker/package.json units/classification-service/worker/
+COPY units/document-uploader-ui/package.json units/document-uploader-ui/
+RUN pnpm install --frozen-lockfile --ignore-scripts
+COPY units/classification-service ./units/classification-service
+RUN pnpm --filter classification-service run build
+RUN pnpm --filter classification-service deploy --prod /out
+
+FROM public.ecr.aws/lambda/nodejs:20
+# Mirror the runtime layout the deployed function expects: tsc preserves the
+# src/ tree under dist/, so the handler entry lives at dist/handler/lambda.js
+# and exports `handler`. Lambda CMD below points there as `<path>.<export>`.
+COPY --from=builder /out/dist ${LAMBDA_TASK_ROOT}/
+COPY --from=builder /out/node_modules ${LAMBDA_TASK_ROOT}/node_modules
+# Lambda's ESM loader reads package.json for "type": "module".
+COPY --from=builder /out/package.json ${LAMBDA_TASK_ROOT}/
+CMD ["handler/lambda.handler"]

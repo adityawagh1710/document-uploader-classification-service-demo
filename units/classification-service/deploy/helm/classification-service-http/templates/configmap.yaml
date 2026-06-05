@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: classification-service-http-config
+  namespace: {{ include "classification-service-http.namespace" . }}
+  labels:
+    {{- include "classification-service-http.labels" . | nindent 4 }}
+data:
+  PORT: {{ .Values.service.port | quote }}
+  AWS_REGION: {{ .Values.app.awsRegion | quote }}
+  {{- if .Values.app.awsEndpointUrl }}
+  AWS_ENDPOINT_URL: {{ .Values.app.awsEndpointUrl | quote }}
+  {{- end }}
+  CONTENT_HASH_TABLE_NAME: {{ .Values.app.contentHashTableName | quote }}
+  WORKSPACE_CONFIG_TABLE_NAME: {{ .Values.app.workspaceConfigTableName | quote }}

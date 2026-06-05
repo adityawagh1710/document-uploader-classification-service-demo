@@ -1,150 +1,107 @@
-# Document Uploader Classification Service
+# document-uploader-demo-poc (monorepo)
+## Classification service 
 
-![node](https://img.shields.io/badge/node-20%20LTS-339933?logo=node.js&logoColor=white)
-![typescript](https://img.shields.io/badge/typescript-5.4-3178C6?logo=typescript&logoColor=white)
-![aws lambda](https://img.shields.io/badge/aws%20lambda-arm64-FF9900?logo=awslambda&logoColor=white)
-![cdk](https://img.shields.io/badge/cdk-2.257.0-FF4F8B)
-![file-type](https://img.shields.io/badge/file--type-21.3.4-blue)
-![streaming](https://img.shields.io/badge/streaming-SHA--256-555)
-![docker](https://img.shields.io/badge/docker-required-2496ED?logo=docker&logoColor=white)
-![tests](https://img.shields.io/badge/tests-219-success)
-![type checked](https://img.shields.io/badge/type%20checked-tsc%20strict-blueviolet)
-![lint](https://img.shields.io/badge/lint-eslint%20%2B%20boundaries-CCCC00)
-![status](https://img.shields.io/badge/status-v0.1%20local%20PoC-yellow)
-![last commit](https://img.shields.io/badge/last%20commit-may%202026-blue)
-![contributors](https://img.shields.io/badge/contributors-1-orange)
-![repo](https://img.shields.io/badge/repo-public-blue)
-![AI-DLC](https://img.shields.io/badge/AI--DLC-powered-purple)
+One repo, many independently-deployed microservices — *monorepo for code,
+microservices at runtime*. (This repo also serves as the classification-service
+demo; the root was refactored into the `units/` + `libs/` layout — see
+`aidlc-docs/operations/monorepo/MONOREPO_LAYOUT_REFACTOR_PLAN.md`.)
 
-First decision point in the document-ingestion pipeline. For every file entering the pipeline, this AWS Lambda service answers:
-
-1. **What is this file, really?** — multi-tier binary detection (independent of extension/MIME)
-2. **Have we already processed it?** — SHA-256 content-hash deduplication, scoped per workspace
-3. **Where does it go next?** — category routing into one of `convert | ocr-direct | email | archive | media | slipsheet`
-
-## System context
-
-```mermaid
-flowchart LR
-    Doc["Document<br/>(in S3)"] -->|TaskPayload| SFN[Step Functions<br/>ingest state machine]
-    SFN -->|invoke| Lambda[Classification<br/>Lambda]
-    Lambda -->|GetItem| WC[("workspace-config<br/>DynamoDB")]
-    Lambda -->|GetObject<br/>range 0–4099| S3[(S3<br/>document bucket)]
-    Lambda -->|GetObject stream<br/>SHA-256 hash| S3
-    Lambda -->|PutItem / UpdateItem /<br/>conditional Replace| CH[("content-hashes<br/>DynamoDB")]
-    Lambda -->|SendTaskSuccess /<br/>SendTaskFailure| SFN
-    Lambda -->|SendMessage<br/>iff category=archive| ZQ[["zip-extraction-queue<br/>(SQS)"]]
-    ZQ --> ZX[zip-extraction service]
-    Lambda -.->|logs + metrics<br/>+ X-Ray traces| CW[CloudWatch +<br/>X-Ray]
-    SFN -->|route on category| Next["Downstream stages:<br/>convert · ocr-direct · email ·<br/>archive · media · slipsheet"]
-```
-
-**Archive fan-out** (`ZIP_EXTRACTION_QUEUE_URL`): when classification returns `category=archive` (e.g. for a `.zip`), the Lambda publishes a claim-check `{pipelineExecutionId, tenantId, documentId, sourceBucket, sourceKey, correlationId}` to the [zip-extraction service](../zip-extraction/services/zip-extraction/)'s SQS queue. Dispatch failures are logged but do not block the `SendTaskSuccess` callback — classification's primary contract is preserved. The fan-out is opt-in: an empty `ZIP_EXTRACTION_QUEUE_URL` disables it without code changes.
-
-## Architecture
-
-Hexagonal (Ports & Adapters):
+## Layout
 
 ```
-src/
-├── domain/      pure logic — file-type detection, scoring, slipsheet rules
-├── ports/       interface contracts (S3Reader, ContentHashStore, Logger, …)
-├── adapters/    AWS SDK implementations of ports
-├── application/ the ClassificationService orchestrator
-├── handler/     Lambda entry point — the only place adapters get wired
-└── shared/      Result<T,E>, type aliases, byte utilities
-infra/           AWS CDK stacks (Lambda, DynamoDB, CloudWatch, X-Ray)
-tests/
-├── unit/        example-based tests on pure domain logic
-├── pbt/         property-based tests with fast-check
-├── perf/        Vitest benchmarks
-├── integration/ LocalStack-backed adapter + handler tests
-├── fixtures/    binary fixtures for AC-1..AC-11
-└── regression/  auto-captured PBT shrunk failures
-ui/              Next.js 14 test dashboard (Docker + dev EKS deployable)
-├── app/         App Router pages + API routes (classify, workspaces, health, stats)
-├── components/  Dashboard / ClassifyForm / WorkspaceForm / KpiTile / Pill
-├── lib/         classifier wiring (LocalStack-pointed) + stats counter
-├── cypress/     E2E specs (smoke + per-tier + pagination + s3:unknown regression)
-└── k8s/         Manifests for dev EKS
-LOCAL_TESTING.md Developer-facing LocalStack + SAM Local guide
+aidlc-docs/                         inception docs (vision, tech-environment, units)
+libs/
+  pipeline-contracts/go             shared wire contract (baked into Go units)
+units/
+  classification-service/           TS service: src + worker + infra(CDK) + tests + sync /classify HTTP
+  document-uploader-ui/             Next.js UI (own unit); talks GraphQL to the router
+  ingestion-service/                ingestion front door (the BFF/router):
+    ingestion-subgraph/             Go gqlgen Federation v2 server — THE live router the UI calls
+    wundergraph-router/             pulled Cosmo gateway config — POC only (not in the live stack/CI/Helm)
+tools/ci/units.json                 path -> unit -> image map (path-filtered CI)
+pnpm-workspace.yaml                 TS workspace (classification-service + ui)
+                                    (Go units are standalone modules; each resolves libs/* via a replace directive — go.work omitted due to a machine GOFLAGS=-mod=mod conflict)
+CODEOWNERS
 ```
 
-## Quickstart (developer)
+**Boundary rule:** the only legal cross-unit imports are `libs/*`. No unit imports
+another unit.
 
-Prerequisites: Node 20+, npm.
+## Tech stack & frameworks
 
-```bash
-npm install                 # install deps (file-type + dev tooling)
-npm run typecheck           # tsc --noEmit (strict-plus flags)
-npm run lint                # ESLint with boundary rules
-npm run test:unit           # Vitest unit tests (no LocalStack)
-npm run test:pbt            # fast-check property tests
-npm run test:integration    # LocalStack via testcontainers (Docker required)
-npm run test:infra          # CDK stack assertions
-npm run test:coverage       # full coverage report
-npm run bench               # perf benchmarks (5 ms p99 budget on U-1)
-npx cdk synth -c env=dev    # synthesize CloudFormation for dev/staging/prod
+Frameworks/tooling follow the platform spec `tech-environment.md` (the binding tier).
+All TS units are a **pnpm** workspace (npm/yarn lockfiles are prohibited); Go units are
+standalone modules resolving `libs/*` via a `replace` directive.
+
+| Unit | Lang | Framework / runtime | Logging | Tests |
+|---|---|---|---|---|
+| `classification-service` | TS (Node) | **fastify 5** — sync `/classify` HTTP server (`src/handler/http-server.ts`); **plus** an AWS **Lambda** handler (`src/handler/lambda.ts`, invoked by the runtime, no HTTP server). Infra: **CDK** (`aws-cdk-lib`) | **pino 10** (Powertools fully removed) | vitest + property-based (fast-check) |
+| `classification-service/worker` | TS (Node) | SQS consumer for the convert stage; `@aws-sdk/client-sfn` for the task-token signal | structured JSON (`worker/src/logger.ts`) | vitest |
+| `document-uploader-ui` | TS | **Next.js 15 / React 19** (standalone); **pure router client — zero `@aws-sdk`** | — | cypress e2e |
+| `ingestion-service/ingestion-subgraph` | Go | **gqlgen** Apollo Federation v2 over `net/http`; `aws-sdk-go-v2` (incl. `service/sfn`) — **the live BFF/router the UI calls directly** | **slog** | go test |
+| `ingestion-service/wundergraph-router` | — | pulled **Cosmo** gateway image — **POC only; not in the live runtime, CI, or Helm** (the live stack talks to the subgraph directly; single subgraph, no real federation join yet) | — | — |
+
+**AIDLC conformance (done):** TS units npm→**pnpm**; classification logging Powertools→**pino**;
+the `/classify` server `node:http`→**fastify**; UI Next 14→**15** / React 19; the Go router
+already conformant (gqlgen + slog + aws-sdk-go-v2). See `aidlc-docs/aidlc-state.md`
+"Architecture Evolution (2026-06-03)".
+
+## Per-unit build
+
+| Unit | Commands |
+|---|---|
+| `units/ingestion-service` (Go) | `cd ingestion-subgraph && go build ./... && go test ./...`; local: `ingestion-subgraph/deploy/local/docker-compose.yml`; gateway: `wundergraph-router/docker-compose.yml` (see its README) |
+| `units/classification-service` (TS) | `pnpm install && pnpm run build && pnpm run cdk:synth` (pnpm workspace; npm/yarn lockfiles are prohibited per AIDLC `tech-environment.md`) |
+| `units/document-uploader-ui` (Next.js) | `pnpm install && pnpm run build` |
+
+## Local pipeline (Docker Compose)
+
+`units/classification-service/docker-compose.yml` brings up the BFF stack
+(LocalStack → bootstrap → classification `/classify` → router → UI on `:3000`).
+The optional **`pipeline` profile** also starts the convert + zip-extraction
+stage services and the Step Functions orchestration:
+
+```
+cd units/classification-service
+make pipeline-images                 # retag sibling office-convert/zip-extraction images
+docker compose --profile pipeline up
 ```
 
-### Make-based workflow
+> The `pipeline` profile consumes the **office-convert** and **zip-extraction**
+> images that are built and owned by their sibling repos. No image name is
+> shared across repos — build those images in their own repos first, then
+> `make pipeline-images` retags them into this repo's `classification-pipeline/*`
+> namespace (see `scripts/pipeline-images.sh`).
 
-The repo ships a Makefile that wraps the npm/cdk commands above with prerequisite checks and grouped help. Recommended daily flow:
+`scripts/bootstrap-localstack.sh` seeds the integration-test resources in
+LocalStack (`eu-west-1`): S3 `classification-ui-bucket`; DynamoDB
+`content-hashes-ui`/`workspace-config-ui`/`classifications-ui`/`email-extractions-ui`/`pipeline_files`;
+SQS `zip-extraction-queue`/`classification-convert-queue`(+dlq); and the two
+Step Functions state machines `classification-convert-pipeline` (P1) +
+`classification-zip-pipeline` (P2).
 
-```bash
-make help            # Show every grouped target
-make qa-quick        # ~15 s  — lint + typecheck + npm audit (pre-commit)
-make qa              # ~2 min — full gate: + unit + pbt + infra + cdk synth (pre-push)
-make qa-ui           # UI subtree: Next tsc + Next lint + Cypress E2E
-make security        # npm audit + cdk-nag findings from cdk synth (pre-deploy)
-make ci              # mirror of CI's non-Docker suite
-make all             # everything incl. LocalStack integration + SAM Local smoke
+## Integrating a new stage
+
+Stages are declared in **`units/classification-service/stages.registry.json`** — the
+single source of truth. Each entry becomes a queue + a Step Functions state machine
+(`sqs:sendMessage.waitForTaskToken`); the runtime is identical whether the service is
+an in-monorepo `unit` or an own-repo `external` service (only `source.type` differs).
+After editing the registry, regenerate the LocalStack bootstrap block:
+
+```
+cd units/classification-service && node scripts/gen-stages.mjs   # also: --summary | --compose <stage> | --check
 ```
 
-Targets are grouped in `make help` under: Setup, Build & static checks, Test, **QA & security**, Composite, Housekeeping.
+New teams: start with **`ONBOARDING.md`** (repo root) — the integration guide for both
+delivery models, the task-token contract, and the local test loop.
 
-For exercising the service against real files locally, see **[`LOCAL_TESTING.md`](LOCAL_TESTING.md)** — two modes (Vitest integration via testcontainers, or SAM Local + long-lived LocalStack) with step-by-step instructions, table provisioning, and a troubleshooting matrix.
+## Plans / status
 
-## Interactive Test UI
-
-`ui/` contains a Next.js 14 dashboard that wraps `ClassificationService` for visual / interactive testing — drag-drop a file, see the classification JSON, recent results table with pagination, KPI tiles for tier breakdown.
-
-```bash
-docker compose up -d --build                            # full stack — see below
-open http://localhost:3000
-```
-
-The root `docker-compose.yml` brings up the **whole local stack** in one command:
-
-| Service | Image | Endpoint | Purpose |
-|---|---|---|---|
-| `localstack` | `localstack/localstack:3.7.0` | `:4566` | S3 + DynamoDB + Step Functions + SQS |
-| `bootstrap` | `amazon/aws-cli:2.17.0` | one-shot | Seeds the bucket, both tables, the default workspace row, and the `zip-extraction-queue` |
-| `lambda` | built from `Dockerfile.lambda` | `:9000` | Bundled handler running under the AWS Lambda RIE — invoke with `POST /2015-03-31/functions/function/invocations` |
-| `ui` | built from `ui/Dockerfile` | `:3000` | Next.js test dashboard |
-
-The UI exercises the classifier in-process; the Lambda container is there so the deployed-Lambda code path is locally invocable (smoke / regression) without SAM Local.
-
-Three deployment modes (`npm run dev`, Docker Compose, dev EKS via `make deploy-dev`) and Cypress E2E suite documented in **[`ui/README.md`](ui/README.md)**. Operations-phase summary at `aidlc-docs/operations/test-ui.md`.
-
-**API contract**: OpenAPI 3.1 spec at [`ui/public/openapi.yaml`](ui/public/openapi.yaml), browsable Swagger UI at `<host>/docs` (e.g. `https://classification-ui-dev-sandbox-v1.dev05.k8s.opus2dev.com/docs`). Single endpoint to attach-a-file-get-result is `POST /api/classify` (multipart, returns classification JSON).
-
-For the shared dev cluster (DEV05-EKS-CLUSTER, namespace `classification-service-sandbox`), see **[`deploy/README.md`](deploy/README.md)** — Helm chart + `make deploy-dev` / `make undeploy-dev` pipelines + port-forward and optional ALB+Route 53 wiring.
-
-## Documentation
-
-Full design captured under `aidlc-docs/`:
-
-- `aidlc-state.md` — current workflow position
-- `audit.md` — append-only chronological log of every workflow interaction
-- `inception/requirements/requirements.md` — 10 FRs, 10 NFRs, 11 ACs
-- `inception/application-design/application-design.md` — component map
-- `construction/{classifier-core,persistence,handler,infrastructure}/` — per-unit design + code summaries
-- `construction/build-and-test/` — playbooks for build / unit / integration / performance / overall readiness
-- `operations/test-ui.md` — the test UI dashboard (this section's `ui/`) as an operations artifact
-
-## Status
-
-AI-DLC workflow **complete**: INCEPTION (7 stages) + CONSTRUCTION (4 units × 5 stages + Build & Test) + OPERATIONS (placeholder with the test-UI tooling delivered on top).
-
-Service is production-ready pending the 6-item operator hand-off in `aidlc-docs/construction/build-and-test/build-and-test-summary.md` §7 (CDK Bootstrap, OIDC roles, SNS topic SSM seed, GitHub `environment: prod` protection, first deploys).
+- `aidlc-docs/operations/wundergraph/WunderGraph_Router_POC_Plan.md` — Go router POC (P0–P6 done; P7 dev05 deploy pending rebuild).
+- `aidlc-docs/operations/monorepo/MONOREPO_LAYOUT_REFACTOR_PLAN.md` — this layout refactor (executed; archived).
+- `Contracts_Baked_POC_Design.md` / `Approach_Pipeline_flowchart.md` — the contracts-baked design (on the `docs/contracts-baked-poc` branch).
+- `aidlc-docs/operations/sfn/StepFunctions_Pipeline_Design.md` — SFN orchestration design + recommendation, with the **as-built P1 (convert) + P2 (archive/zip)** flows (§9/§10). Flowchart: `aidlc-docs/operations/sfn/SFN_Pipeline_Flows.pdf`.
+- `aidlc-docs/operations/sfn/SFN_Stage_Service_Shared_Contract.md` — the contract a stage service must honour to participate in the SFN task-token protocol.
+- `aidlc-docs/operations/dev05-bff-deployment.md` — the dev05 deploy of the full 3-pod BFF (UI → router → classification-service-http): per-component Helm/IRSA/ECR artifacts, the shared-namespace lifecycle, the `make bff-deploy`/`bff-undeploy` runbook, and operator-gated prerequisites. Supersedes the Option-A `deploy/AWS_TOPOLOGY.md`. Artifacts built; execution operator-gated.
+- `aidlc-docs/operations/sfn/Dev05_SFN_Enablement_Plan.md` — scoping for taking the SFN pipelines to EKS dev05 (the "7th workstream" on top of the BFF deploy): CDK `ClassificationPipelineStack`, router/worker/zip IRSA grants, Helm env. Code-on-branch; execution operator-gated.
+- `ONBOARDING.md` + `units/classification-service/stages.registry.json` (+ `scripts/gen-stages.mjs`) — config-driven stage registry and the integration guide for adding a stage by either delivery model (in-monorepo `unit` / own-repo `external`).

@@ -1,0 +1,299 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ClassificationDataStack > matches snapshot (dev) 1`] = `
+{
+  "Outputs": {
+    "ClassificationsTableArn": {
+      "Export": {
+        "Name": "ClassificationClassificationsTableArn-dev",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "Classifications__HASH__",
+          "Arn",
+        ],
+      },
+    },
+    "ClassificationsTableName": {
+      "Export": {
+        "Name": "ClassificationClassificationsTableName-dev",
+      },
+      "Value": {
+        "Ref": "Classifications__HASH__",
+      },
+    },
+    "ContentHashTableArn": {
+      "Export": {
+        "Name": "ClassificationContentHashTableArn-dev",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "ContentHashes__HASH__",
+          "Arn",
+        ],
+      },
+    },
+    "ContentHashTableName": {
+      "Export": {
+        "Name": "ClassificationContentHashTableName-dev",
+      },
+      "Value": {
+        "Ref": "ContentHashes__HASH__",
+      },
+    },
+    "EmailExtractionsTableArn": {
+      "Export": {
+        "Name": "ClassificationEmailExtractionsTableArn-dev",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "EmailExtractions__HASH__",
+          "Arn",
+        ],
+      },
+    },
+    "EmailExtractionsTableName": {
+      "Export": {
+        "Name": "ClassificationEmailExtractionsTableName-dev",
+      },
+      "Value": {
+        "Ref": "EmailExtractions__HASH__",
+      },
+    },
+    "WorkspaceConfigTableArn": {
+      "Export": {
+        "Name": "ClassificationWorkspaceConfigTableArn-dev",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "WorkspaceConfig__HASH__",
+          "Arn",
+        ],
+      },
+    },
+    "WorkspaceConfigTableName": {
+      "Export": {
+        "Name": "ClassificationWorkspaceConfigTableName-dev",
+      },
+      "Value": {
+        "Ref": "WorkspaceConfig__HASH__",
+      },
+    },
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "__BOOTSTRAP_PARAM__",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "Classifications__HASH__": {
+      "DeletionPolicy": "Delete",
+      "Metadata": "__SCRUBBED_METADATA__",
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "workspaceId",
+            "AttributeType": "S",
+          },
+          {
+            "AttributeName": "runId",
+            "AttributeType": "S",
+          },
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "ContributorInsightsSpecification": {
+          "Enabled": true,
+        },
+        "DeletionProtectionEnabled": false,
+        "KeySchema": [
+          {
+            "AttributeName": "workspaceId",
+            "KeyType": "HASH",
+          },
+          {
+            "AttributeName": "runId",
+            "KeyType": "RANGE",
+          },
+        ],
+        "PointInTimeRecoverySpecification": {
+          "PointInTimeRecoveryEnabled": false,
+        },
+        "SSESpecification": {
+          "SSEEnabled": true,
+        },
+        "TableName": "classifications-dev",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "data",
+          },
+        ],
+        "TimeToLiveSpecification": {
+          "AttributeName": "expiresAt",
+          "Enabled": true,
+        },
+      },
+      "Type": "AWS::DynamoDB::Table",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "ContentHashes__HASH__": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "workspaceId",
+            "AttributeType": "S",
+          },
+          {
+            "AttributeName": "contentHash",
+            "AttributeType": "S",
+          },
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "ContributorInsightsSpecification": {
+          "Enabled": true,
+        },
+        "DeletionProtectionEnabled": false,
+        "KeySchema": [
+          {
+            "AttributeName": "workspaceId",
+            "KeyType": "HASH",
+          },
+          {
+            "AttributeName": "contentHash",
+            "KeyType": "RANGE",
+          },
+        ],
+        "PointInTimeRecoverySpecification": {
+          "PointInTimeRecoveryEnabled": false,
+        },
+        "SSESpecification": {
+          "SSEEnabled": true,
+        },
+        "TableName": "content-hashes-dev",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "data",
+          },
+        ],
+        "TimeToLiveSpecification": {
+          "AttributeName": "expiresAt",
+          "Enabled": true,
+        },
+      },
+      "Type": "AWS::DynamoDB::Table",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "EmailExtractions__HASH__": {
+      "DeletionPolicy": "Delete",
+      "Metadata": "__SCRUBBED_METADATA__",
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "documentId",
+            "AttributeType": "S",
+          },
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "ContributorInsightsSpecification": {
+          "Enabled": true,
+        },
+        "DeletionProtectionEnabled": false,
+        "KeySchema": [
+          {
+            "AttributeName": "documentId",
+            "KeyType": "HASH",
+          },
+        ],
+        "PointInTimeRecoverySpecification": {
+          "PointInTimeRecoveryEnabled": false,
+        },
+        "SSESpecification": {
+          "SSEEnabled": true,
+        },
+        "TableName": "email-extractions-dev",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "data",
+          },
+        ],
+        "TimeToLiveSpecification": {
+          "AttributeName": "expiresAt",
+          "Enabled": true,
+        },
+      },
+      "Type": "AWS::DynamoDB::Table",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "WorkspaceConfig__HASH__": {
+      "DeletionPolicy": "Delete",
+      "Metadata": "__SCRUBBED_METADATA__",
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "workspaceId",
+            "AttributeType": "S",
+          },
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "ContributorInsightsSpecification": {
+          "Enabled": true,
+        },
+        "DeletionProtectionEnabled": false,
+        "KeySchema": [
+          {
+            "AttributeName": "workspaceId",
+            "KeyType": "HASH",
+          },
+        ],
+        "PointInTimeRecoverySpecification": {
+          "PointInTimeRecoveryEnabled": false,
+        },
+        "SSESpecification": {
+          "SSEEnabled": true,
+        },
+        "TableName": "workspace-config-dev",
+        "Tags": [
+          {
+            "Key": "Component",
+            "Value": "data",
+          },
+        ],
+      },
+      "Type": "AWS::DynamoDB::Table",
+      "UpdateReplacePolicy": "Delete",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;

@@ -1,0 +1,14 @@
+# Runs the real WunderGraph Cosmo router fronting the ingestion subgraph.
+# Prereqs: subgraph running on :8099, and cosmo/router-config.json composed
+# (npx wgc router compose -i cosmo/graph.yaml -o cosmo/router-config.json).
+services:
+  cosmo-router:
+    image: ghcr.io/wundergraph/cosmo/router:latest
+    network_mode: host                 # reach the subgraph at localhost:8099
+    environment:
+      DEV_MODE: "true"                  # standalone, no Cosmo Cloud control plane
+      PROMETHEUS_ENABLED: "false"
+      LISTEN_ADDR: "0.0.0.0:3399"
+      EXECUTION_CONFIG_FILE_PATH: /config/router-config.json
+    volumes:
+      - ./router-config.json:/config/router-config.json:ro

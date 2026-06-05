@@ -1,0 +1,10 @@
+# pnpm workspace for the document-uploader monorepo (TS units).
+# Go units (units/ingestion-service/ingestion-subgraph, libs/pipeline-contracts/go)
+# are managed by per-unit go.mod, not pnpm.
+# npm→pnpm migration completed: a single root pnpm-lock.yaml covers all members;
+# the per-unit package-lock.json files were removed (npm/yarn lockfiles are
+# prohibited by tech-environment.md).
+packages:
+  - "units/classification-service"
+  - "units/classification-service/worker"
+  - "units/document-uploader-ui"

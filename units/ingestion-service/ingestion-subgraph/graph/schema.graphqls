@@ -1,0 +1,294 @@
+# Public GraphQL surface of the wundergraph-router POC — a Federation v2
+# subgraph fronted by the WunderGraph Cosmo router.
+# Covers what the document-uploader UI needs: workspaces, documents, presigned
+# upload, dispatch into the pipeline, and live per-document status.
+
+extend schema @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key"])
+
+"Arbitrary string->string map (slipsheet rules). gqlgen binds to map[string]any."
+scalar Map
+
+type Workspace {
+  id: ID!
+  status: String!
+  retentionDays: Int
+}
+
+type Document {
+  id: ID!
+  workspaceId: ID!
+  filename: String!
+  contentType: String!
+  status: String!
+  pipelineStage: String
+}
+
+type CreateDocumentResult {
+  document: Document!
+  "Presigned PUT URL — client uploads bytes directly to S3 (claim-check)."
+  uploadUrl: String!
+}
+
+type Stats {
+  workspaces: Int!
+  documents: Int!
+}
+
+"Per-workspace classification policy (the workspace-config the classifier reads)."
+type WorkspaceConfig {
+  workspaceId: ID!
+  policyVersion: String!
+  threshold: Float!
+  maxZipDepth: Int!
+  quarantineMacros: Boolean!
+  slipsheetRules: Map!
+  hashTtlDays: Int
+}
+
+"Synchronous classification result (from the classification service /classify)."
+type ClassificationResult {
+  documentId: ID!
+  workspaceId: ID!
+  format: String!
+  category: String!
+  subCategory: String
+  confidenceScore: Float!
+  detectionTier: String!
+  isForcedSlipsheet: Boolean!
+  contentHash: String!
+  isDuplicate: Boolean!
+  policyVersion: String!
+}
+
+input CreateWorkspaceInput {
+  retentionDays: Int
+}
+
+input CreateDocumentInput {
+  workspaceId: ID!
+  filename: String!
+  contentType: String
+}
+
+input WorkspaceConfigInput {
+  workspaceId: ID!
+  policyVersion: String
+  threshold: Float
+  maxZipDepth: Int
+  quarantineMacros: Boolean
+  slipsheetRules: Map
+  hashTtlDays: Int
+}
+
+type Query {
+  workspaces: [Workspace!]!
+  documents(workspaceId: ID!): [Document!]!
+  document(id: ID!): Document
+  stats: Stats!
+  "The classification policy for a workspace (null if none saved yet)."
+  workspaceConfig(workspaceId: ID!): WorkspaceConfig
+  "All saved workspace configs."
+  workspaceConfigs: [WorkspaceConfig!]!
+}
+
+type Mutation {
+  createWorkspace(input: CreateWorkspaceInput!): Workspace!
+  createDocument(input: CreateDocumentInput!): CreateDocumentResult!
+  "Dispatch a document into the pipeline (claim-check + StageRequest to classify)."
+  classifyDocument(documentId: ID!): Document!
+  "Synchronously classify an uploaded document via the classification service."
+  classify(documentId: ID!): ClassificationResult!
+  "Create or update a workspace's classification policy."
+  saveWorkspaceConfig(input: WorkspaceConfigInput!): WorkspaceConfig!
+}
+
+type Subscription {
+  "Live status transitions for a document (graphql-transport-ws)."
+  documentStatusChanged(documentId: ID!): Document!
+}
+
+# ---------------------------------------------------------------------------
+# BFF surface — the read/admin operations the document-uploader UI needs so it
+# never touches DynamoDB/S3 directly. Nested JSON (the classification result,
+# the raw DDB row, convert progress, email extraction, the KPI maps) is passed
+# through opaquely via the Map scalar rather than re-modeled in GraphQL.
+# ---------------------------------------------------------------------------
+
+"S3 object metadata for a stored upload (HeadObject)."
+type S3Object {
+  key: String!
+  size: Int
+  contentType: String
+  etag: String
+  lastModified: String
+}
+
+"One row of the durable classification activity log (the Recent feed)."
+type RecentRun {
+  id: ID!
+  ts: String!
+  inputName: String!
+  workspaceId: ID!
+  elapsedMs: Int!
+  status: String!
+  result: Map
+  failureReason: String
+  failureKind: String
+  objectKey: String
+  archiveDispatch: String!
+  convertStatus: String
+  convertQueuedAt: String
+  convertDispatch: String!
+}
+
+"What got persisted for a single classification run (content-hash row + S3 object + presigned downloads)."
+type DocumentRun {
+  documentId: ID!
+  workspaceId: ID!
+  "Full content-hash DDB row (opaque)."
+  ddbRow: Map
+  s3Object: S3Object
+  bucket: String!
+  table: String!
+  downloadUrl: String
+  "Worker-mutated convert progress columns on the classifications row (opaque)."
+  convert: Map
+  convertedDownloadUrl: String
+}
+
+"KPI tiles + recent feed, aggregated from the classifications table."
+type ClassificationStats {
+  total: Int!
+  byTier: Map!
+  byCategory: Map!
+  byFormat: Map!
+  errors: Int!
+  recent: [RecentRun!]!
+}
+
+"Live office-convert progress for a converting run."
+type ConvertProgress {
+  convertStatus: String
+  requestId: String
+  progress: Map
+  reason: String
+}
+
+"Parsed email-extraction payload, persisted during classify."
+type EmailExtraction {
+  documentId: ID!
+  extraction: Map
+}
+
+"Operator-facing view of which AWS surface the router is pointed at."
+type BackendTarget {
+  endpoint: String!
+  region: String!
+  bucket: String!
+  contentHashTable: String!
+  workspaceConfigTable: String!
+  backend: String!
+}
+
+"Router readiness probe (DynamoDB connectivity)."
+type RouterHealth {
+  ready: Boolean!
+  endpoint: String!
+  tables: [String!]!
+  latencyMs: Int!
+}
+
+"One row force-failed by the stuck-convert watchdog."
+type ReapedRun {
+  workspaceId: ID!
+  runId: String!
+  convertStartedAt: String!
+}
+
+"Result of the stuck-convert watchdog sweep."
+type ReapResult {
+  ok: Boolean!
+  scannedCount: Int!
+  reapedCount: Int!
+  cutoffIso: String!
+  stuckAfterMs: Int!
+  durationMs: Int!
+  reaped: [ReapedRun!]!
+}
+
+extend type Query {
+  "What got persisted for one classification run (content-hash row + S3 object + presigned download)."
+  documentRun(workspaceId: ID!, documentId: ID!, contentHash: String, objectKey: String, runId: String): DocumentRun
+  "Dashboard KPIs + recent feed, aggregated from the classifications table."
+  classificationStats(workspaceId: ID!): ClassificationStats!
+  "Live office-convert progress for a converting run."
+  convertProgress(workspaceId: ID!, runId: String!): ConvertProgress!
+  "Parsed email-extraction payload for a document (null if none)."
+  emailExtraction(documentId: ID!): EmailExtraction
+  "Which AWS surface the router is pointed at."
+  backendTarget: BackendTarget!
+  "Router readiness (DynamoDB connectivity)."
+  routerHealth: RouterHealth!
+}
+
+extend type Mutation {
+  "Force-fail convert rows stuck in `converting` past the watchdog cutoff."
+  reapStuckConverts: ReapResult!
+}
+
+# ---------------------------------------------------------------------------
+# Classify write-path — the router owns the full upload→classify→fan-out flow so
+# the UI holds no AWS SDK. The UI mints a presigned PUT, streams the bytes to S3
+# directly, then calls classifyUploaded (which classifies, dispatches archive/
+# convert, fans out email, and records the run).
+# ---------------------------------------------------------------------------
+
+"A presigned PUT target the client uploads bytes to before classifying."
+type PresignUploadResult {
+  documentId: ID!
+  bucket: String!
+  objectKey: String!
+  "Presigned PUT URL — client uploads the file bytes directly to S3."
+  uploadUrl: String!
+}
+
+"The full outcome of classifying an uploaded document (mirrors the UI's old POST /api/classify body)."
+type ClassifyOutcome {
+  ok: Boolean!
+  "Full ClassificationOutput on success (opaque)."
+  result: Map
+  "ClassificationFailure on failure (opaque)."
+  error: Map
+  elapsedMs: Int!
+  documentId: ID!
+  objectKey: String!
+  inputName: String!
+  archiveDispatch: String
+  convertDispatch: String
+  emailDispatch: String
+}
+
+input PresignUploadInput {
+  workspaceId: ID!
+  inputName: String!
+  contentType: String
+}
+
+input ClassifyUploadedInput {
+  workspaceId: ID!
+  documentId: ID!
+  bucket: String!
+  objectKey: String!
+  inputName: String!
+  extension: String
+  contentType: String
+  overrideDuplicateCheck: Boolean
+  parentArchiveDepth: Int
+}
+
+extend type Mutation {
+  "Mint a presigned PUT + document id for a new upload."
+  presignUpload(input: PresignUploadInput!): PresignUploadResult!
+  "Classify an already-uploaded document, fan out archive/convert/email, record the run."
+  classifyUploaded(input: ClassifyUploadedInput!): ClassifyOutcome!
+}

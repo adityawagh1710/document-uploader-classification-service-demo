@@ -1,0 +1,26 @@
+schema:
+  - graph/*.graphqls
+
+exec:
+  filename: graph/generated.go
+  package: graph
+
+model:
+  filename: graph/model/models_gen.go
+  package: model
+
+resolver:
+  layout: follow-schema
+  dir: graph
+  package: graph
+  filename_template: "{name}.resolvers.go"
+
+omit_slice_element_pointers: true
+struct_tag: json
+
+# Federation v2 — makes this server an Apollo-Federation subgraph (exposes
+# _service{sdl} + _entities) so the WunderGraph Cosmo router can compose + front it.
+federation:
+  filename: graph/federation.go
+  package: graph
+  version: 2

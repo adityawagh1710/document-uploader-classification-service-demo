@@ -5,21 +5,27 @@ on:
   push:
     branches: [main]
 
+# Classification now lives under units/classification-service (monorepo layout);
+# run every step there. Dependencies are a pnpm workspace (lockfile at the repo
+# root) — pnpm install from the unit resolves the whole workspace.
+defaults:
+  run:
+    working-directory: units/classification-service
+
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-      - run: npm run lint
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
 
   typecheck:
     name: Typecheck
@@ -27,16 +33,15 @@ jobs:
     needs: lint
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npx tsc -p infra/tsconfig.json --noEmit
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm exec tsc -p infra/tsconfig.json --noEmit
 
   test-unit:
     name: Test (Unit)
@@ -44,15 +49,14 @@ jobs:
     needs: typecheck
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-      - run: npm run test:unit
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:unit
 
   test-pbt:
     name: Test (PBT)
@@ -60,15 +64,14 @@ jobs:
     needs: typecheck
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-      - run: npm run test:pbt
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:pbt
 
   test-integration:
     name: Test (Integration / LocalStack)
@@ -76,15 +79,14 @@ jobs:
     needs: typecheck
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-      - run: npm run test:integration
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:integration
 
   cdk-synth:
     name: CDK Synth (dev context)
@@ -92,19 +94,18 @@ jobs:
     needs: typecheck
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-      - run: npx cdk synth -c env=dev
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec cdk synth -c env=dev
       - uses: actions/upload-artifact@v4
         with:
           name: cdk-out
-          path: cdk.out
+          path: units/classification-service/cdk.out
 
   cdk-nag:
     name: CDK Nag
@@ -112,15 +113,14 @@ jobs:
     needs: cdk-synth
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-      - run: npx cdk synth -c env=dev   # cdk-nag aspect runs during synth
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec cdk synth -c env=dev   # cdk-nag aspect runs during synth
 
   infra-tests:
     name: Infra Tests (CDK snapshot + assertions)
@@ -128,15 +128,14 @@ jobs:
     needs: typecheck
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-      - run: npm run test:infra
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:infra
 
   verify-bundle:
     name: Verify Lambda Bundle
@@ -150,7 +149,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: cdk-out
-          path: cdk.out
+          path: units/classification-service/cdk.out
       - run: bash scripts/verify-bundle.sh cdk.out
 
   test-smoke:
@@ -160,19 +159,18 @@ jobs:
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.changed_files, 'src/handler/')
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - uses: aws-actions/setup-sam@v2
         with:
           use-installer: true
-      - uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-      - run: npm run build
-      - run: npm run test:smoke
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm run test:smoke
 
   coverage:
     name: Coverage
@@ -180,23 +178,25 @@ jobs:
     needs: [test-unit, test-pbt, test-integration]
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-      - run: npm run test:coverage
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:coverage
 
   supply-chain:
     name: Supply Chain Audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm ci
-      - run: npm audit --omit=dev --audit-level=high
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --prod --audit-level high
